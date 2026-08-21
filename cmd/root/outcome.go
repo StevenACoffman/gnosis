@@ -44,6 +44,8 @@ const (
 	ReasonNoBundle          = "no_bundle"          // no bundle at the given path
 	ReasonNeedsHuman        = "needs_human"        // a decision is required to proceed
 	ReasonUsage             = "usage"              // bad flags or arguments
+	ReasonFetchFailed       = "fetch_failed"       // a source could not be read
+	ReasonStandardsInvalid  = "standards_invalid"  // standards/archive.toml was rejected
 )
 
 // Exit codes. Findings and errors are deliberately distinct: a CI job needs to

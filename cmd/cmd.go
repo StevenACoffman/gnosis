@@ -17,6 +17,7 @@ import (
 	"github.com/peterbourgon/ff/v4/ffhelp"
 
 	"github.com/StevenACoffman/gnosis/cmd/doctorcmd"
+	"github.com/StevenACoffman/gnosis/cmd/fetchcmd"
 	"github.com/StevenACoffman/gnosis/cmd/graphcmd"
 	"github.com/StevenACoffman/gnosis/cmd/indexcmd"
 	"github.com/StevenACoffman/gnosis/cmd/initcmd"
@@ -45,6 +46,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	searchcmd.New(r)
 	showcmd.New(r)
 	graphcmd.New(r)
+	fetchcmd.New(r)
 	// register new commands here
 
 	if err := r.Command.Parse(args, ff.WithEnvVarPrefix("GNOSIS")); err != nil {
