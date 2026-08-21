@@ -123,29 +123,6 @@ func TestAPreviewAlsoTakesTheLock(t *testing.T) {
 	}
 }
 
-// TestPromoteReportsTheGateAsUnbuilt. The command is well-formed and the
-// coordinator accepted it; the check that must approve the write does not exist
-// yet. StatusOK would claim a promotion happened and an error would read as a
-// broken tool, so neither is honest.
-func TestPromoteReportsTheGateAsUnbuilt(t *testing.T) {
-	t.Parallel()
-	c := bundle.Coordinator{Dir: t.TempDir()}
-
-	got, err := c.Execute(t.Context(), promotion(command.EffectApply))
-	if err != nil {
-		t.Fatalf("execute: %v", err)
-	}
-	if got.Status != gnosis.StatusBlocked {
-		t.Errorf("status = %q, want blocked", got.Status)
-	}
-	if got.Reason != gnosis.ReasonGateUnavailable {
-		t.Errorf("reason = %q, want %q", got.Reason, gnosis.ReasonGateUnavailable)
-	}
-	if !got.Valid() {
-		t.Errorf("the envelope is malformed: %+v", got)
-	}
-}
-
 // TestOneWriterAtATime is what the lock is for, exercised rather than described.
 //
 // Each holder appends "enter" and "exit" to a shared log and does real file work

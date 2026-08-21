@@ -78,22 +78,3 @@ func (c *Coordinator) dispatch(ctx context.Context, cmd command.Command) (gnosis
 			op+": no handler for "+cmd.Op()), nil
 	}
 }
-
-// promote is the handler for §9.4's promotion.
-//
-// The gate it must run is Step 2.6's work — quarantine, the deterministic promote
-// signals, and the diff the gate approves. Until that exists this reports
-// StatusBlocked naming the gate as unavailable, which is the honest answer: the
-// command is well-formed, the coordinator accepted it, and the check that must
-// approve the write is not built. Returning StatusOK would claim a promotion
-// happened, and returning an error would read as a broken tool.
-func (c *Coordinator) promote(_ context.Context, cmd *command.Promote) (gnosis.Outcome, error) {
-	return gnosis.Blocked(gnosis.ReasonGateUnavailable,
-		"promote is accepted but the gate is not built yet; "+
-			"nothing was written for "+cmd.Path,
-		map[string]any{
-			"path":     cmd.Path,
-			"effect":   cmd.Eff.String(),
-			"approver": string(cmd.Approver),
-		}), nil
-}

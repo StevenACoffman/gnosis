@@ -113,3 +113,27 @@ func hashHex(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
 }
+
+// ParseRecord decodes one fetch record.
+//
+// Requires: data is a record's canonical bytes as written by Canonical.
+// Ensures: EINVALID on anything that is not one, rather than a zero Record. A
+// malformed record must not read as an empty one: the provenance signal would then
+// report a source as never fetched when in fact its record exists and cannot be
+// read, which sends a reader to re-fetch a source that is already there instead of
+// to the corruption.
+func ParseRecord(data []byte) (Record, error) {
+	const op = "archive.ParseRecord"
+
+	var rec Record
+	if err := json.Unmarshal(data, &rec); err != nil {
+		return Record{}, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+	}
+	if rec.URI == "" || rec.Disposition == DispositionUnset {
+		return Record{}, &errs.Error{
+			Code:    errs.EINVALID,
+			Message: op + ": record has no uri or no disposition",
+		}
+	}
+	return rec, nil
+}
