@@ -323,6 +323,56 @@ linters:
             - pkg: "go.uber.org/mock"
               desc: "use stdlib testing; uber-mock is banned — rules.md"
 
+        # PLAN.md §0.1/§0.4: internal/gnosis is the domain package. rules.md §1
+        # forbids a domain package from importing application packages, and
+        # forbids sibling subpackages from importing each other. Both are
+        # enforced here rather than by review, per rules.md §15 ("enforce them
+        # with linters, not human vigilance").
+        domain-imports-nothing:
+          # "!$test" excludes _test.go: an external test package (gnosis_test)
+          # must import the package under test. The rule constrains production
+          # code, which is where the layering claim actually lives.
+          files:
+            - "**/internal/gnosis/**"
+            - "!$test"
+          deny:
+            - pkg: "github.com/StevenACoffman/gnosis/internal"
+              desc: "internal/gnosis is the domain package; it must not import any application package — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/cmd"
+              desc: "the domain must not depend on command infrastructure — rules.md §1"
+            - pkg: "database/sql"
+              desc: "the domain holds plain types; SQL belongs in internal/index — rules.md §2"
+            - pkg: "net/http"
+              desc: "the domain holds plain types; HTTP belongs in internal/web — rules.md §2"
+
+        # The layers are: internal/gnosis (domain) <- the parsers and stores
+        # below <- internal/bundle (the composition shell) <- cmd/*. Each layer
+        # may import the ones beneath it and never its own siblings. bundle is
+        # excluded from this rule because composing parsers is precisely its job;
+        # it appears in domain-imports-nothing's converse instead.
+        parsers-do-not-import-each-other:
+          files:
+            - "!$test"
+            - "**/internal/okf/**"
+            - "**/internal/ontology/**"
+            - "**/internal/index/**"
+            - "**/internal/archive/**"
+            - "**/internal/lint/**"
+            - "**/internal/web/**"
+          deny:
+            - pkg: "github.com/StevenACoffman/gnosis/internal/okf"
+              desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/internal/ontology"
+              desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/internal/index"
+              desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/internal/archive"
+              desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/internal/lint"
+              desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/internal/bundle"
+              desc: "internal/bundle is the shell above these; it imports them, never the reverse — PLAN.md §0.1"
+
     # ── forbidigo ────────────────────────────────────────────────────────────
     # spec.md: commands write to cmd.Stdout/cmd.Stderr; only main may call os.Exit.
     # rules.md: use flag.NewFlagSet, never flag.Parse; no time.Sleep in tests; no t.Setenv.

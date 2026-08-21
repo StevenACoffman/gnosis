@@ -1,0 +1,72 @@
+# The corpus vocabulary: the types every document declares, and the subjects
+# claims may be compared on. See SPEC §5.8.
+#
+# This file is meant to be edited and reviewed by people. Two rules keep it
+# useful:
+#
+#   1. Before adding a type, check whether an existing one is behaviourally
+#      identical — same `normative`, same `expects_subject`, same `template`. If
+#      it is, add an alias instead. Two types that behave alike are one type the
+#      corpus has learned to describe two ways.
+#   2. A mistyped key is an error, not a silent no-op. `normatve = true` is
+#      rejected by name, which is why this file is TOML and not YAML.
+
+version = 1
+
+# ---------------------------------------------------------------------------
+# Types. Every OKF document declares one (OKF §4.1).
+# ---------------------------------------------------------------------------
+
+[[types]]
+key = "Reference"
+desc = "a recorded fact with no prescriptive force"
+normative = false
+expects_subject = false
+aliases = ["Note", "Background"]
+
+[[types]]
+key = "Rule"
+desc = "prescribes what must or should be done"
+normative = true
+expects_subject = true
+aliases = ["Guideline", "Standard"]
+
+[[types]]
+key = "Procedure"
+desc = "prescribes ordered steps; bounds nothing"
+normative = true
+expects_subject = false
+aliases = ["Runbook", "Playbook"]
+
+[[types]]
+key = "Decision"
+desc = "a recorded trade-off and the reasoning behind it"
+normative = true
+expects_subject = false
+
+[[types]]
+key = "Glossary"
+desc = "defines a term; feeds this vocabulary"
+normative = false
+expects_subject = false
+
+# A type may name a template with `template = "templates/procedure.md"`. None do
+# here, because a declared template that does not exist is a finding on the day
+# the bundle is created — add the file and the key together.
+
+# ---------------------------------------------------------------------------
+# Subjects. Deliberately empty.
+# ---------------------------------------------------------------------------
+#
+# A subject is a thing claims can be compared on — `retry.max_attempts`,
+# `request.timeout` — and comparison is what makes contradiction detection
+# possible. It is also a vocabulary negotiation, and there is nothing to
+# negotiate about until the corpus holds claims that disagree.
+#
+# Add one when a real conflict needs it, in this shape:
+#
+#   [[subjects]]
+#   key = "request.timeout"
+#   dimension = "duration"
+#   desc = "wall-clock limit on a single outbound request"
+#   aliases = ["request deadline", "per-request timeout"]

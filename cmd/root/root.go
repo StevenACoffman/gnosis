@@ -14,9 +14,7 @@ import (
 // default "error: ..." printer.
 type ExitError int
 
-func (e ExitError) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
-
-// Config holds shared I/O writers and the root ff.Command.
+// Config holds shared I/O writers, the global flags, and the root ff.Command.
 // All subcommand configs embed *Config to inherit these.
 type Config struct {
 	Stdin   io.Reader
@@ -24,7 +22,18 @@ type Config struct {
 	Stderr  io.Writer
 	Flags   *ff.FlagSet
 	Command *ff.Command
+
+	// JSONL selects the machine-output envelope (outcome.go). It is global
+	// rather than per-command because an agent driving gnosis should not have to
+	// remember which subcommands support it.
+	JSONL bool
+
+	// Bundle is the knowledge base root. Defaults to the working directory, so
+	// the common case needs no flag.
+	Bundle string
 }
+
+func (e ExitError) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
 
 // New returns a new root Config with the given I/O writers.
 func New(stdin io.Reader, stdout, stderr io.Writer) *Config {
@@ -32,16 +41,19 @@ func New(stdin io.Reader, stdout, stderr io.Writer) *Config {
 	cfg.Stdin = stdin
 	cfg.Stdout = stdout
 	cfg.Stderr = stderr
-	// No shared flags — cfg.Flags is nil; ff provides --help automatically.
-	// Subcommands call SetParent(parent.Flags)
-	// which is a no-op here; add shared flags (e.g. BoolVar) to activate.
-	// To add shared flags, uncomment and bind before constructing the command:
-	// cfg.Flags = ff.NewFlagSet("gnosis")
-	// cfg.Flags.BoolVar(&cfg.MyFlag, 0, "my-flag", "", "description")
+	cfg.Flags = ff.NewFlagSet("gnosis")
+	cfg.Flags.BoolVar(&cfg.JSONL, 0, "jsonl",
+		"emit one JSON outcome record per line instead of human-readable text")
+	cfg.Flags.StringVar(&cfg.Bundle, 0, "bundle", ".",
+		"path to the knowledge base root")
 	cfg.Command = &ff.Command{
-		Name:      "gnosis",
-		Usage:     "gnosis <SUBCOMMAND> ...",
-		ShortHelp: "TODO: describe gnosis here",
+		Name:  "gnosis",
+		Usage: "gnosis [--bundle DIR] [--jsonl] <SUBCOMMAND> ...",
+		ShortHelp: "maintain a knowledge base of OKF markdown documents " +
+			"with a derived SQLite index",
+		// The root command must carry the global flag set, or --bundle and
+		// --jsonl are rejected as unknown before any subcommand sees them.
+		Flags: cfg.Flags,
 	}
 	return &cfg
 }

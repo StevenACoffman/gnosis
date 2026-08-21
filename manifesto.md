@@ -1,4 +1,4 @@
-# manifesto
+# Manifesto
 
 ## Why?
 
@@ -30,11 +30,11 @@ For humans, critical thinking skills applied with a close examination of evidenc
 
 For mitigating errors in judgement for LLMs combined with Agents, the ideal process is still being established.
 
-We are in the process of surveying different projects, collecting and combining their processes or techniques into different tools to facilitate our efforts. 
+We are in the process of surveying different projects, collecting and combining their processes or techniques into different tools to facilitate our efforts.
 
 This document contains a record of individual projects we have gleaned useful techniques or processes from, and the tools we have incorporated them into.
 
-## Tools we have created, and how we use them
+## Tools We Have Created, and How We Use Them
 
 The family is one shared kernel, four CLIs that consume it, and three agent skills
 that drive those CLIs.
@@ -47,12 +47,12 @@ book2skill ──▶ exegesis ──▶ skillsaw ──▶ merge-skills
    (fellow kernel consumers, alongside)
 ```
 
-### Shared kernel
+### Shared Kernel
 
-#### [skillet](https://github.com/StevenACoffman/skillet) — `v0.15.0`
+#### `skillet` — `v0.15.0`
 
-- **Repo:** `git@github.com:StevenACoffman/skillet.git`
-- **Local:** [`~/Documents/git/skillet/`](file:///Users/steve/Documents/git/skillet/)
+- **Repo:** [github.com/StevenACoffman/skillet](https://github.com/StevenACoffman/skillet)
+- **Local:** `~/Documents/git/skillet/`
 
 The Go library every other tool imports, so two tools cannot disagree about one
 definition. Holds `speclint` (agentskills.io frontmatter), `redlines` (book2skill's
@@ -61,69 +61,69 @@ mechanical Quality Red Lines), `skilllens` (the three SkillLens detectors),
 `ruleset`, `proof`, `provenance`, `identity`, `neutrality`, `stats`, and
 `calibration`. **Promotion rule: a package moves here on its second consumer.**
 
-### The four CLIs
+### The Four CLIs
 
-#### [exegesis](https://github.com/StevenACoffman/exegesis) — structural gate
+#### `exegesis` — Structural Gate
 
-- **Repo:** `git@github.com:StevenACoffman/exegesis.git`
-- **Local:** [`~/Documents/agent-orange/exegesis/`](file:///Users/steve/Documents/agent-orange/exegesis/)
+- **Repo:** [github.com/StevenACoffman/exegesis](https://github.com/StevenACoffman/exegesis)
+- **Local:** `~/Documents/agent-orange/exegesis/`
 
 Gates a skill tree on the way in: `lint`, `verify`, `tests`, `scaffold`, `link`,
 `index`, `merge-index`. Owns the related-skill edge graph and `INDEX.md`. Proves
 a tree is well-formed; says nothing about quality. Also owns `quotecheck`, the
 fabrication guard that reports quotations appearing in none of the source texts.
 
-#### [skillsaw](https://github.com/StevenACoffman/skillsaw) — quality score and ratchet
+#### `skillsaw` — Quality Score and Ratchet
 
-- **Repo:** `git@github.com:StevenACoffman/skillsaw.git`
-- **Local:** [`~/Documents/agent-orange/skillsaw/`](file:///Users/steve/Documents/agent-orange/skillsaw/)
+- **Repo:** [github.com/StevenACoffman/skillsaw](https://github.com/StevenACoffman/skillsaw)
+- **Local:** `~/Documents/agent-orange/skillsaw/`
 
 Scores skill quality on the 9-dimension rubric and runs the keep-or-revert ratchet:
 `eval`, `diagnose`, `judge`, `gate`, `preflight`, `activation`, `scores`,
 `calibrate`. **Deterministic only — never calls a model.** The fusion of
 SkillLens + SkillOpt exists here and nowhere else.
 
-#### [agentic-dev-harness](https://github.com/StevenACoffman/agentic-dev-harness) (`adh`) — five-stage arc loop
+#### `agentic-dev-harness` (`adh`) — Five-Stage Arc Loop
 
-- **Repo:** `git@github.com:StevenACoffman/agentic-dev-harness.git`
-- **Local:** [`~/Documents/git/agentic-dev-harness/`](file:///Users/steve/Documents/git/agentic-dev-harness/)
+- **Repo:** [github.com/StevenACoffman/agentic-dev-harness](https://github.com/StevenACoffman/agentic-dev-harness)
+- **Local:** `~/Documents/git/agentic-dev-harness/`
 
 A different consumer of the same kernel: drives a change through a five-stage arc
 loop (strategy → execution → critic → evaluation → ops) with its own 5-dimension
 rubric. Being the second consumer of `skilllens` and `markdown` is what justified
 promoting them.
 
-#### [canonizer](https://github.com/StevenACoffman/canonizer) — ruleset grader
+#### `canonizer` — Ruleset Grader
 
-- **Repo:** `git@github.com:StevenACoffman/canonizer.git`
-- **Local:** [`~/Documents/git/canonizer/`](file:///Users/steve/Documents/git/canonizer/)
+- **Repo:** [github.com/StevenACoffman/canonizer](https://github.com/StevenACoffman/canonizer)
+- **Local:** `~/Documents/git/canonizer/`
 
 Grades rulesets rather than skills: `verify.Executable`, `verify.Provenance`,
 `verify.Specificity`, plus a cold-critic prompt. **Findings-based by design — never
 a weighted score that could become a ship threshold.** 0 open.
 
-### The agent skills — [steve-skill-market](https://github.com/StevenACoffman/steve-skill-market)
+### The Agent Skills — `steve-skill-market`
 
-All three live in `git@github.com:StevenACoffman/steve-skill-market.git`, under
-[`~/Documents/agent-orange/steve-skill-market/skills/`](file:///Users/steve/Documents/agent-orange/steve-skill-market/skills/).
+All three live in [github.com/StevenACoffman/steve-skill-market](https://github.com/StevenACoffman/steve-skill-market), under
+`~/Documents/agent-orange/steve-skill-market/skills/`.
 
-| Skill | Role | What it does | Open |
-| --- | --- | --- | --- |
-| [`book2skill/`](file:///Users/steve/Documents/agent-orange/steve-skill-market/skills/book2skill/) | producer | Distills a book into RIA-TV++ skills (R, I, A1, A2, E, B) via exegesis. | 0 |
-| [`skillsaw-skill/`](file:///Users/steve/Documents/agent-orange/steve-skill-market/skills/skillsaw-skill/) | optimizer | Drives the skillsaw CLI through a hill-climbing loop: baseline → diagnose → one edit → gate. | — |
-| [`merge-skills/`](file:///Users/steve/Documents/agent-orange/steve-skill-market/skills/merge-skills/) | consolidator | Detects convergence across book2skill outputs and builds one merged skill. | 0 |
+| Skill             | Role         | What it does                                                                                 | Open |
+| ----------------- | ------------ | -------------------------------------------------------------------------------------------- | ---- |
+| `book2skill/`     | producer     | Distills a book into RIA-TV++ skills (R, I, A1, A2, E, B) via exegesis.                      | 0    |
+| `skillsaw-skill/` | optimizer    | Drives the skillsaw CLI through a hill-climbing loop: baseline → diagnose → one edit → gate. | —    |
+| `merge-skills/`   | consolidator | Detects convergence across book2skill outputs and builds one merged skill.                   | 0    |
 
 **Pipeline:** book2skill produces → exegesis gates structure → skillsaw scores
 quality → merge-skills consolidates. `adh` and `canonizer` sit alongside as fellow
 kernel consumers.
 
-## Tools we were inspired by, and what we learned from them
+## Tools We Were Inspired By, and What We Learned from Them
 
 Each entry below is a project we read closely. The bullets are the specific
 technique we want, and *Feeds* names the tool of ours it belongs in. Nothing
 here is an endorsement of the whole project — only of the part we are stealing.
 
-### Harness quality: scoring, gating, and drift
+### Harness Quality: Scoring, Gating, and Drift
 
 **AgentLint** — `github.com/0xmariowu/AgentLint` (`AgentLint/`)
 
@@ -203,7 +203,7 @@ here is an endorsement of the whole project — only of the part we are stealing
 - *Feeds:* certainty grading in canonizer and skillsaw output; the
   harness-vs-model-tier argument in our own benchmarking.
 
-### Skills and context as a governed supply chain
+### Skills and Context as a Governed Supply Chain
 
 **qvr (quiver)** — `github.com/astra-sh/qvr` (`qvr/`)
 
@@ -286,7 +286,7 @@ here is an endorsement of the whole project — only of the part we are stealing
 - *Feeds:* schema validation and migration for our knowledge-base frontmatter;
   `inspect`-style convention discovery before we author new rules.
 
-### Knowledge base, provenance, and grounding
+### Knowledge Base, Provenance, and Grounding
 
 **llmwiki** — `github.com/mritunjaysharma394/llmwiki` (`llmwiki/`) — **fork target**
 
@@ -400,7 +400,7 @@ Read the schema, not just the README — it corrects the first impression.
 - *Feeds:* our benchmark methodology; treating context indices as regenerable
   artifacts rather than reviewed source.
 
-### Durable state, memory, and coordination
+### Durable State, Memory, and Coordination
 
 **mnemon** — `github.com/mnemon-dev/mnemon` (`mnemon/`)
 
@@ -526,7 +526,7 @@ Read the schema, not just the README — it corrects the first impression.
 - *Feeds:* naming and provenance conventions for our base rules; role boundaries
   for adh; capturing failure modes as first-class knowledge-base entries.
 
-### Harness internals and model-agnosticism
+### Harness Internals and Model-Agnosticism
 
 **byo-coding-agent** — `github.com/betta-tech/byo-coding-agent`
 (`byo-coding-agent/`)
@@ -564,7 +564,7 @@ peers. Those below are `~/Documents/agent-blue`: the sources the practice itself
 came from. Several are already absorbed, and saying *where* is as useful as
 saying what.
 
-### The practice, and where it already landed
+### The Practice, and Where It Already Landed
 
 **harness-engineering** — `agent-blue/harness-engineering`
 
@@ -671,7 +671,7 @@ saying what.
   time still drives progress, because selection does the work. Relevant to how
   hard `skillsaw-skill` should try to make each single edit good.
 
-### The knowledge-base gap — the highest-value find
+### The Knowledge-Base Gap — the Highest-Value Find
 
 **knowledge-catalog / OKF** — `GoogleCloudPlatform/knowledge-catalog` (`okf/`)
 
@@ -736,7 +736,7 @@ and maintained by agents."
 - *Feeds:* an evaluation set for NFR extraction, and a category taxonomy to
   reconcile against adh's `nfr` tags.
 
-### Self-evolution loops, and what they cost
+### Self-Evolution Loops, and What They Cost
 
 **hermes-agent-self-evolution** — `NousResearch/hermes-agent-self-evolution`
 
@@ -789,7 +789,7 @@ and maintained by agents."
   trust. The multi-model half of what our Claude/Gemini/Qwen split could be if
   the models cross-checked each other instead of taking turns.
 
-### Judgment gates and deterministic routing
+### Judgment Gates and Deterministic Routing
 
 **agentic-harness-bootstrap** — `agent-blue/agentic-harness-bootstrap`
 
@@ -844,7 +844,1174 @@ and maintained by agents."
 - *Feeds:* the routing architecture for the harness's direct-model interface;
   log-the-miss as the mechanism that makes determinism increase over time.
 
-## What we intend to build from this
+______________________________________________________________________
+
+Below is the `~/Documents/agent-fuschia` survey. Where agent-red gave us peer
+tools and agent-blue the sources of the practice, this set is narrower and
+sharper: it is about **what makes a claim checkable**, and about the vocabulary
+layer without which no two claims can be compared at all.
+
+### Verifiable Claims, and Named Refusals
+
+**vac-protocol** — `egnaro9/vac-protocol` (`vac-protocol/`)
+
+- A **Capability Evidence Bundle**: a manifest, artifacts pinned by sha256,
+  declared numbers a verifier **recomputes from those artifacts offline**, and
+  the exact commands to re-earn every verdict from the issuer's own
+  deterministic grader. "Do not trust us, run it."
+- **The split we keep half-making, stated cleanly** (§4): *structural
+  verification* and *semantic replay* are "two distinct acts, never to be
+  conflated." Structural means zero network and zero issuer code — schema valid,
+  artifacts hash-identical, bundle closed, limitations stated, every declared
+  number recomputed. Semantic replay clones the issuer at a pinned commit and
+  re-earns the verdicts. **"A structural PASS means the bundle is *internally
+  honest*, not that the issuer's grader agrees."** And the case worth designing
+  for: a bundle that passes structure and fails replay "is a precise,
+  reproducible accusation against the issuer."
+- **`limitations` is REQUIRED and non-empty**; a bundle without explicit
+  non-claims is invalid (`empty-limitations`). "A capability statement that will
+  not say what it does not cover is an advertisement, and VAC does not carry
+  advertisements." This is super-hermes' constraint footer promoted from a
+  convention to a *format requirement*.
+- **A closed vocabulary of named failure reasons** — nineteen of them
+  (`sha256-mismatch`, `unlisted-file`, `summary-outruns-checks`,
+  `stamp-mismatch`, …) — one named reason per failure, never free prose.
+- **Registry rejection rules** (§5), of which the third is the sharpest:
+  grading that names an LLM judge, human scoring, or anything wall-clock or
+  sampling dependent without a pinned seed is refused outright — "if replay
+  cannot reproduce it byte-for-byte, it is not evidence." And "the verifier's
+  exit code is the floor, not the bar."
+- **A challenge protocol** (§6): any reader may challenge an accepted bundle,
+  in three classes — *replay* ("I ran your commands and got something else",
+  the strongest, because it ships a counter-recipe), *coverage* ("the evidence
+  does not support the stated scope"), and *scope* ("the limitations are
+  incomplete").
+- **§7 is titled "Explicitly refused in v0.1", with the best one-line defence of
+  a practice this family already keeps informally:** *"Named refusals, so their
+  absence reads as a decision rather than an oversight."* The refusals earn it —
+  signatures are refused because "a signature proves who spoke, not that they
+  spoke the truth… signing an unreplayable bundle would launder it"; Docker
+  images because "shipping opaque filesystem images as 'reproducibility' hides
+  exactly the drift this protocol exists to surface."
+- *Feeds:* the structural/semantic split for canonizer's `verify` vs `critic`;
+  mandatory limitations everywhere a claim is made; a closed reason vocabulary
+  for `finding.Category`; the challenge protocol as adjudication's front door.
+
+**vac-gate** — `egnaro9/vac-gate` (`vac-gate/`)
+
+- States our own §12 rule better than we did: "Every PASS states what ran and
+  what deliberately did not — **a gate that cannot say what it skipped is worse
+  than no gate.**"
+- Two absence-is-a-distinct-state rules, arrived at independently of ours:
+  `binding-unrecorded` — "unrecorded is not matching"; and, best of all,
+  **"'cannot regrade' is not 'regraded'"** — the regrader's honest stale-code
+  refusal *fails* the gate rather than passing it.
+- *Feeds:* adh's evaluation disposition; the not-applicable outcome now
+  required of `quotecheck`.
+
+**gradecore** — `egnaro9/gradecore` (`gradecore/`)
+
+- "Every grade is a pure predicate over a string, so it reproduces exactly…
+  **No second model grades the first**; there is nothing here you can't rerun
+  and get the same answer." Zero dependencies.
+- **`suite_hash`** — a `sha256[:12]` over each task's identity string, so two
+  independent implementations can be *shown* to agree rather than asserted to.
+  Its own docstring names the weakness in the scheme it is compatible with: the
+  `id:prompt` form "misses an edited answer-key", so fold the grader id and
+  expected value into each identity.
+- **The README corrects itself in public**: *"'Shared by' was the older wording
+  here and it was false in code"* — replaced with the checkable claim (same
+  `suite_hash`, all 35 graders lift, 0 of 175 verdicts differing). That is the
+  standard for how this family should phrase a compatibility claim.
+- *Feeds:* a set-hash beside `identity.Hash`; the phrasing discipline for any
+  "these two tools agree" claim.
+
+**evalmut** — `egnaro9/evalmut` (`evalmut/`)
+
+- Mutation testing for **eval suites**: "Your eval suite passes. Does it
+  actually check anything?" Injects a known defect into an output the grader
+  passed and reruns it; a grader that still passes has a **hole**.
+- The defects are **mined from documented real-world eval failures, not
+  invented** — which is what separates it from an arbitrary fault battery.
+- Two-sided by construction: a MISSED mutation is a defect class the eval is
+  blind to; a FLAGGED one is a correct-output class it wrongly rejects. Holes
+  are classified `blind` vs `coverage-gap`.
+- *Feeds:* skillsaw's rubric checks and gnosis's promote gate are both evals,
+  and neither can currently demonstrate it would catch a defect it lacks a
+  fixture for.
+
+**agent-certlab** · **eval-history** — `egnaro9/*` (`agent-certlab/`, `eval-history/`)
+
+- certlab: run an agent against tasks with **seeded, known defects**, and
+  "grade only the artifacts it leaves on disk… **never the agent's own account
+  of its success.**" The artifacts-only rule is sharper than our cold-critic
+  framing, which withholds reasoning but still reads a reply.
+- eval-history: "An eval score tells you how the system did *today*. It can't
+  tell you that yesterday's change made things worse — and 'worse' is the only
+  thing you actually need to be told." `skillet/timeseries` as a service, and
+  independent confirmation of regression-relative gating.
+
+### Claim Granularity — the Defect We Had Not Seen
+
+**claim-segmenter-kit** — `rajatslakhina/claim-segmenter-kit` (`claim-segmenter-kit/`)
+
+- Deterministic claim segmentation: **no model call, no network, no
+  dependencies** — and it names a hole in any quote-validated corpus, ours
+  included. **Sentence granularity conflates supported and unsupported claims
+  inside one sentence:**
+
+  > The cache is enabled by default, but it is not shared across sessions.
+
+  One sentence, two assertions, and a verifier can return only one verdict for
+  it. A quote can validate while half of what it appears to support is
+  unsourced.
+
+- The guarantee is the discipline: **"Every emitted claim stands on its own, or
+  the cut is not made."** Splitting at the comma would leave *it is not shared
+  across sessions*, whose subject sits in the discarded half — so the subject is
+  recovered and substituted, or no cut happens.
+
+- It is also honest about the field: every published alternative — FActScore
+  atomic decomposition, decomposer/verifier alignment, molecular-facts
+  decontextualization — needs a model. "This package is the deterministic corner
+  none of them occupy."
+
+- Measured, not asserted: `split(".")` yields 12 fragments, a sentence splitter
+  8, this 5, over the same paragraph.
+
+- Swift, so not importable — the algorithm and the guarantee are what transfer.
+  Its named siblings are worth reading before we design conflict detection:
+  **SourceConflictKit** (conflict between sources), ClaimConsistencyKit,
+  GroundingKit.
+
+- *Feeds:* the evidence invariant's grain; the claim-segmentation step that must
+  precede quote validation.
+
+### The Vocabulary Layer
+
+**lexicon** — `jedi-knights/lexicon` (`lexicon/`)
+
+- A markdown-native requirements DSL, and the reason it exists is our problem
+  stated in other words: "Dev, QA, and Product routinely read the same
+  requirement and walk away with three different mental models — not from
+  carelessness, but because prose leaves three things implicit."
+- **The mechanism worth taking: `Keyword` and `Role` are separate and both are
+  kept.** A step records the surface keyword the author chose *and* the resolved
+  semantic `StepRole` (`precondition`/`action`/`outcome`); two dialects resolve
+  to the same Role, `And`/`But` inherit the preceding step's Role, and "Role is
+  what a consuming human or LLM should key off of"
+  (`internal/domain/step.go`).
+- **This dissolves the cross-functional vocabulary problem rather than
+  adjudicating it.** Each function writes in its own words; the resolution table
+  is data. Go, MIT, hexagonal (`domain`/`ports`/`adapters`), and it compiles to
+  Gauge, Gherkin, or schema-stable JSON "built for LLM consumption."
+- *Feeds:* the `type` vocabulary — surface term plus resolved concept, both
+  retained, resolution as data rather than debate.
+
+**hubi** — `mvcds/hubi` (`hubi/`)
+
+- "Like a database migration tool but for **ubiquitous language**": declare the
+  domain in YAML, generate code, schema, and documents from it, across
+  repositories that must not drift apart.
+- Carries a **soft-deprecation path** on an attribute
+  (`deprecated: [{message: …}, {error: false}]`) — announce, then enforce. That
+  is the answer to "how does a vocabulary change once links already exist,"
+  which is the standing objection to committing to a taxonomy early.
+- *Feeds:* vocabulary migration; the answer to the deferred bundle-layout
+  decision.
+
+**termageddon** · **Glossary** — (`termageddon/`, `Glossary/`)
+
+- Both solve the case `lexicon` does not: two groups that genuinely *disagree*
+  rather than merely using different words. termageddon offers
+  **perspective-based organization** with GitHub-style approval workflows;
+  `Glossary` (C-Accel) keeps **multiple definitions per term, keyed by which
+  team uses them**, explicitly "to enable teams to interoperate without
+  enforcing a single artificial definition."
+- *Feeds:* the bounded-context escape hatch when one canonical definition is the
+  wrong answer.
+
+**glossary-18F** — `18F/glossary` (`glossary-18F/`)
+
+- A small accessible panel that resolves `data-term` attributes to definitions
+  inline, as shipped on FEC.gov. Makes the vocabulary visible **where a term is
+  used** rather than filed away in a glossary nobody opens.
+- *Feeds:* the web interface's reading surface.
+
+### Capture, and the Rest
+
+**engineering-notebook** (`engineering-notebook/`) ingests Claude Code *and*
+Codex session transcripts into daily summaries and a browsable journal — the
+Stop-hook capture path already built, and a useful reference for the transcript
+adapters. **jargon-v1** (`jargon-v1-main/`) is an AI-managed zettelkasten
+parsing articles, papers, and videos into index-card-sized ideas — the closest
+sibling to what we are building, and its card grain is an argument about claim
+granularity.
+
+Surveyed and off-axis: `agent-graph`, `crashkit`, `rag-eval-lab`, and
+`aidetector` are model-facing, and our tools do not call models;
+`effect-domain`'s "transports are projections of the model" is a good principle
+on the wrong stack; `universal-translator` is i18n we need only if the web
+interface is localized; `BugHive`, `metaphorically`, and the remaining glossary
+web applications (`devterms`, `jargons.dev`, `glossary-kit`, `web-jargon`,
+`yourjargon`) are products rather than components.
+
+**One warning on vac-protocol.** Its claims are *about AI systems* — "this agent
+handles X under conditions Y." Ours are *domain* claims — "the retry budget is
+3." The bundle mechanics, the invalidity rules, and the structural/semantic
+split transfer cleanly; the schema and its semantics do not. Take the
+discipline, not the format.
+
+______________________________________________________________________
+
+### Prior Art for the Wiki Itself
+
+The `~/Documents/agent-magenta` survey: seven personal-knowledge-management
+systems. This is the most direct prior art we have — each is a markdown (or
+org) corpus with a derived index, a link graph, and a CLI or editor surface,
+which is gnosis's problem exactly. Several arrived at the same answers
+independently, and that convergence is itself evidence.
+
+**Read the designs, not the code.** `zk`, `zettel`, and `org-roam` are GPLv3;
+`zettelstore` is EUPL-1.2. All four are copyleft and **none can be vendored into
+an MIT- or Apache-licensed Go binary.** The temptation is real with `zk` in
+particular — same language, same problem, good code — so the constraint is worth
+stating before the survey rather than after. A table layout is a fact about the
+problem; the implementation is not ours to take.
+
+**zk** — `zk-org/zk` (GPLv3, Go)
+
+- **A broken link is a first-class row, and it keeps what the author wrote.**
+  `links.target_id` is nullable with `ON DELETE SET NULL` while `href` is always
+  retained, so deleting a note *degrades* its inbound links to unresolved rather
+  than erasing them. Our `links(from_path, to_path, resolved BOOL)` throws away
+  the href when the target is missing — which is the one case you most need it.
+  This is OKF §6.1's "not-yet-written knowledge" implemented rather than
+  asserted.
+- **The link's surrounding prose is stored**: `snippet`, plus `snippet_start`
+  and `snippet_end` offsets. Since OKF §6.1 says a relationship's kind "is
+  conveyed by the surrounding prose, not by the link itself", storing the snippet
+  is storing the untyped relation's evidence — and it is what lets a reader see
+  *why* A links to B without reopening A.
+- **Typed relations live in the derived index, not the source format.**
+  `links.rels` and `links.external` exist even though markdown links carry no
+  type. That is a concrete answer to the ontology question: derive the type,
+  index it, and leave the markdown plain.
+- `notes.checksum` is stored and indexed — change detection without reparsing —
+  and `notes.lead` holds the first paragraph separately from the body, which is
+  progressive disclosure's snippet already materialized.
+- **The FTS5 configuration is worth copying wholesale**: an external-content
+  table (`content = notes, content_rowid = id`) so bodies are not duplicated,
+  with `tokenize = "porter unicode61 remove_diacritics 1 tokenchars '''&/'"`.
+  The custom tokenchars are the detail — an apostrophe and a slash in the token
+  set are what make `don't` and `foo/bar` searchable in technical prose.
+- Schema migrations run off `PRAGMA user_version` with numbered steps — the same
+  mechanism `skillet` uses, arrived at separately.
+- `collections` plus `notes_collections`, keyed by a `kind` column, carries tags
+  and any other grouping in one generic pair of tables rather than a table per
+  kind.
+- *Feeds:* the link table's shape; the FTS5 tokenizer; snippet storage as
+  relationship evidence.
+
+**org-roam** — `org-roam/org-roam` (GPLv3, Emacs Lisp)
+
+- **`files` and `nodes` are separate tables: one file holds many addressable
+  nodes.** That is the single most important structural idea in this survey for
+  us, because our `concepts(path PK)` assumes one concept per file and therefore
+  cannot address a claim inside one — which is exactly the granularity defect
+  that `claim-segmenter-kit` exposed. org-roam shows the index shape that
+  supports sub-document addressing **without splitting the files**.
+- `aliases(node-id, alias)` — many names for one node. The surface-term versus
+  canonical-concept problem again, solved at the entity level rather than the
+  vocabulary level.
+- `citations(node-id, cite-key, pos, properties)` — citations are first-class
+  rows **carrying their position**, so a reader can be sent to the exact spot.
+  Our `evidence` table records the quote but not where it sits.
+- `links(pos, source, dest, type, properties)` — typed, positioned, and with an
+  open properties bag. Every child table cascades on delete.
+- *Feeds:* the file-versus-node split as the answer to claim addressing;
+  positions on evidence rows.
+
+**dendron** — `dendronhq/dendron`
+
+- Ships the artifact we have been circling: **the ontology layer as a committed,
+  checkable file.** A `*.schema.yml` declares `id`, `desc`, `title`, `parent`,
+  and `children` — which types may contain which — plus `namespace: true` for
+  nodes that accept arbitrary children, and `template: {id, type}` binding a
+  scaffold to a type.
+- **Schemas compose**: `imports: [person]`, after which a child may reference an
+  imported id (`person.public_persona`). That is what keeps a vocabulary from
+  becoming one unmaintainable file, and it is the piece `hubi`'s migration story
+  needs to be useful at scale.
+- The result is MECE-checkable against the actual tree, which turns "are our
+  categories mutually exclusive and exhaustive" from an aspiration into a lint.
+- *Feeds:* the `type` vocabulary as data; per-type templates; the composition
+  mechanism.
+
+**zettelstore** — `zettelstore.de/z` (EUPL-1.2, Go)
+
+- Design goals stated as goals: "longevity of stored notes, ease of installation
+  and operation, **security by default**, and support for multiple user
+  interfaces" — the last realized through "an application programming interface
+  that offers a broader range of operations than the standard web-based user
+  interface." That ordering is the right one for us: the API is primary and the
+  web UI is a client of it, not the other way round.
+- Internally hexagonal, and the project offers itself as a teaching example of
+  the architecture.
+- **The identifier tension, which this survey makes concrete.** Zettelstore uses
+  an opaque 14-digit timestamp (`YYYYMMDDhhmmss`), and "the only restriction on
+  zettel identifiers is that they consist of 14 digits" — immutable, meaningless,
+  and therefore stable across any retitling. Dendron uses a hierarchical dotted
+  path, which is legible but renames every descendant when a parent moves.
+  `rebar` (agent-red) insists on descriptive names and never numbers, because
+  numbers collide on merge and mean nothing across repositories. OKF recommends
+  bundle-absolute paths as "stable when documents are moved within their
+  subdirectory" — stable under a move, not under a rename.
+  **Only the opaque-identifier answer survives both a move and a rename, and it
+  pays for that with human legibility.** We have not chosen; the choice belongs
+  with the deferred bundle-layout decision, and it is more consequential than it
+  looks because links are what break.
+
+**zettel** · **foam** · **depth=1**
+
+- `hackstream/zettel` (GPLv3, Go) is the small end of the same idea: plain
+  markdown in, static site and a graph UI out, with `yourbasic/graph` for the
+  graph and goldmark for the markdown — the same parser `skillet` standardized
+  on.
+- `foam` (MIT, TypeScript) is the editor-resident surface — wikilinks, backlinks,
+  and a graph inside VS Code. The only permissively-licensed project here, and
+  the least liftable, being a VS Code extension.
+- `depth=1` is a curated reading list on digital gardening rather than a tool.
+  Its framing is a useful counterweight: a garden holds "half-finished thoughts
+  that will grow and evolve", which is the opposite instinct to a corpus that
+  gates everything at admission. Both are right for different material, and the
+  quarantine tier is where that tension is supposed to live.
+
+### Numbers Written as Words
+
+Two small, maintained, MIT-licensed Go packages, both solving the same narrow
+problem: a claim that says "three" where a stored value says `3`. That gap is
+where a structured constraint and the prose it came from silently drift apart, so
+closing it deterministically is what makes the drift check mechanical rather than
+a thing a reviewer is asked to notice.
+
+**numwords** — `rodaine/numwords`
+
+- `ParseString` normalizes in place — "I've got three apples and two and a half
+  bananas" becomes "…3 apples and 2.5 bananas" — which is the right primitive
+  here. Normalizing the prose once catches every spelling variant at once, where
+  rendering a value and searching for it catches only the spelling you happened
+  to generate.
+- Handles **floats and fractions**: "two and a half" → 2.5, "eight and three
+  quarters" → 8.75, "a half" → 0.5. Also ordinals, and "nineteen eighty-eight" →
+  1988\.
+- No runtime dependencies at all; `testify` is test-only.
+- One wart worth knowing: `IncludeSecond` is a package-level mutable toggle for
+  whether "second" reads as a number. A global that two callers can disagree
+  about is the defect class a shared kernel exists to prevent — set it once at
+  initialization, and set it off, since "the second retry" becoming "the 2nd
+  retry" is a false-match risk in exactly the text being checked.
+
+**numberconverter** — `will-lol/numberconverter`
+
+- Covers **both directions** — `Etoi` and `Itoe` — where numwords parses only.
+- `FindAllEnglishNumberIndex` returns **positions**, which pairs naturally with
+  evidence rows that record where a quote sits.
+- Ships fuzz tests for both directions, and is explicit that there is "no
+  prescribed style": "three hundred, fourty two million" parses, typo included.
+- Two things keep it from being the pinned choice today: it is `int64` only, and
+  timeouts, percentages, and ratios are the quantities a technical corpus
+  actually carries; and its README still states "pre-release… some methods may not
+  be correct", which is the author's own caution and a reason to wait for it to be
+  withdrawn rather than to design around. Worth revisiting when it grows float
+  support — the position-returning finders are genuinely better than what we
+  chose.
+- *Feeds:* the prose-versus-value agreement check; positions on evidence rows if
+  it becomes the pinned package later.
+
+## Methodologies and Documents We Were Inspired By
+
+Everything above is code we read. This section is for the things that have no
+repository: the organizational schemes, the two founding designs for a personal
+knowledge system, and a body of systems-governance writing that turned out to be
+about our problem under another name.
+
+They earn a section because the code surveys kept arriving at the same three
+questions — *what is the unit, where does it go, and who decides* — and none of
+those questions is answered by a library.
+
+### The Organizational Schemes
+
+Three widely-used schemes, recorded because each answers a *different* question
+and it is worth being explicit that we adopt none of them wholesale.
+
+**PARA** — Projects, Areas, Resources, Archives. Tiago Forte's scheme from
+*Building a Second Brain*. Its insight is not the four folders but the axis they
+sit on: **organize by actionability, not by topic.** "We don't think in tags. We
+think in context." A Project has a finish line, an Area is maintained
+indefinitely and never completes, a Resource might matter later, an Archive is
+finished but kept rather than deleted.
+
+- *What transfers:* the Area/Project distinction is a real one we lack a word
+  for, and Forte's observation that "a lot of stress comes from treating these
+  like projects — they don't end" is the same shape as our `stale_after`
+  question: a claim that is *maintained* is governed differently from a claim
+  that was *concluded*. And **Archive-not-delete** is already our tier 0.
+- *What does not:* PARA is a single-owner scheme keyed to one person's current
+  attention. A shared corpus cannot place a document by what its author is doing
+  this month, and the four categories are exclusive where our subjects must be
+  many-to-many.
+
+**CODE** — Capture, Organize, Distill, Express. Forte's companion *process* to
+PARA's *structure*, and the closer analogue to what gnosis does: ingest, place,
+compress to the reusable core, then produce something. Our pipeline is the same
+arc with gates welded into each seam — `fetch` and `ingest` are Capture, the
+ontology and the derived index are Organize, extraction and the promote gate are
+Distill, and `ask`/`file` are Express.
+
+- *What transfers:* naming Distill as a separate stage from Organize. Our
+  quarantine tier exists because those two are not the same act, and having a
+  name for the difference is worth something.
+- *What does not:* CODE is a personal practice with no admission control, because
+  its only contributor is trusted by construction. Ours is the opposite problem.
+
+**LATCH** — Location, Alphabet, Time, Category, Hierarchy. Richard Saul Wurman's
+claim that there are only five ways to organize information, and everything else
+is a composite. It is the most useful of the three for us precisely because it is
+a *closed enumeration*: it says that a knowledge base's presented navigation must
+be one of five things, so the question "how should this be browsed" has finitely
+many answers rather than infinitely many.
+
+- *What transfers:* it is the checklist for SPEC §5.6's presented hierarchy. The
+  storage path is opaque by design; the *view* has to pick from these five, and
+  LATCH is why that choice is a small decision rather than an open one.
+- *What does not:* LATCH is about presentation and says nothing about identity,
+  provenance, or conflict. Treating it as a storage scheme is the mistake §5.6
+  exists to avoid.
+
+### Vannevar Bush's Memex — *As We May Think* (1945)
+
+**Local copy:** `as_we_may_think_by_vannevar_bush.md`
+
+§6 is a direct indictment of the thing every filing system does:
+
+> "Our ineptitude in getting at the record is largely caused by the artificiality
+> of systems of indexing. When data of any sort are placed in storage, they are
+> filed alphabetically or numerically… **It can be in only one place, unless
+> duplicates are used**; one has to have rules as to which path will locate it,
+> and the rules are cumbersome. Having found one item, moreover, one has to
+> emerge from the system and re-enter on a new path."
+
+- **The many-to-many requirement is the founding complaint of the field**, not a
+  preference of ours. A document belongs under several subjects; hierarchical
+  placement forces a lie or a duplicate. Our answer — opaque identifiers, no
+  meaningful path, subject association as a join — is the same answer, and this
+  is where it comes from.
+- **"One has to emerge from the system and re-enter on a new path"** is a
+  requirement for `show` and `search`: a result must render its resolved outbound
+  links inline, so following one does not mean going back and re-querying.
+- **The trail is a first-class object we do not have.** Bush's associative trail
+  is *named* ("when the user is building a trail, he names it"), *ordered*
+  ("reviewed in turn… exactly as though the physical items had been gathered
+  together to form a new book"), non-exclusive ("any item can be joined into
+  numerous trails"), and *transferable* — he "photographs the whole trail out,
+  and passes it to his friend for insertion in his own memex." We have pairwise
+  links and nothing that names or orders a path through them. §8 makes that
+  scaffolding the point of the whole essay: "a new profession of trail blazers…
+  the inheritance from the master becomes, not only his additions to the world's
+  record, but for his disciples the entire scaffolding by which they were
+  erected." That is a fair description of what tribal knowledge actually is.
+- **His link endpoint is the whole item, never a span.** The code spaces sit "at
+  the bottom of each item," and his answer to *I want to say something about one
+  specific point* is to make a new item and link it — "he inserts a page of
+  longhand analysis of his own." He has marginal annotation and deliberately does
+  not make it a link endpoint.
+- **"The privilege of forgetting… with some assurance that he can find them again
+  if they prove important"** (§8) is the argument for archive-and-retrieve over
+  deletion, which is tier 0.
+
+### Niklas Luhmann's Zettelkasten — *Communication with Zettelkastens* (1981)
+
+**Local copy:**
+`improved_translation_of_communications_with_zettelkastens_by_niklas_luhmann.md`
+(Sascha's translation, 2023)
+
+- **Content-free, never-reassigned identity is the load-bearing decision, and he
+  says so.** "It is enough to assign a number to each note, place it so that it's
+  easy to see, and never change it, and thus never change the note's place… This
+  structural decision is exactly that reduction of complexity of possible
+  arrangements that unlocks the creation of high complexity." A content-based
+  order "would mean that you would have to adhere to a single structure forever
+  (decades in advance!)." This is our opaque UUIDv7 and the fixed `/c/` prefix,
+  and it is why content-addressed identity is the wrong instinct: an identifier
+  derived from text cannot survive a typo fix.
+- **He names the same problem Bush does, and gives the same answer.**
+  "References allow solving the **multiple storage problem** without significant
+  investment of labor or paper… you can solve the problem by placing the note
+  wherever you want and create references to capture other possible contexts."
+  Place it anywhere; link. Two independent inventors, one diagnosis.
+- **Sub-note addressability, inscribed in the artifact.** He connects "anywhere,
+  even to single words within a text," and the mechanism matters: "In the note
+  itself, I use red letters or numbers to mark the place of connection." The
+  address lives *in the slip*, not in the register — his register indexes notes.
+  Neither founder supports an addressability that exists only in a regenerable
+  cache, which is what a byte offset in a derived index is.
+- **Atomicity is not his doctrine.** His slips run long and continue across
+  57/12, 57/13; the one-idea-per-note rule is a later gloss. What he insists on
+  is fixed identity for the *note* plus arbitrary-granularity connection points
+  *within* it. That is the document/claim split, and it is an argument against
+  collapsing them in either direction.
+- **The orphan check has a better justification than tidiness.** "Each note is
+  just an element that gets its value from being a part of a network of
+  references… A note that is not connected to this network will get lost in the
+  Zettelkasten, and will be forgotten by the Zettelkasten." He also rejects
+  privileged notes outright — "you must give up the assumption that there are
+  privileged places, notes of special and knowledge-ensuring quality" — which
+  argues against any canonical-document-per-subject model.
+- **Read versus merely collected is his own distinction.** "Books, articles, etc.
+  that you actually have read should each get individual notes… This allows you
+  in the longer run to distinguish what source you have actually read and what
+  source you have just collected for later use." Our `sources_fetched.disposition`
+  is the same distinction mechanized.
+- **A register is mandatory, not optional.** "You have to put a search mechanism
+  in place because you cannot rely on your numerical memory… it is therefore
+  necessary to maintain a keyword index." Opaque identity *requires* a derived
+  index; the two decisions are one decision.
+
+Both scraped copies are also unintentional evidence for the ingest pipeline: the
+Luhmann page ends in raw JavaScript, and the Bush page carries navigation chrome,
+a newsletter form, and a comment widget. Boilerplate stripping is not a polish
+item.
+
+### Systems Governance — the `pmresearcher` Corpus
+
+**Local copy:** `~/Documents/agent-orange/substack/pmresearcher` — 219 documents,
+indexed by `index.md`
+
+A project-management research archive that turns out to be about our problem in
+another vocabulary. It contains no PARA-style scheme of its own and never
+mentions Memex or Zettelkasten; what it supplies is the governance half — the
+*who decides, on what signal, with what authority* that the PKM literature omits
+entirely.
+
+**Findings, not scores — independently derived.** *Schedule Variance as a Signal,
+Not a Score* makes the argument SPEC §17 makes, from a different direction and
+more sharply:
+
+> "A control system that receives a feedback signal and takes no corrective
+> action is not a control system. It is a measurement system wearing a control
+> system's name badge."
+
+- Its diagnosis of why metrics get filed rather than acted on is **corrective
+  permission, not corrective capacity**: "The corrective options exist. What is
+  absent is corrective permission… The PMO records the number because recording
+  the number satisfies the compliance requirement and does not require anyone to
+  make a difficult decision." That is precisely what an unadjudicated
+  contradiction finding becomes if nothing forces it closed.
+- **Trend, not level.** "A single reading in a single period tells you almost
+  nothing about system behavior… You can tell from three to five consecutive
+  periods." A worsening count means the corrective loop is broken; a *stable*
+  count is the dangerous case, "deviation normalized rather than corrected." This
+  is a real gap: gnosis reports findings at a moment and never reports whether
+  the corpus is closing them.
+
+**Why "findings are not failures" is load-bearing and not a nicety.** *The Wise
+Governor* explains the mechanism: "They learn what the governance system rewards
+and punishes. They route their signals accordingly." A tool whose honest report
+of a problem is indistinguishable from its own breakage teaches contributors to
+avoid running it. That is the argument for exit code 3 versus 1, and it is
+stronger than the convenience argument we had.
+
+- **"A framework makes judgment more precise. It does not replace it."** The
+  cleanest statement of why gnosis minimizes the model and keeps human
+  adjudication authoritative.
+- **Requisite uncertainty** — "a confidence calibrated to what the system
+  actually allows you to know" — is the name for what `findings.certainty` is for.
+
+**Ashby's Law of Requisite Variety is the principle behind adjudication tiers.**
+*The Logic of Institutional Failure* and *Designing for Variety* supply the
+frame: a controller must have at least as much variety as the system it governs,
+and the deficit closes by **amplifying** the governor's variety, **attenuating**
+the governed system's, or both. Adding process is the wrong lever — "variety
+amplification by volume, and it rarely works."
+
+- SPEC §10.6 — adjudication authority scaling with the number of adjudicators —
+  *is* variety matching, and now has a name and a literature.
+- "**A deficit is not a failure. It is a design specification.**" The best
+  one-line defence of reporting a gap rather than blocking on it.
+- The 2008 case names the failure mode we should fear most: not a wrong model but
+  **unwarranted confidence in the model** — "That epistemic confidence is
+  structurally more dangerous because it forecloses the adaptive response before
+  the problem is visible enough to trigger one." Applied here: a corpus that lints
+  clean because its checks do not apply yet. Our derived applicability with
+  mandatory skip reporting is the mitigation, and this is why it matters.
+
+**Terminology is a governance problem, not a style problem.** *Words Matter*:
+"people toss around terms like 'initiative,' 'milestone,' or 'epic' as if
+everyone shares the same definitions. Most don't. And that gap? It breaks
+communication, delays decisions, and undermines good planning." That is the
+justification for `ontology.toml` being a committed, reviewed, checkable
+artifact rather than a wiki page.
+
+**Orientation over accumulation.** *On Being Oriented* and *Knowing What Belongs
+at the Center*: "Being oriented has little to do with how much information
+someone possesses… Information gains meaning only when it is placed correctly."
+The unit of value is placement, not volume — which is the argument for
+`index.md` being a curated map rather than a generated list, and for `search`
+ranking rather than dumping.
+
+**BLUF as information architecture.** *A Field Note on BLUF*: "BLUF is not just a
+writing trick. It is an information architecture for decision making." Bottom
+line up front — conclusion, then reasoning. This is what the `lead` column on a
+claim is for, and it should be a lint check on normative types rather than a
+convention.
+
+**The reporting-to-learning distinction, with its own warning attached.** *From
+Reporting to Learning* describes turning accumulated history into a pattern
+library, and is the one piece here we should mostly *decline*: its architecture
+is predictive scoring, which §17 rules out. What transfers is its structural
+insight — "**Without defined decision pathways, predictive outputs remain
+isolated metrics**" — and its list of what a decision layer must define: trigger
+thresholds, accountable authorities, escalation pathways, documentation
+standards, **override mechanisms**, and feedback capture. We have most of those;
+override mechanism and feedback capture are the two we have not named.
+
+### Measurement — Hubbard, *How to Measure Anything*
+
+Douglas W. Hubbard, 2nd edition. **Local copy:**
+`~/Documents/agent-orange/go-advice/Sources/data_science/HowToMeasureAnythingEd2DouglasWHubbard_book.md`
+
+The book supplies what nothing else surveyed here does: a working definition of
+measurement, a procedure for making a vague thing measurable, and — most
+usefully — an account of why organizations reliably measure the wrong things.
+Three of its ideas are load-bearing for us and one is an indictment we should
+accept.
+
+**The definition, and why intervals are not pedantry.**
+
+> "Measurement: A quantitatively expressed reduction of uncertainty based on one
+> or more observations."
+
+A mere reduction, not elimination, counts. This is exactly what a finding is: a
+`lint` run does not establish that a corpus is correct, it reduces uncertainty
+about where it is wrong. But the sharper contribution is the corollary, which is
+a better justification for §17's interval rule than the one we had:
+
+> "The lack of reported error — implying the number is exact — can be an
+> indication that empirical methods, such as sampling and experiments, were not
+> used (i.e., it's not really a measurement at all)."
+
+A bare number is *evidence that no measurement happened*. That reframes
+`stats.Wilson` from a nicety into a tell: a corpus statistic reported without an
+interval should be read as a count of something convenient rather than a
+measurement of something that matters.
+
+**The Clarification Chain is the missing procedure for admitting a subject.**
+
+> 1. If it matters at all, it is detectable/observable.
+> 2. If it is detectable, it can be detected as an amount (or range of possible
+>    amounts).
+> 3. If it can be detected as a range of possible amounts, it can be measured.
+
+SPEC §20 leaves open "which subject keys the corpus tracks" and says the corpus
+will nominate and the team will ratify — but states no test for ratification.
+This is the test, and it retroactively justifies a requirement we had already
+imposed for a weaker reason: **every subject in `ontology.toml` must declare a
+`dimension`.** A proposed subject with no dimension has failed step 2, which
+means it is not a subject at all — it is a topic, and topics belong to tags.
+
+The two clarification-workshop questions are the same gate applied by hand:
+**"What do you mean, exactly?"** and **"Why do you care?"** Hubbard's observation
+about what happens next is the useful part — "it is interesting how often people
+further refine their use of the term in a way that almost answers the measurement
+question by itself." The one about mentorship ends with the participant saying "I
+don't think I know," which is the honest outcome a promote gate should be willing
+to produce.
+
+**Measurement Inversion — the indictment we should accept.**
+
+> "In a business case, the economic value of measuring a variable is usually
+> inversely proportional to how much measurement attention it usually gets."
+
+His explanation is the part that stings, because it describes our check registry:
+
+> "First people measure what they know how to measure or what they believe is easy
+> to measure. You probably know the old joke about the drunk looking for his watch
+> in the well-lit street, even though he knows he lost it in the dark alley."
+
+SPEC §12 lists roughly two dozen checks. The overwhelming majority are cheap and
+deterministic — conformance, broken links, orphans, log format, filename drift,
+archive orphans — and every one of them was chosen partly *because* it was
+mechanizable. The checks that would actually change what a reader believes are the
+expensive ones: does this claim contradict that one, is this claim still true, is
+the evidence adequate to the scope claimed. A health report dominated by the cheap
+checks is measurement inversion with a JSON schema, and the mitigation is not to
+delete the cheap checks but to stop letting their count stand in for corpus
+health.
+
+His second reason lands too: "managers might tend to measure things that are more
+likely to produce good news… Don't let managers be the only ones responsible for
+measuring their own performance." That is the argument for the cold critic and for
+`vac-protocol`'s reader-initiated challenge classes being someone *other than the
+author's* instrument.
+
+**Systemic error does not average out, so a bigger corpus does not fix a biased
+gate.** Hubbard's account of Kinsey is the cleanest statement of this, via Tukey:
+
+> "A random selection of three people would have been better than a group of 300
+> chosen by Mr. Kinsey."
+
+And the trap he names is one we are already in:
+
+> "In business, people often choose precision with unknown systemic error over a
+> highly imprecise measurement with random error."
+
+An exact count of conformance violations is precise and systematically blind to
+everything it does not check. A sampled critic estimate with a stated interval is
+imprecise and unbiased. We currently report the first and not the second, and the
+book's point is that the preference is backwards. **The Rule of Five** — "there is
+a 93.75% chance that the median of a population is between the smallest and
+largest values in any random sample of five" — is the cheap instrument that makes
+the second option affordable: five randomly chosen claims, seeded so the sample is
+reproducible, tells us something real about a corpus we cannot afford to critique
+exhaustively.
+
+**All three of his observation biases apply to us by name.**
+
+- **Expectancy bias** — "seeing what we want to see." A critic handed a claim
+  *together with the verdict the corpus already reached* is not an independent
+  observation. Blinding it is the same move as a double-blind trial and costs
+  nothing but prompt discipline.
+- **Selection bias** — §10's conflict-candidate selection draws from claims that
+  share a source, a link, or a tag-plus-rank-cut. That is a deliberately
+  non-random sample, and it will systematically miss the contradiction between two
+  claims that share nothing — which is precisely where a *surprising* conflict
+  lives. Tukey's point is that enlarging a biased sample does not help.
+- **Observer bias** — "the act of observing them causes them both to change
+  behavior." Contributors who know which checks run will write to pass them. This
+  is the same mechanism the governance corpus named independently ("they route
+  their signals accordingly"), and two unrelated sources arriving at it makes it a
+  structural property of the design rather than a worry about people.
+
+**Confirmations worth recording, because they were arrived at without the book.**
+Hubbard's four basic methods of observation are "follow its trail like a clever
+detective… if it hasn't left any trail so far, add a *tracer* to it so it starts
+leaving a trail." `fetch.jsonl`, `audit.jsonl`, and especially `miss.jsonl` — "why
+the deterministic path did not decide" — are tracers added to make an otherwise
+invisible thing countable. His Assumption 2, "you have far more data than you
+think… the things you care about measuring tend to leave tracks," is the same bet
+those files represent. And "the information value curve is usually steepest at the
+beginning" is the argument for phasing: the first fifty documents will teach us
+more about the data model than the next five hundred.
+
+### Epistemology — *Knowledge: a Very Short Introduction*
+
+**Local copy:** `~/Documents/agent-orange/go-advice/Sources/misc/knowledge_book.md`
+
+The most directly load-bearing document surveyed, because it is about the thing
+this project is: knowledge that arrives second-hand.
+
+**The corpus is testimony, and the book poses our exact question.** "In the realm
+of knowledge, many of our prized possessions come to us second-hand… What should
+we think about resources like Wikipedia, where most articles have multiple and
+anonymous authors?" Every claim in the corpus is something somebody said. Nothing
+in it is perceived.
+
+**gnosis is a local reductionist, and that is a commitment rather than a default.**
+The book lays out three positions. *Global reductionism* says testimony is
+generally reliable, so absent a warning sign you have standing reason to believe —
+a corpus where admission is presumed and findings are exceptions. *Local
+reductionism* demands specific positive reasons for **this** informant on **this**
+topic: "Is this person an expert? Has she told you the truth in the past? How
+plausible is her story now?" *The direct view* treats testimony as a basic source
+needing no such support.
+
+Every gate in this design is local-reductionist: provenance attaches per claim,
+not per corpus; a credible source does not make its claims admissible; a warrant
+is required per adjudication. The book also supplies the honest objection — "local
+reductionism can sound very calculating: in practice, we don't often weigh the
+reasons to trust someone" — and the reply that matters for us: it "is not a
+descriptive theory about how we actually form our beliefs. It's a theory about the
+conditions under which those beliefs deserve to count as knowledge." A corpus is
+exactly the artifact for which the calculating version is appropriate, because it
+outlives the conversation that produced it.
+
+**The bucket brigade names the provenance chain, and "spills" name the failure.**
+Lackey: "in order to give you a full bucket of water, I must have a full bucket of
+water to pass to you… spills aside." A spill is a quote that no longer validates,
+an extraction that dropped a qualifier, a link whose target moved. `quotecheck`
+is spill detection.
+
+**A source can transmit knowledge it does not itself hold, and this justifies the
+relay.** Lackey's counterexample is a creationist teacher who diligently teaches
+natural selection: "someone with less than a full bucket manages to pass on more
+knowledge than she herself possesses." Applied here, this is the principled
+defence of an extraction pipeline whose model believes nothing. What must be
+checked of a relay is not sincerity or understanding but **spillage** — did the
+text arrive intact — which is precisely what byte-exact quote validation checks
+and precisely what a model cannot fake.
+
+**The Wikipedia passage is this project's thesis, stated as epistemology.**
+
+> "Over time, the entry as a whole has been vetted by so many people that the line
+> about those mountain ranges is by now well-secured by the whole community of
+> editors. This group may have succeeded in filling the bucket together, jointly
+> generating an entry that is now able to provide the reader with knowledge… If the
+> reliability of an informant is what counts, groups working together under the
+> right conditions can outperform single authors."
+
+That is collective accretion producing knowledge no contributor individually had.
+And the condition is named in the same breath — a group entry supplies knowledge
+"when its internal systems of quality control are working well." **gnosis is the
+internal system of quality control.** This is the clearest statement of purpose
+anything surveyed here has produced.
+
+**Gettier is why a structural pass may never be called "verified."** A man reads a
+stopped clock at the one moment it happens to be right. His belief is true and his
+evidence is ordinary and reasonable, and yet: "It's not enough to add some
+justification to true belief if the justification and the truth of the belief
+aren't properly related to each other."
+
+The corpus's central invariant — every quote appears byte-exact in an archived
+source — is a **justification** check. It establishes that the claim is supported
+in the way it says it is. It cannot establish that the quote *bears on* the claim,
+and a claim can therefore be quote-valid, true, and still not knowledge for
+exactly Gettier's reason. That is the "structurally valid, semantically wrong"
+state, and this is why it is a principled gap rather than an implementation
+shortfall: no strengthening of `quotecheck` closes it, because the gap is between
+justification and support, not between weak and strong justification.
+
+**Interest-relative invariantism is the stakes rule, arrived at independently.**
+Lee locked the supply-room door half an hour ago. Asked by a colleague who left a
+jacket inside, he says he knows it is locked. Asked by police hunting an armed
+gunman, he says he does not know. Same evidence, same truth, same memory — and
+both answers sound correct. What changed is the cost of being wrong.
+
+This converges with two other sources surveyed here from different directions:
+Hubbard's value of information scales with the decision, and Haskins holds that
+"the sufficiency of evidence should be in proportion to the strength to which the
+conclusion is being asserted." Three independent traditions arriving at *the
+evidentiary standard is a function of the stakes* makes the load-bearing versus
+peripheral distinction a principle rather than a convenience.
+
+**Craig: the concept of knowledge exists to mark good informants.** "It's
+imperative that we have a way of sorting out good informants, who can serve as our
+eyes and ears, from bad informants, who are likely to lead us astray. Good
+informants are identified as knowers." That is what a trust tier is for. The book
+also supplies the limit — "knowers can sometimes be bad informants; knowers can be
+secretive or deceptive" — which is why a tier is a signal and never access control.
+
+### Critical Thinking — Haskins, *A Practical Guide to Critical Thinking*
+
+**Local copy:**
+`~/Documents/agent-orange/go-advice/Sources/soft_skills/a_practical_guide_to_critical_thinking_book.md`
+
+Short, and the most directly *mechanizable* document here.
+
+**Argument = Reason + Conclusion.** That is the claim structure already in the
+schema: `lead` is the conclusion, `gnosis_evidence` and `sources` are the reasons.
+Naming it that way makes the `lead` check obviously right rather than stylistic.
+
+**Indicator words are a deterministic instrument, and we did not have one.** The
+paper lists them: *since, because, for, for the reason that, as indicated by*
+introduce a reason; *therefore, thus, so, hence, it follows that* introduce a
+conclusion. These are lexical, closed, and language-specific — exactly the shape
+of an operator pattern held as data with a test corpus rather than a regex in Go.
+This gives claim segmentation and the `lead` check something concrete to work
+from, without a model.
+
+**The three-part argument evaluation is a gate we have two-thirds of.**
+
+1. **Are the assumptions warranted?** A warranted assumption is "known to be true"
+   or "reasonable to accept without requiring another argument to support it." Our
+   `gnosis_warrant` field turns out to be named after exactly this.
+2. **Is the reasoning relevant *and* sufficient?** "Relevance is the quality of the
+   reasoning, sufficiency the quantity." And the rule that matters:
+   **"the sufficiency of evidence should be in proportion to the strength to which
+   the conclusion is being asserted."** *John definitely bought the painting* and
+   *John may have bought the painting* need different evidence for the same
+   photograph. This is the **coverage** check we have recorded as missing — the
+   principled basis for asking whether a claim's evidence supports the scope it
+   claims, rather than merely existing.
+3. **Has relevant information been omitted?** "A cogent argument is one that is
+   complete, in that it presents all relevant reasoning, not just evidence that
+   supports the argument." The remedy given is "seek opposing arguments on the
+   subject," which is the cold critic's job and a second argument for the
+   random-sample conflict pass: a selector that only surfaces related claims cannot
+   surface an omission.
+
+**Source evaluation as disqualifiers, not a score.** Four questions: does the
+source have the qualifications; does it have a reputation for accuracy; does it
+have a motive to be inaccurate; is there reason to question its integrity. "If any
+of the answers are 'no' to the first two or 'yes' to the last two, the critical
+thinker should be hesitant." A conjunction of disqualifiers, never a weighted
+composite — which is how credibility signals should read.
+
+**"Perhaps the most important question the critical thinker should ask of any
+statistical result is: were the samples taken representative of the entire target
+population?"** A third independent arrival at the sampling point.
+
+**Degrees of certainty, and "I don't know" as a legitimate answer.** Intellectual
+humility means "adhering tentatively to recently acquired opinions" and thinking in
+"degrees of certainty or shades of grey" rather than right and wrong — "sometimes
+'I don't know' can be the wisest position to take on an issue." That is `status: draft`, `requisite uncertainty`, and the `deferred` finding state, each of which
+now has a reason beyond convenience.
+
+**Inductive arguments never prove.** "No matter how strong the evidence in support
+of an inductive argument, it will never prove its conclusion by following with
+necessity." Nearly every claim a corpus holds is inductive, which is the general
+form of the rule that a clean pass licenses far less than it appears to.
+
+**The hindrance tables draw the deterministic line for us.** Four tables list
+roughly forty named hindrances, and they split cleanly on whether a machine can
+find them:
+
+- **Table 2, Use of Language** — ambiguity, vagueness, hedging and weasel words,
+  meaningless comparisons, assuring expressions, doublespeak jargon, gobbledygook.
+  These are **lexically detectable**. A word list plus a test corpus finds them,
+  which makes them candidate `lint` checks in the same family as a Unicode
+  confusable check.
+- **Tables 1, 3, and 4** — confirmation bias, post hoc, begging the question, false
+  dilemma, appeal to authority, sunk cost, positive outcome bias. These are
+  **reasoning** failures and are not deterministically detectable. They belong to
+  the critic or to nothing, and a lexical check that claimed to find them would be
+  the model-based bias detector this family already refused.
+
+**On tone:** "Thinking critically is not thinking negatively with a predisposition
+to find fault or flaws. It is a neutral and unbiased process for evaluating
+claims." Worth keeping in front of whoever writes the critic prompt.
+
+### Three Documents with Less to Offer, and Why
+
+Recorded so their absence from the design reads as a decision.
+
+**`Second_Brain_Setup_Guide.md`** operationalizes PARA into four folders and a
+maintenance cadence. The folders add nothing beyond the PARA discussion above, but
+the cadence is a gap it exposes: "review Projects weekly and move completed ones to
+Archives; check Areas monthly." **Every review trigger in our design is
+event-driven** — an ingest, a conflict, a pull request — and none is periodic. A
+corpus with no scheduled review accumulates claims nobody has looked at since
+admission, and `stale_after` only catches the ones somebody thought to date. Its
+other rule, "avoid over-tagging; PARA thrives on simplicity," is an argument for
+the vocabulary starting empty.
+
+**`problem_solving_tools_book.md`** (Nickols) catalogues 24 tools in three
+families: visualizing problem structure, displaying data, and problem-solving
+technique. Almost all are for *generating* and *presenting* information rather than
+admitting it, so there is nothing to lift wholesale. Three are worth naming:
+**Affinity Diagram** is bottom-up emergent categorization, the honest counterpart
+to nominating subjects from collisions rather than declaring a taxonomy;
+**Five Whys** is the depth a warrant `rationale` should reach, since a first
+answer is usually a restatement; **Pareto** is measurement inversion's cousin —
+most findings come from few causes, which is worth knowing before adding checks.
+
+**`critical_thinking_in_world_book.md`** is the weakest of the five for our
+purposes. It is a popular treatment of individual cognitive bias — interoception,
+bystander effect, heuristics, confirmation bias, halo effect, priming, social
+proof — and where it overlaps Haskins's tables it adds narrative rather than
+mechanism. It is also, unintentionally, a small argument for admission gates: its
+chapter on bad science asserts that pseudo-science is "usually spearheaded by big
+pharmaceutical corporations," which is exactly the kind of unsourced causal claim a
+corpus should hold to a warrant. Noted, not adopted.
+
+### Instrumentation — Hamming, *The Art of Doing Science and Engineering*
+
+**Local copy:**
+`~/Documents/agent-orange/go-advice/Sources/misc/Hamming-TheArtOfDoingScienceAndEngineering_book.md`
+
+Chapters 27 (*Unreliable Data*) and 29 (*You Get What You Measure*) are the most
+directly useful things read in this whole survey, because they are about the
+instrument rather than the subject — and gnosis **is** an instrument.
+
+**The question to ask of gnosis itself.** Hamming, shown the rig for life-testing
+vacuum tubes destined for a submarine cable:
+
+> "Why do you believe the test equipment is as reliable as what is being tested?"
+> The answer I got convinced me he had not really thought about it.
+
+gnosis is test equipment for a corpus. Its checks are less reliable than their
+determinism advertises, and a planted-defect self-test is the only answer to
+Hamming's question we have.
+
+**The low-variance trap, which is a live hazard for us.** His account of how
+laboratory accuracy gets overstated:
+
+> "You fine tune the equipment. How? By adjusting it so you get consistent runs!
+> In simple words, you adjust for low variance; what else can you do? But it is
+> this low variance data you turn over to the statistician… you supply the low
+> variance data, and you get from the statistician the high reliability you want to
+> claim!"
+
+Every threshold in this design — rank cuts, hop limits, `MinPassageWords`,
+staleness defaults — lives in `standards/` so that runs are reproducible. Nothing
+prevents those knobs being turned until the corpus reports quietly, and a corpus
+tuned to lint clean is the low-variance rig exactly. Determinism guarantees the
+same answer twice; it says nothing about whether the answer is about anything.
+**A threshold changed in a direction that reduces findings has to be recorded as
+such**, or the standards file becomes a place where inconvenient checks go to die.
+
+**Eddington's fishermen are the best statement of selection bias we found.**
+
+> "They examined the size of the fish they caught and concluded there was a minimum
+> size to the fish in the sea. The instrument you use clearly affects what you
+> see."
+
+The conflict-candidate selector determines which contradictions exist *as far as
+the corpus knows*. That is the net, and its mesh is "shares a source, a link, or a
+tag."
+
+**Accuracy versus relevance — measurement inversion, stated better than Hubbard
+states it.**
+
+> "Accuracy of measurement tends to get confused with relevance of measurement,
+> much more than most people believe. That a measurement is accurate, reproducible,
+> and easy to make does not mean it should be done; instead a much poorer one which
+> is more closely related to your goals may be much preferable… in school it is
+> easy to measure training and hard to measure education."
+
+Substitute *conformance* for training and *whether the claim is true* for
+education and the sentence is about §12 without alteration.
+
+**The IQ artifact, which is a warning about a mechanism this project just
+adopted.** Describing how intelligence testing manufactures its own distribution:
+
+> "Those questions which show an internal correlation with others are kept and
+> those which do not correlate well are dropped… As a result it is observed
+> intelligence has a normal distribution in the population! Of course it has, it was
+> made to be that way!"
+
+We have just specified a `--check-value` report intended to identify checks worth
+retiring. Retiring the checks that *disagree with the other checks* is precisely
+this construction, and it would manufacture the appearance of a coherent registry.
+The only admissible retirement criterion is that **nobody acts on the findings** —
+never that a check dissents.
+
+**Careful estimates combined with wild guesses.**
+
+> "Much of the reliability of the engineering guesses was transferred to the sum,
+> and the uncertainty of the salesman's guesses was ignored… Careful estimates are
+> combined with wild guesses, and the reliability of the whole is taken to be the
+> reliability of the engineering part."
+
+This is the two-provenance-class problem with its failure mode named. A claim
+resting on one byte-exact quote and one adjudicated assumption will be read at the
+credibility of the quote. **A composite must be reported at its weakest link, not
+its strongest.**
+
+**Definitions drift silently, which is why deprecation must be announced.**
+
+> "The definition of what is being measured is constantly changing… Definitions have
+> a habit of changing over time without any formal statement of this fact."
+
+A subject key whose meaning shifts quietly invalidates every comparison ever made
+under the old meaning, and nothing in the corpus would show it. He also names the
+counter-pressure honestly — "better to have an irrelevant indicator than an
+inconsistent one, so they claim" — which is the real tension a soft-deprecation
+path exists to manage.
+
+**Averages over heterogeneous populations, which is a better argument than the one
+we were using.**
+
+> "Averages are meaningful for homogeneous groups… but for diverse groups averages
+> are often meaningless."
+
+Our stated reason for refusing a corpus-quality score was that a score is
+subjective and goes stale. The stronger reason is arithmetic: a corpus spans types,
+subjects, sources, and provenance classes, so a number averaged across it describes
+no part of it. It is not a bad summary — it is a summary of nothing.
+
+**Two more, briefly.** "Small samples carefully taken are better than large samples
+poorly done" is a third independent arrival at the sampling point. And the dynamic
+range argument from information theory — "you have the most information when all
+the grades are used equally" — implies something checkable: **if nearly every
+finding is a warning, severity carries almost no information.** A severity
+vocabulary used unevenly is a low-entropy channel.
+
+**Finally, the rating-system dynamic, which is about contributors rather than
+data.** "If in a rating system everyone starts out at 95% then there is clearly
+little a person can do to raise their rating but much which will lower the rating;
+hence the obvious strategy of the personnel is to play things safe." A corpus whose
+only visible signal is *problems found* rewards contributing less and claiming
+less. Reporting what the corpus gained alongside what it got wrong is not
+cheerleading; it is the counterweight that keeps the incentive from inverting.
+
+### Analysis Discipline — *The Art of Data Science*
+
+**Local copy:**
+`~/Documents/agent-orange/go-advice/Sources/data_science/art_of_data_science_book.md`
+
+Peng and Matsui. Two ideas transfer cleanly.
+
+**The epicycle: set expectations, collect, compare — and when they disagree, know
+which of two things to fix.** "Either your expectations were wrong and need to be
+revised, or the check was wrong and contains an error." The `--check` idiom
+throughout this design is expectation-comparison, and reconciliation (§5.1.2)
+already enumerates which side to fix per case. The framing is a good check on
+whether a new check knows what it expected before it looked.
+
+**The sharp hypothesis, which gives us a real constraint on constraints.**
+
+> "The expectation of a $30 meal is… a sharp hypothesis because it states something
+> very specific that can be verified with the data. If our original expectation was
+> that the meal would be between $0 and $1,000, then it's true that our data fall
+> into that range, but it's not clear how much more we've learned."
+
+**A constraint so wide it cannot fail is not a constraint.** `retry.max_attempts is between 1 and 100` is well-formed, parseable, indexable, and worthless — and it
+would pass every check the design currently specifies. This applies to derived
+constraints and to the strength/sufficiency check alike.
+
+**Five characteristics of a good question** — of interest to the audience; not
+already answered; stems from a plausible framework; answerable; specific — are the
+gate for `ask`, and the second is what search-before-ask is *for*. The third
+carries a warning we need: their counterexample is asking whether pepperoni sales
+correlate with yogurt sales, where "if you do find they are correlated, many
+questions are raised about the result itself." A randomly paired conflict candidate
+is a pepperoni-yogurt pair by construction, so the random-sample pass needs a
+plausibility filter or it will manufacture coincidences at a steady rate.
+
+Their specificity example — from "is eating a healthier diet better for you?" to
+"does eating at least 5 servings per day of fresh fruits and vegetables lead to
+fewer colds?" — is the clarification chain arriving from a third direction.
+
+### Presentation — Knaflic, *Storytelling with Data*
+
+**Local copy:**
+`~/Documents/agent-orange/go-advice/Sources/data_science/storytelling_with_data_book.md`
+
+One distinction earns its place: **exploratory versus explanatory**.
+
+> "Exploratory analysis is what you do to understand the data… like hunting for
+> pearls in oysters. We might have to open 100 oysters to find perhaps two pearls…
+> Too often, people err and think it's OK to show exploratory analysis (simply
+> present the data, all 100 oysters) when they should be showing explanatory… You
+> are making your audience reopen all of the oysters!"
+
+That is the `index.md` versus `search` split exactly. `search`, `graph`, and
+`critic` are exploratory instruments; `index.md` and a `show` rendering are
+explanatory artifacts, and the temptation she names — showing everything "as
+evidence of all of the work you did" — is precisely the failure mode of a health
+report that lists two dozen checks.
+
+### Two Documents with Nothing to Lift
+
+**`sqlite_tutorial_book.md`** is an introductory SQL reference: installation, DDL
+and DML syntax, joins, basic clauses. Across 32,000 words it mentions FTS5,
+`WITHOUT ROWID`, `PRAGMA user_version`, and `EXPLAIN QUERY PLAN` ten times
+combined, and the derived-index design already depends on all four in ways the
+tutorial does not cover. Two small things are worth knowing: the `sqlite_master`
+table is a way for `doctor` to verify schema shape against what the migrations
+should have produced, and its limitations list is a reminder that `ALTER TABLE`
+cannot drop a column — which is why migrations here are append-only.
+
+**`mathematics_for_machine_learning_book.md`** (130,000 words of linear algebra,
+analytic geometry, matrix decomposition, vector calculus, probability, and
+optimization) has no application to a tool that runs no model and computes no
+gradient. Its probability chapters cover ground `skillet/stats` already occupies
+via the specific estimators we need. Recorded so its absence is a decision rather
+than an oversight; if a semantic reranker is ever enabled (§11, optional), the
+inner-product and projection material becomes relevant and not before.
+
+## What We Intend to Build from This
 
 Our tools cover skills. The knowledge base is still a hand-curated repository of
 markdown, and the gap is ingestion: taking in outside sources and accreting
@@ -867,48 +2034,103 @@ person read every byte.** Automatic ingestion ends that, and nothing in the repo
 currently records which parts still hold it. Provenance tier becomes explicit
 per artifact.
 
-### Three tiers
+### Four Tiers
 
-- **Tier 0 — evidence archive.** Content-addressed immutable snapshots of source
-  bytes, keyed `(uri, content_hash)`, append-only. This is the piece llmwiki
-  lacks and it is small: it already computes the hashes, so we are adding "keep
-  the bytes" and repointing the validator at the snapshot instead of the live
-  fetch.
-- **Tier 1 — staging synthesis.** Forked llmwiki, cross-page updates on.
-  Reconciliation is *attempted* here. Deliberately not authoritative.
-- **Tier 2 — the curated git knowledge base**, unchanged in kind. Promotion is
-  the seam, and `llmwiki promote` already fails closed on invalid evidence; we
-  wrap it in the ordinary PR review that non-engineers on the team can operate.
+`gnosis` (`~/Documents/git/gnosis`) is the tool this section used to describe as a
+fork of llmwiki. It is not a fork — llmwiki is prior art we read closely and
+departed from, chiefly because it stores hashes rather than bytes and asks a model
+per candidate page. **The authoritative design is [`SPEC.md`](./SPEC.md); what
+follows is the shape, not the specification**, and where the two disagree the spec
+is right.
 
-Tier 0 also splits a signal llmwiki currently conflates, and the two demand
-opposite responses: a quote that no longer matches the *archived* bytes is
-corruption — fail hard; archived bytes that no longer match *upstream* are
-staleness — flag the derived claims for re-review, do not fail. `goalx`'s
-`freshness-state` is the model for the second.
+Karpathy names three layers. `gnosis` splits his first in two, because "immutable"
+is an assertion nothing was enforcing:
 
-### Two provenance classes
+- **Tier 0 — `evidence/`**, append-only, committed. Content-addressed archived
+  *text* (`.md`, `.txt`, `.svg`), plus a fetch ledger recording `(uri, sha256)` for
+  everything fetched including what was not archived. This is the piece llmwiki
+  lacks: it computes hashes and validates against a live fetch, so its byte-exact
+  guarantee silently weakens the day a source changes.
+- **Tier 1 — `.gnosis/quarantine/`**, mechanically admitted, not authoritative,
+  **not in the bundle**. Trust: unverified. This is where an ingested claim waits
+  for the promote gate.
+- **Tier 2 — the bundle**, an OKF knowledge base in git: `index.md`, `log.md`, and
+  `c/<uuid7>-<slug>.md`. The only source of truth, and the only thing shared
+  between people.
+- **Tier 3 — `.gnosis/`**, derived, regenerable, gitignored, **per-user**: the
+  SQLite index, the response cache, the miss log, the audit trail.
+
+Tier 0 also splits a signal llmwiki conflates, and the two demand opposite
+responses: a quote that no longer matches the *archived* bytes is corruption — fail
+hard; archived bytes that no longer match *upstream* are staleness — flag the
+derived claims, do not fail. `goalx`'s `freshness-state` is the model for the
+second, and its `unknown` versus `not_applicable` distinction is what keeps "we
+never looked" from reading as "it is fine".
+
+### Three Kinds of Knowledge, Not Two
 
 Reconciliation produces knowledge present in no source. It cannot carry a
-byte-exact quote, so **our most valuable artifact fails llmwiki's trust property
-by construction.** The corpus therefore holds two kinds of claim:
+byte-exact quote, so **the most valuable artifact a team produces fails llmwiki's
+trust property by construction.** Our first pass at this named two classes; the
+corpus actually holds three, and the middle one is the largest:
 
-- **sourced** — quote-validated, tier-0 backed, machine-admissible.
-- **adjudicated** — warranted by the PR, the participants, the date, and the
-  recorded reasoning; supersedes rather than deletes.
+- **Sourced** — quote-validated, tier-0 backed, machine-admissible.
+- **Adjudicated over sources** — the weighing. *"We weighed Gilb's Planguage
+  formulation against our existing SLO practice and adopted X."* Both inputs are
+  citable; the decision appears in neither. Explicit in the world, tacit in the
+  team.
+- **Genuinely tacit** — adjudicated with no sources at all. Real, and the smallest
+  of the three.
 
-This is where the manifesto's commitment to maintaining our local decisions
-about how to prioritize and trade off requirements actually lives, and it gives
-contradiction detection something to be authoritative against.
+Only the third is source-free, which means a warrant and a citation are not
+alternatives and the schema must let them co-occur freely. This is where the
+commitment to maintaining local decisions about how to prioritize and trade off
+requirements actually lives.
 
-### Minimizing the model
+### Decisions Since Settled
 
-We fork llmwiki to make the pipeline deterministic while preserving its
-behavior. The validator and the auto-promote heuristic already call no model;
-the work is pushing everything else in that direction.
+Recorded here because each changed the shape above, and because a reader of this
+document should not have to reconstruct them from the spec's section numbering.
 
-1. **Content-addressed response cache**, keyed on `(source content_hash, prompt
-   hash, model + version)`. A second run over unchanged inputs makes *no model
-   calls at all* and reproduces byte-identically. Cheapest and largest
+- **A claim is not a document.** OKF defines "Concept ID" as *the path of the
+  concept's file*, so in the format we conform to, a concept **is** a document. The
+  addressable assertion *inside* a document needed a word nobody had spent, and it
+  is `claim`. The collision had already produced one wrong recommendation before it
+  was caught.
+- **A claim's address lives in the document, not the index.** Identity is assigned
+  and content-free; the address is a fold-normalized anchor carried in frontmatter.
+  A byte offset is a location, not an address — it does not survive reflowing a
+  paragraph, and an index that alone knew a claim's identity would lose it on
+  rebuild.
+- **Local reductionism about testimony.** Every claim here is something somebody
+  said. Provenance attaches per claim rather than per corpus, and **a source's
+  reliability is never inherited by its claims.**
+- **A reader may challenge an accepted claim.** Adjudication previously started
+  only when a check noticed something, which left the most capable informant — a
+  person who already knows a claim is wrong — with no way in. Four classes ordered
+  by what settles them, and the strongest is the one gnosis can verify itself.
+- **One writer per user, git between users.** No shared database, no locking
+  protocol. The index is per-user and derived, so two people at one commit hold the
+  same index and a disagreement between them is about the corpus. The cost: two
+  people documenting one subject produce two identifiers and git merges both
+  *cleanly*, which makes duplicate detection a post-merge reconciliation step
+  rather than a hygiene check.
+- **One surface phrase resolves to one key, enforced.** Perspective-keyed
+  vocabularies are coherent for a glossary, which records what people mean, and
+  incoherent for a comparison substrate, which decides whether two claims disagree.
+  The rule forces a conversation; that is the intent.
+
+### Minimizing the Model
+
+The goal is a pipeline that is deterministic wherever determinism is available.
+llmwiki's validator and auto-promote heuristic already call no model, which is the
+proof the rest is reachable; the work is pushing everything else in that
+direction.
+
+1. **Content-addressed response cache**, keyed on
+   `(source content_hash, prompt hash, model + version)`. A second run over
+   unchanged inputs makes
+   *no model calls at all* and reproduces byte-identically. Cheapest and largest
    determinism win available. `qvr`'s lock — resolved SHA, subtree hash, verdict
    — is the record shape.
 2. **Deterministic candidate selection.** Replace the LLM scan over ~47 pages
@@ -937,19 +2159,20 @@ the work is pushing everything else in that direction.
 
 What remains irreducibly judgmental is prose-to-claim extraction and semantic
 conflict between claims that survive the pre-filters. We do not pretend
-otherwise; we bound it. Every call records `(prompt, model, version, output
-hash)` so any run is replayable and auditable. An adversarial refuter that never
+otherwise; we bound it. Every call records `(prompt, model, version, output hash)` so any run is replayable and auditable. An adversarial refuter that never
 saw the proposer's reasoning checks the output, in the manner of `4x`'s role
 isolation. And human PR review is the last gate. The model proposes;
 deterministic gates and people dispose — nondeterminism upstream of a
 deterministic gate is bounded, and with the cache, a repeat run is not
 nondeterministic at all.
 
-One cost to state plainly: two stores create a link-integrity surface between
-tiers that did not exist before. That is precisely the drift class `coherence`
-detects, so we gate it in CI rather than discovering it later.
+One cost to state plainly: four tiers create link-integrity surfaces that did not
+exist before — a claim citing an archived file, a quarantined document referencing
+a bundle concept, an index row pointing at a path. That is precisely the drift
+class `coherence` detects, so it is gated in CI rather than discovered later, and
+it is why every foreign key is an identifier and nothing joins on a path.
 
-## Techniques worth adding to the tools we already have
+## Techniques Worth Adding to the Tools We Already Have
 
 Separate from the knowledge-base work: a pass over `exegesis`, `skillsaw`, `adh`,
 and `canonizer` against the survey, with each claim checked against both
@@ -967,7 +2190,7 @@ and a rule anchored to a passage containing a curly apostrophe fails
 `verify.Provenance` while passing `quotecheck`. This is exactly the drift skillet
 exists to prevent, and it is the strongest argument for promoting `textnorm`.
 
-### exegesis — structure gate
+### `exegesis` — Structure Gate
 
 - **Hidden-character scanning belongs in `lint`.** `lint` gates frontmatter, body
   links, and runtime neutrality — nothing adversarial. `qvr`'s
@@ -990,7 +2213,7 @@ exists to prevent, and it is the strongest argument for promoting `textnorm`.
   commit author. The gap only bites for skills that come from outside, which is
   precisely the ingestion case.
 
-### skillsaw — quality score and ratchet
+### `skillsaw` — Quality Score and Ratchet
 
 - **The rubric should be data, not a Go table.** `rubric.Dimensions()` hardcodes
   the nine weights, and their provenance is a code comment ("the reconciled table
@@ -1013,7 +2236,7 @@ exists to prevent, and it is the strongest argument for promoting `textnorm`.
   That defect was visible because the weights were data. Ours sum to exactly 100
   and the invariant is asserted in a comment.
 
-### adh — five-stage arc loop
+### `adh` — Five-Stage Arc Loop
 
 - **Evidence has no staleness state.** `internal/evidence` is an append-only log
   with a timestamp; a grep for `stale` across `internal/` returns nothing. When
@@ -1041,7 +2264,7 @@ exists to prevent, and it is the strongest argument for promoting `textnorm`.
   ordered worse than its fail threshold) and is already more rigorous than
   `goalx`'s obligation model. The lesson from goalx is narrowly freshness.
 
-### canonizer — ruleset grader
+### `canonizer` — Ruleset Grader
 
 - **`verify.Provenance` conflates two failures under one category.** A rule whose
   `↦` anchor is not found in the source emits `anchor-absent` and blocks —

@@ -16,9 +16,15 @@ import (
 	"github.com/peterbourgon/ff/v4"
 	"github.com/peterbourgon/ff/v4/ffhelp"
 
+	"github.com/StevenACoffman/gnosis/cmd/doctorcmd"
+	"github.com/StevenACoffman/gnosis/cmd/graphcmd"
+	"github.com/StevenACoffman/gnosis/cmd/indexcmd"
+	"github.com/StevenACoffman/gnosis/cmd/initcmd"
+	"github.com/StevenACoffman/gnosis/cmd/lintcmd"
 	"github.com/StevenACoffman/gnosis/cmd/root"
+	"github.com/StevenACoffman/gnosis/cmd/searchcmd"
+	"github.com/StevenACoffman/gnosis/cmd/showcmd"
 	"github.com/StevenACoffman/gnosis/cmd/version"
-	// climax:imports
 )
 
 // Run parses args and dispatches to the matching command.
@@ -32,6 +38,13 @@ import (
 func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	r := root.New(stdin, stdout, stderr)
 	version.New(r)
+	initcmd.New(r)
+	doctorcmd.New(r)
+	lintcmd.New(r)
+	indexcmd.New(r)
+	searchcmd.New(r)
+	showcmd.New(r)
+	graphcmd.New(r)
 	// register new commands here
 
 	if err := r.Command.Parse(args, ff.WithEnvVarPrefix("GNOSIS")); err != nil {
