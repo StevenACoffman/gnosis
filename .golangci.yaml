@@ -361,6 +361,7 @@ linters:
             - "**/internal/segment/**"
             - "**/internal/command/**"
             - "**/internal/gate/**"
+            - "**/internal/relay/**"
             - "**/internal/lint/**"
             - "**/internal/web/**"
           deny:
@@ -380,6 +381,8 @@ linters:
               desc: "adapters import internal/gnosis only, never each other; the coordinator in internal/bundle is what executes a command — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/gate"
               desc: "adapters import internal/gnosis only, never each other; the shell gathers a gate.Corpus and hands it over — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/internal/relay"
+              desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/lint"
               desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/bundle"
