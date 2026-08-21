@@ -140,6 +140,23 @@ ______________________________________________________________________
 
 ## Noticed While Building Phase 2
 
+- [ ] **`standards/promote.toml` does not exist.** §9.5 requires every gate signal
+  to be declared in `standards/`, and `gate.Limits` is currently built from a
+  literal `HedgingMax: 3` in `bundle.gateInputs`. That is exactly the hardcoded
+  threshold §6.5 forbids, and it has no rationale attached. `MinPassageWords` is
+  fine — it comes from `quotecheck`, so the gate and the guard cannot disagree.
+- [ ] **The gate has no human-approval path.** §9.5 requires that promotion of a
+  document whose scan produced findings, or which contradicts an accepted one, take
+  a human with phrase confirmation and no `--yes`. Both conditions need the
+  `security` and `conflict` signals, so this waits on them — but the `Approver`
+  field is already on the command, so nothing structural blocks it.
+- [ ] **No `gnosis promote` or `gnosis quarantine` verb.** The coordinator handler
+  and the store both work and are reachable only from Go. A reader cannot see what
+  is waiting in tier 1.
+- [ ] **`gnosis_claims` archive paths are unvalidated at write time.** The gate
+  reads `archive_paths` from frontmatter and checks they exist in tier 0, which
+  catches the case at promotion. Nothing checks them when a document is
+  *quarantined*, so an author learns about a typo one step later than they could.
 - [ ] **`StoreEvidence` never overwrites, and nothing yet reports when it should
   have.** A record path is the hash of its content, so differing bytes at an
   existing path is corruption or tampering rather than an update. The writer

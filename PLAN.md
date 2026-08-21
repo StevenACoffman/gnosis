@@ -503,6 +503,7 @@ ______________________________________________________________________
 | 2.3 — tier 0 (pure)    | **done**    | `Decide` is a pure function of (candidate, gates); a record's sha256 is its own filename. Writing is 2.4's shell              |
 | 2.4 — `fetch`          | **done**    | Four adapters, the pinned HTML extractor, `--dry-run` as a command field; a re-fetch of unchanged bytes is a verified no-op   |
 | 2.5 — command + lock   | **done**    | `Effect` fails closed, `Promote` validates itself, one writer per bundle. Found three readers that were writing — see §6.9    |
+| 2.6 — gate + quarantine | **done**   | Five signals run, two report `unchecked` and block; the gate proves it can fail on every invocation — see §6.10              |
 
 Three findings from the per-step reviews changed the design rather than the code
 around it:
@@ -904,6 +905,59 @@ transport can skip validation" becomes true, since every transport arrives at
 computes the diff the apply will use, and a preview racing a concurrent write would
 report a diff against a bundle that no longer exists — which is exactly the window
 §9.4 closes.
+
+### 6.10 What Building Step 2.6 Turned Up
+
+**Two of seven signals have nothing to read, and that is a design question rather
+than a gap.** `security` needs §9.3's admission scan and `conflict` needs §10's
+adjudication. Omitting them would be a silent pass on evidence nobody examined;
+failing them would be a lie, because the signal did not fail, it did not run. They
+report `VerdictUnchecked`, and **unchecked blocks**. That is `quotecheck.Unchecked`
+one level up and §17.0.1's rule applied — a read path that cannot refuse is not
+trustworthy. The consequence is stated rather than buried: **until those subsystems
+exist, no promotion succeeds.** A test asserts exactly that, so it is not later
+mistaken for a defect.
+
+`Withheld` returns the failures and the unchecked signals **separately**, because
+the two call for opposite responses: a failure is something the author fixes, an
+unchecked signal is something this build cannot do, and a caller told only
+"blocked" would go hunting for a defect that is not in their document.
+
+**The self-test caught two of my own signals not discriminating**, on its first
+run, before any test existed. `duplication` and `evidence` both failed their
+controls, and the root cause was one fact: `textnorm.Fold` deliberately does not
+lower-case, because case carries meaning in a *quotation*. It carries none in a
+*title*, so the duplication signal wanted `gnosis.Surface.Fold` — which lower-cases
+on top of the same folding, and which the ontology already uses for the same
+reason. The evidence failure was the fixture's own case mismatch, which is the
+signal behaving correctly.
+
+**The self-test was then verified against a deliberately decorative signal.**
+Wiring `duplication` to always pass makes `TestControlHolds` fail and name it.
+That check matters more here than anywhere else in the codebase: the whole claim of
+§9.5 is that the gate can be shown to fail, and a self-test nobody has seen fail is
+in exactly the position the gate would be without it.
+
+**A self-test must also report what it did not exercise.** `SelfTest` derives its
+unproven set by difference from the full signal list rather than listing it, so a
+signal implemented later without a planted defect shows up as unproven instead of
+quietly counting as proven.
+
+**`unparam` and `nilerr` together found a dishonest signature.** `candidate`
+returned `(*gate.Candidate, error)` and the error was always nil, because a
+document that will not parse is deliberately not an error — it is a candidate whose
+conformance signal fails. Two linters saying so from different directions is the
+signal that the return type was claiming a failure mode the function does not have.
+
+**gosec's TOCTOU warning had a real fix, not a suppression.** Walking `evidence/`
+with `filepath.WalkDir` lets a symlink lead the reader out of the bundle. Rooting
+the walk at `os.DirFS` closes it, costs nothing, and is the posture `bundle.Load`
+already took.
+
+**Quarantine's traversal check is not defensive habit.** A quarantined document's
+path arrives from a model's reply, so `../../etc/whatever` is an input this
+function will actually receive — and tier 1 exists precisely to keep untrusted
+content out of the working tree (§3083).
 
 ## 7. Rules Review of This Plan
 
