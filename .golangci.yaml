@@ -362,6 +362,8 @@ linters:
             - "**/internal/command/**"
             - "**/internal/gate/**"
             - "**/internal/relay/**"
+            - "**/internal/audit/**"
+            - "**/internal/okflog/**"
             - "**/internal/lint/**"
             - "**/internal/web/**"
           deny:
