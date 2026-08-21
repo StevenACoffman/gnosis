@@ -394,6 +394,16 @@ how cheap they are relative to what they buy.
   has been applied; reliance is the version that decides the next case without a
   fresh argument. Worth adopting as the stated test with the current wording kept as
   its gloss.
+- [ ] **Three surveyed projects write durable knowledge with no gate on the write
+  path** — `obsidian-second-brain` (rewrites pages), `Acontext` (an LLM distillation
+  pass writes skill files), `doceo` (saves lessons and self-revises from feedback).
+  Not an action item for gnosis so much as a calibration one: §1.1's posture is
+  contested by the field's default, not merely by an imagined opponent, and the
+  specification currently argues against a position nobody in it is named as holding.
+- [ ] **The Gentleman Programming ecosystem is unexamined as an ecosystem.**
+  `gentle-ai`, `gentle-wiki`, `engram`, and `Gentleman-Skills` are four repositories
+  covering roughly this family's concerns — runtime, documentation, memory, skills.
+  Read individually at README level; never compared as an assembly against ours.
 - [ ] **§9.3 should treat any agent-nameable string as an execution surface.**
   `oh-my-agent` allowlists exactly three executable commands "so an agent that writes
   anything else into the state file gets it ignored, never run." gnosis already

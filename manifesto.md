@@ -2629,12 +2629,29 @@ Judged by README, layout, and targeted greps only. Each could repay a closer loo
 `hive`, `MMCTAgent`, `oh-my-openagent`, `gentle-ai`, `cascadeflow` — agent
 frameworks, orchestration platforms, and model-routing layers. gnosis calls no
 model and builds no agent; these solve a problem it does not have.
-`Gentleman-Skills`, `ai-agent-skills`, `thinking-skills`, `agent-thinking-skills`,
-and `doceo` are skill catalogues rather than components — useful as corpora to
-*grade* with `skillsaw`, which is a different relationship from lifting a mechanism.
-`agents.md` is the AGENTS.md standard's own website. `principles` generates agent
-networks from first-principles decomposition and is an experiment its author
-labels as such.
+`Gentleman-Skills`, `ai-agent-skills`, `thinking-skills`, and
+`agent-thinking-skills` are skill catalogues rather than components — useful as
+corpora to *grade* with `skillsaw`, which is a different relationship from lifting a
+mechanism. `agents.md` is the AGENTS.md standard's own website. `principles`
+generates agent networks from first-principles decomposition and is an experiment
+its author labels as such.
+
+`doceo` was grouped with the catalogues on a first pass and does not belong there.
+It is a single skill — an AI tutor that answers in one screen: one plain-language
+answer, one diagram, one analogy, a self-quiz. What makes it relevant is the part
+that is not tutoring: **every lesson is saved to the user's notes, the next lesson
+reads what was already learned, and the skill revises itself from feedback.** That
+is a self-accreting corpus with a feedback loop, and it is the third project in this
+survey — after `obsidian-second-brain` and `Acontext` — that writes durable
+knowledge with no evidence gate on the write path. Three independent projects making
+the same choice is worth recording as the field's default rather than as one
+author's oversight, and it is the choice §1.1 exists to argue against.
+
+One more pattern is visible only across repositories. `gentle-ai` (runtime),
+`gentle-wiki` (documentation), `engram` (memory), and `Gentleman-Skills` (skills)
+are four repositories from one ecosystem, covering roughly the concerns this family
+covers. Whether that assembly agrees or disagrees with ours is unexamined and is the
+most interesting unread thing in the survey.
 
 ## What We Intend to Build from This
 
