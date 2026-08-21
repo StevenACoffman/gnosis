@@ -33,13 +33,13 @@ func run(t *testing.T, args ...string) (stdout, stderr string, err error) {
 func payload(t *testing.T, stdout string) map[string]any {
 	t.Helper()
 	var env struct {
-		Status string         `json:"status"`
+		Status root.Status    `json:"status"`
 		Data   map[string]any `json:"data"`
 	}
 	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
 		t.Fatalf("stdout is not one JSON line: %v\n%s", err, stdout)
 	}
-	if env.Status != string(root.StatusOK) {
+	if env.Status != root.StatusOK {
 		t.Fatalf("status = %q, want ok:\n%s", env.Status, stdout)
 	}
 	return env.Data

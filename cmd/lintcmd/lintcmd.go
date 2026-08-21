@@ -46,8 +46,8 @@ links, a log-format check on a bundle with no log — is skipped with its reason
 stated, because a silent skip is indistinguishable from a clean result.
 
 Findings are not failures. A corpus with blocking findings exits ` +
-			strconv.Itoa(root.CodeFindings) + `, distinct
-from the ` + strconv.Itoa(root.CodeError) + ` a broken tool exits with, so a CI job can tell
+			strconv.Itoa(int(root.CodeFindings)) + `, distinct
+from the ` + strconv.Itoa(int(root.CodeError)) + ` a broken tool exits with, so a CI job can tell
 "the corpus has problems" from "gnosis could not run".`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,

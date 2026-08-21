@@ -17,7 +17,7 @@ import (
 // record is the envelope with doctor's payload decoded into place. Spelled out
 // rather than embedding root.Outcome so every field carries its own tag.
 type record struct {
-	Status  string           `json:"status"`
+	Status  root.Status      `json:"status"`
 	Code    int              `json:"code"`
 	Reason  string           `json:"reason"`
 	Message string           `json:"message"`
@@ -137,7 +137,7 @@ func TestFindingsExitThreeNotOne(t *testing.T) {
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("err = %v, want a root.ExitError", err)
 	}
-	if int(exitErr) != root.CodeFindings {
+	if root.Code(exitErr) != root.CodeFindings {
 		t.Errorf("exit code = %d, want %d", exitErr, root.CodeFindings)
 	}
 }
