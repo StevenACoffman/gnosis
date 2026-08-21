@@ -502,6 +502,7 @@ ______________________________________________________________________
 | 2.2 — standards        | **done**    | `Value[T]` makes the rationale structural; the loosening direction lives in Go, not the file — see §6.8                       |
 | 2.3 — tier 0 (pure)    | **done**    | `Decide` is a pure function of (candidate, gates); a record's sha256 is its own filename. Writing is 2.4's shell              |
 | 2.4 — `fetch`          | **done**    | Four adapters, the pinned HTML extractor, `--dry-run` as a command field; a re-fetch of unchanged bytes is a verified no-op   |
+| 2.5 — command + lock   | **done**    | `Effect` fails closed, `Promote` validates itself, one writer per bundle. Found three readers that were writing — see §6.9    |
 
 Three findings from the per-step reviews changed the design rather than the code
 around it:
@@ -844,6 +845,65 @@ rendered form is not the form that was scanned.
 kind a later contributor undoes helpfully, so `TestNoTimestampField` fails on any
 encoding containing one. The property it protects — that a re-fetch of unchanged
 bytes lands at the same path and writes nothing — is tested directly beside it.
+
+### 6.9 What Building Step 2.5 Turned Up
+
+**Three readers were writing, and the failure was worse than layering.** §4.6 names
+`lint`, `search`, `show`, and `graph` as readers that must not require the writer,
+and §4.5 says nothing read-only creates state. `search`, `show`, and `graph` all
+called `bundle.OpenIndex`, which creates `.gnosis/` and migrates. On a fresh clone
+`gnosis search cache` therefore built an empty index and answered **zero hits** —
+which a caller cannot distinguish from *no matches*. The corpus appeared to contain
+nothing rather than to be unbuilt. `OpenIndexForRead` refuses instead and names the
+repair. Migration of an index that *does* exist is kept, and the asymmetry is
+argued in place: the index is a derived cache, so moving its schema forward loses
+nothing, while failing every read until someone rebuilds would make an upgrade feel
+like a breakage.
+
+**The envelope had to move down, and the rule that says so is the family's own.**
+§4.6.2 specifies `Execute(ctx, Command) (Outcome, error)`, `internal/*` cannot
+import `cmd/*`, and the envelope lived in `cmd/root`. That is
+promote-on-second-consumer applied inside one repository: the value moved to
+`internal/gnosis`, the *emitters* stayed in `cmd/root` because they are I/O, and
+the vocabulary is re-exported so no call site changed.
+
+**Typing `Status` and `Code` immediately caught call sites.** They had been untyped
+string and int constants, and the compiler found nine comparisons that had been
+passing only because everything was a string. None was a live bug, but a `Reason`
+where a `Status` belongs is precisely the mistake a machine contract cannot afford.
+
+**`Code` has no safe zero value, and that had to be designed around rather than
+declared away.** Every other enumeration here gives the zero value a name that
+asserts nothing — `EffectUnset`, `ActorUnset`, `DispositionUnset`, `quotecheck.Unchecked`.
+`Code(0)` is `CodeOK`, a real and successful value, so the same trick is
+unavailable. The resolution is to make an `Outcome` constructible only through five
+functions that set status and code together — the only five pairings §8.0 defines —
+so nothing in the package can produce a mismatched pair, and `Valid` reports one
+built by hand.
+
+**`golangci-lint --fix` silently deleted the `Command` interface.** It had no
+implementor referencing it yet, so `unused` removed it and the next build failed on
+a type that had been written minutes earlier. The fix is the compile-time assertion
+`var _ Command = (*Promote)(nil)`, which is worth having anyway: without it the
+interface is satisfied by accident and a renamed method surfaces at the coordinator
+rather than at the declaration.
+
+**A concurrency test that cannot fail proves nothing.** The first version
+incremented a counter under the lock and checked the peak — with a critical section
+so short that the peak stays at one whether or not the lock works. The rewritten
+test does real file work inside the lock and asserts the enter/exit log is strictly
+nested, and it was **verified by disabling the lock**: it fails with the writers
+interleaved and passes when the lock is restored.
+
+**Validation runs before the lock, and the ordering is a design decision.** A
+malformed command must not queue behind a well-formed one. It is also where "no
+transport can skip validation" becomes true, since every transport arrives at
+`Execute`.
+
+**A preview takes the lock too.** That looks unnecessary and is not: a preview
+computes the diff the apply will use, and a preview racing a concurrent write would
+report a diff against a bundle that no longer exists — which is exactly the window
+§9.4 closes.
 
 ## 7. Rules Review of This Plan
 
