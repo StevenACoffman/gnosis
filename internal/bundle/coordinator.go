@@ -71,6 +71,8 @@ func (c *Coordinator) dispatch(ctx context.Context, cmd command.Command) (gnosis
 	switch v := cmd.(type) {
 	case *command.Promote:
 		return c.promote(ctx, v)
+	case *command.Admit:
+		return c.admit(ctx, v)
 	default:
 		// Not a usage error: the caller constructed something this build does not
 		// implement, which is a fault in the pairing of caller and binary.

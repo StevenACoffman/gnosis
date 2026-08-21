@@ -129,8 +129,27 @@ func archivedText(op, bundleDir string) (map[string]string, error) {
 // disposition. A `referenced` source is still provenance.
 func fetchedURIs(op, bundleDir string) (map[string]bool, error) {
 	out := map[string]bool{}
-	fsys := os.DirFS(bundleDir)
+	err := walkRecords(op, os.DirFS(bundleDir), func(rec *archive.Record) {
+		out[rec.URI] = true
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
+// walkRecords calls visit for every fetch record in tier 0.
+//
+// Requires: fsys is rooted at the bundle.
+// Ensures: a bundle that has fetched nothing is not an error. **A malformed record
+// is**, and is not skipped quietly: a reader that stepped over one would report a
+// source as never fetched when in fact its record exists and cannot be read, which
+// sends somebody to re-fetch a source that is already there rather than to the
+// corruption.
+//
+// The walk is rooted at an fs.FS rather than an operating-system path, so a symlink
+// inside evidence/ cannot lead it out of the bundle.
+func walkRecords(op string, fsys fs.FS, visit func(*archive.Record)) error {
 	err := fs.WalkDir(fsys, archive.FetchDir, func(name string, d fs.DirEntry, err error) error {
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
@@ -146,18 +165,15 @@ func fetchedURIs(op, bundleDir string) (map[string]bool, error) {
 		}
 		rec, rerr := archive.ParseRecord(data)
 		if rerr != nil {
-			// A malformed record is a corrupt tier 0 and must not be skipped
-			// quietly: the provenance signal would then report a source as
-			// unfetched when the record exists and cannot be read.
 			return &errs.Error{Op: op, Message: op + ": " + name, Err: rerr}
 		}
-		out[rec.URI] = true
+		visit(&rec)
 		return nil
 	})
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return &errs.Error{Op: op, Err: err}
 	}
-	return out, nil
+	return nil
 }
 
 // titlesByFold maps each existing document's folded title to its path.
