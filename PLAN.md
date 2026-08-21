@@ -505,6 +505,7 @@ ______________________________________________________________________
 | 2.5 — command + lock   | **done**    | `Effect` fails closed, `Promote` validates itself, one writer per bundle. Found three readers that were writing — see §6.9    |
 | 2.6 — gate + quarantine | **done**   | Five signals run, two report `unchecked` and block; the gate proves it can fail on every invocation — see §6.10              |
 | 2.7 — ingest/admit     | **done**    | Two-phase relay, content-addressed cache, `--cache-only`; segment-then-check wired end to end — see §6.11                    |
+| 2.8 — log + audit      | **done**    | Two records, not one rendering of one: `log.md` committed, `audit.jsonl` per-user. Clock injected — see §6.12                |
 
 Three findings from the per-step reviews changed the design rather than the code
 around it:
@@ -1012,6 +1013,58 @@ admission", and admission is exactly this step — the domain package had a pars
 and no constructor. `gnosis.NewID` is now the one impure function in that package,
 and its comment says so, because everything else there is a value operation and a
 reader is entitled to know which one reads a clock.
+
+### 6.12 What Building Step 2.8 Turned Up
+
+**§15 names `skillet/auditlog` and that package is the wrong shape.** It reads and
+writes `results.tsv`: nine tab-separated columns describing a
+baseline/keep/revert/error *optimization experiment*. §15's row is a mutation
+record with paths and content hashes. They share a word and nothing else. This is
+the third SPEC reference to a library that does not fit — after `go-git/v6` and the
+extractor name — and the pattern is worth naming: a specification written before
+the code cites what sounds right, and only building against it finds out.
+
+**The audit row carries a timestamp and a fetch record does not, and that is
+consistent rather than contradictory.** §4.3.1 refused a timestamp because a fetch
+record is content-addressed, so one would make tier 0 grow when somebody *checks*
+rather than when the corpus *learns*. An audit row is a record of an event and
+"when" is half the question it answers. §10.7.4 reconciles them: a fetch record
+states a fact about the corpus and must travel; an audit row states what this
+user's process did and must not.
+
+**`log.md` and `audit.jsonl` are two mechanisms, not one with two renderings.** A
+colleague pulling the repository needs to know the per-file cap was raised and why;
+they do not need to know this laptop rebuilt its index eleven times. Merging the
+second into git would conflict on every pull and tell nobody anything.
+
+**A refused promotion is recorded.** "We declined to promote this eleven times" is
+a fact about the corpus that a successful-writes-only trail would not hold, and it
+is the fact most worth having when somebody asks why a document never landed.
+
+**An audit failure must not fail the write it describes.** If the document landed
+and the append failed, returning an error would tell a caller to retry something
+that succeeded — the more dangerous of the two wrong answers. The failure is folded
+into the outcome's message instead. This is a real weakness rather than a tidy
+design and it is in TODO as one: a trail with silent gaps cannot answer the
+question it exists for.
+
+**The clock is a field on the coordinator, and that is a genuine dependency rather
+than a test-only seam.** An audit row's whole value is the time on it, and a value
+the tests cannot pin is a value the tests do not check.
+
+**Running the thing found two defects the tests did not.** A demo corpus put
+through fetch → ingest → admit produced a document with `resource: ""` — the source
+URI was documented as caller-set and never set, so the promote gate's provenance
+signal would have failed every admitted document. The fix is a `PromptMeta` sidecar
+written when a prompt is emitted, which also closed a TODO item: `admit` now refuses
+a key that names no emitted prompt, where before it would cache a reply to a
+question nobody asked. And quotations are now checked against **the one archived
+file the prompt was built from** rather than the whole archive — checking against
+everything would let a reply about one source pass on a phrase that happens to
+appear in another.
+
+That is the argument for exercising a build by hand even with a passing suite. Both
+defects were in the seams between components that each had good tests.
 
 ## 7. Rules Review of This Plan
 

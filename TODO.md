@@ -150,9 +150,24 @@ ______________________________________________________________________
 - [ ] **Prompts are never cleaned up.** `.gnosis/prompts/` accumulates one file per
   unanswered question and nothing removes an answered one. Gitignored, so it costs
   only disk, but a reader listing the directory cannot tell what is outstanding.
-- [ ] **`admit` does not verify the key names a prompt that was emitted.** It caches
-  under whatever key it is given, so a typo files a reply against a question nobody
-  asked and the cache quietly gains an entry nothing will ever hit.
+- [x] **`admit` verifies the key names an emitted prompt.** *Fixed in Step 2.8 by
+  the `PromptMeta` sidecar: a key with no meta is refused before the reply is
+  cached.*
+- [ ] **An audit append that fails does not fail the write, and the gap is
+  silent.** `Coordinator.record` is best-effort by design — reporting the failure
+  as the operation's would tell a caller to retry something that succeeded — and
+  the note lands in the outcome's message where a machine will not see it. A trail
+  with silent gaps cannot answer the question it exists for. Wants either a
+  `doctor` check that the trail's last row matches the corpus's last change, or an
+  explicit field on the envelope.
+- [ ] **`log.md` is not written automatically on a threshold change.** §6.2 requires
+  a loosened `standards/` value to be recorded there with the finding count before
+  and after. `standards.CompareArchive` can detect the loosening and `okflog.Add`
+  can file the note; nothing joins them, so the requirement is currently a
+  convention a person has to remember — which is the thing §6.2 says not to rely on.
+- [ ] **`init` and `index rebuild` emit no audit rows.** §15 says every mutation.
+  They write scaffold and derived state rather than corpus content, which is an
+  argument for a different row rather than for none.
 - [ ] **`standards/promote.toml` does not exist.** §9.5 requires every gate signal
   to be declared in `standards/`, and `gate.Limits` is currently built from a
   literal `HedgingMax: 3` in `bundle.gateInputs`. That is exactly the hardcoded
