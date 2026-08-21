@@ -8,12 +8,6 @@ import (
 	"github.com/StevenACoffman/skillet/errs"
 )
 
-// snippetEllipsis is what FTS5 puts where it trimmed the surrounding text.
-const snippetEllipsis = "…"
-
-// snippetTokens is how much context a snippet carries. FTS5 caps this at 64.
-const snippetTokens = 24
-
 // Hit is one search result, with everything a reader needs to decide whether to
 // open it and to follow it without asking again (SPEC §8.3).
 type Hit struct {
@@ -42,17 +36,20 @@ func (db *DB) Search(ctx context.Context, query string, limit int) ([]Hit, error
 		return nil, &errs.Error{Code: errs.EINVALID, Message: op + ": empty query"}
 	}
 
+	// The body comes back raw and the snippet is rendered from it here rather than
+	// by FTS5's snippet(), which excerpts the document as written — a hit near a
+	// link would render as a UUID rather than a sentence. See Snippet.
 	rows, err := db.sql.QueryContext(ctx, `
 		SELECT f.document_id,
 		       COALESCE(d.path, ''),
 		       COALESCE(d.title, ''),
-		       snippet(documents_fts, 2, '', '', ?, ?)
+		       f.body
 		FROM documents_fts f
 		LEFT JOIN documents d ON d.id = f.document_id
 		WHERE documents_fts MATCH ?
 		ORDER BY bm25(documents_fts, 0.0, 10.0, 1.0)
 		LIMIT ?`,
-		snippetEllipsis, snippetTokens, query, limit)
+		query, limit)
 	if err != nil {
 		// FTS5 reports a syntax error through the driver, and it is the caller's
 		// syntax. Classifying it as EINVALID is what lets the command exit 2.
@@ -62,10 +59,14 @@ func (db *DB) Search(ctx context.Context, query string, limit int) ([]Hit, error
 
 	out := make([]Hit, 0)
 	for rows.Next() {
-		var h Hit
-		if err := rows.Scan(&h.ID, &h.Path, &h.Title, &h.Snippet); err != nil {
+		var (
+			h    Hit
+			body string
+		)
+		if err := rows.Scan(&h.ID, &h.Path, &h.Title, &body); err != nil {
 			return nil, &errs.Error{Op: op, Err: err}
 		}
+		h.Snippet = Snippet(body, query)
 		out = append(out, h)
 	}
 	if err := rows.Err(); err != nil {
