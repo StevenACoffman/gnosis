@@ -2011,6 +2011,378 @@ via the specific estimators we need. Recorded so its absence is a decision rathe
 than an oversight; if a semantic reranker is ever enabled (§11, optional), the
 inner-product and projection material becomes relevant and not before.
 
+### The LLM-Wiki Field — the `agent-purple` Survey
+
+**Local copies:** `~/Documents/agent-purple` — 19 implementations and 9 documents.
+
+This is the first survey where gnosis is not alone. A dozen projects here implement
+Karpathy's pattern, several arrived at the same architecture independently, and two
+are close enough to be siblings. The convergences are worth more than the
+differences, because a design four strangers reached separately is a design the
+problem forces.
+
+**What the field converged on, with no coordination.** Markdown plus git as the
+substrate. A deterministic CLI beside an agent, not inside it. Lint as a
+first-class operation. The index as a derived cache. Search over browsing. Every
+one of those is in this specification for reasons argued from first principles,
+and every one shows up in projects that never read it.
+
+#### `canopy`, and a Principle Taxonomy Worth Stealing
+
+A Go binary for markdown wikis, built on *"판단은 LLM이, 불변식은 코드가"* —
+**judgment to the LLM, invariants to code**, which is this project's thesis in nine
+words. Its `docs/philosophy.md` lists eleven principles, and several are ours
+verbatim: *derivatives are never hand-edited*, *distinguish source, state, and
+cache* (its three tiers to our four), *code generates candidates and the LLM
+judges* (§6.2 plus §10.3, exactly), *distinguish assertion from conjecture*.
+
+The contribution is not any principle. It is that **each one is tagged `[code]`,
+`[convention]`, or `[code+convention]`** — a stated axis for *what enforces this*.
+Our specification is full of MUSTs and says nowhere which are machine-checked and
+which rest on people behaving. Two examples make the gap concrete: canopy marks
+*raw/ is immutable* as `[convention]`, where §4.1 makes tier 0 append-only and
+content-addressed precisely because "immutable is an assertion nothing currently
+enforces" — we are stricter and could say so. Conversely several of our own rules
+are convention wearing a MUST, and a reader cannot tell which.
+
+Two mechanisms we lack outright: **`bridge`**, which surfaces similar-but-unlinked
+pages as candidate connections, and a **rediscovery loop** (`resurface` with
+👍/👎/😴 feedback feeding later candidate selection) that answers §14.3.1's
+periodic-review gap with something better than a date comparison. And its gap log —
+"searches that found no answer accumulate, becoming page-creation candidates" — is
+`miss.jsonl` and the `gap` check, arrived at independently.
+
+#### `mnemo_wiki`, Our Nearest Sibling in OKF
+
+The closest sibling: an LLM wiki **stored in OKF**, with a command surface nearly
+identical to our Phase 1 — `init`, `new`, `lint`, `index`, `reindex`, `search`,
+`show`, `links`, `move`, `log`, `validate`. Its statement of the division is
+crisper than ours: **"It never calls a language model itself… The tool is the
+hands; the agent is the head."**
+
+Where it differs is instructive. mnemo_wiki puts the agent's routines in a
+`CLAUDE.md` inside each wiki — the rules, the frontmatter each page type needs, the
+step-by-step for adding a source. That is our §5.7 schema document, and theirs is
+load-bearing where ours is generated. The comparison worth making later is whether
+a corpus's conventions belong in a file the agent reads or in a tool that refuses
+the write.
+
+#### The Deterministic Half, Twice: `kb-lint` and `wiki-compiler`
+
+`kb-lint` is a Python linter for markdown knowledge bases with seven checks:
+`links`, `frontmatter`, `orphans`, `structure`, `content`, `index`, `consistency`.
+Its check table carries a column ours does not: **`Auto-fixable?`**. We have that
+axis — `finding.Action` is `automatic`/`guided`/`human` — and §12's table does not
+show it, so a reader cannot see at a glance which findings a tool can close. That
+is a free improvement.
+
+Two of its content checks we lack: **`{{PLACEHOLDERS}}`** left in a page, and
+**empty sections**. Both are lexical, both are the kind of thing an agent leaves
+behind, and neither needs a model. Its `index` check is a deliberate divergence
+rather than a gap — it validates `_index.md` against the file tree and auto-fixes
+it, where §5.6 makes `index.md` a curated map precisely so it is *not* a generated
+listing.
+
+`wiki-compiler` is the thesis stated as a pipeline: `Raw Notes → Extractor → Graph → Rewriter → Linter → Compiled Wiki`, pure Python, "no LLM calls, no embeddings, no
+dependencies", published under the title *LLM Wikis Are Over-Engineered*. It is
+what remains when the model is removed entirely, and it is a useful floor: anything
+gnosis asks a model to do that this does deterministically is a place we have not
+tried hard enough.
+
+#### `tome`, and an Admission Test We Lack
+
+An agent-memory vault with constraints "enforced by the CLI and `tome lint` rather
+than trusted to prose" — again the same instinct. Its contribution is the criterion
+for what is worth writing down at all: **durable, non-obvious, not trivially
+derivable.**
+
+gnosis gates on evidence, conformance, and identity, and has no test for whether a
+claim is *worth having*. A well-sourced triviality passes every check we specify.
+That is a real hole, and it is the kind that fills a corpus with true, cited,
+useless pages until search stops being worth running.
+
+#### `LLM Wiki V3: Segmentation`, and Its Librarian Pattern
+
+A concept document in the V1/V2 lineage, and one idea in it is directly applicable.
+When an agent searches the corpus for its own context, "as the agent searches… its
+context fills. By the time it returns, it may have drifted from the original
+objective… The team inherits the agent's drift."
+
+The **librarian pattern** separates retrieval into its own context: the caller
+states an objective and waits, the librarian searches and returns pre-scoped
+material, and the caller reads it fresh alongside the objective. `gnosis ask`
+already emits a prompt with retrieved context, so we have the mechanism — what we
+lack is the *reason*, stated. It is not token economy. It is bias prevention, and
+that framing changes what the command should and should not include.
+
+Its general claim is also worth recording: the failure modes of a growing wiki "are
+not data problems, they are segmentation failures… the answer is not a stronger
+foundation, it is more foundations — each one narrow."
+
+#### Shirky's *Ontology Is Overrated*, Our Honest Counter-Argument
+
+Everything above agrees with us. This does not, and it is the strongest available
+objection to §5.8's controlled vocabulary, so it belongs here rather than in a
+footnote.
+
+Shirky's case is that categorization schemes impose a single true home on things
+that have none — *"there is no shelf"* — and his exhibit is Yahoo's directory,
+where *Books and Literature* appears under *Entertainment* with an `@` marking it
+as filed "for your convenience" while it "really" lives elsewhere. To which, he
+says, one can only respond: "What's real?" His alternative is the link and the tag:
+free-form labelling, no categorical constraint, value extracted from big messy data
+sets.
+
+**Note what this shares with Bush and Luhmann.** Three writers across sixty years
+naming the same defect — a thing can be in only one place — and Shirky draws the
+opposite conclusion from ours: abandon the controlled vocabulary rather than
+enforce it.
+
+The reconciliation is in the conditions, and Shirky supplies them himself. His
+argument holds where the corpus is large, open, uncoordinated, and its users
+share no purpose — the Web. `ontology.toml` governs the opposite case: a small
+corpus, a coordinated team, and a purpose that *is* comparison. A subject key
+exists so §10 can decide whether two claims disagree, and free-form tags cannot do
+that at any scale. So the vocabulary stays enforced (§5.8.2.1), and Shirky is the
+reason it stays **small** — subjects start empty, accrete only on a real collision,
+and anything that cannot name a dimension is a tag rather than a subject. He is
+also the reason tags exist beside subjects at all: the free-form layer is where
+everything that is not a comparison lives.
+
+#### *What to Keep, What to Skip*, Our Only Field Evidence
+
+**Local copy:** `what_to_keep.md` (Eugeniu Ghelbur, *The AI Operator*)
+
+Everything else surveyed here is a design. This is a **report from months of daily
+use**, and it is the only document in the field that says which of the proposed
+features died in practice. It deserves more weight than its length suggests, and
+some of what it says is uncomfortable for this specification.
+
+**The split it found.** "v2" clusters into governance features — confidence,
+supersession, forgetting — and infrastructure — hybrid search, hooks, quality
+scoring, tiered memory. His verdict after months: *"the split between them is
+exactly the split between what works and what is overkill."* Governance earned its
+place; infrastructure did not.
+
+**Kept, and it validates four of our decisions:**
+
+- **Confidence as a marker, not a score.** `stated` / `high` / `low`, one word per
+  fact. *"This is the single highest-value v2 idea and it requires zero
+  infrastructure."* And the sharp part: **"a `stated` claim gets treated as a
+  quote, not a truth."** That is exactly what our sourced-versus-adjudicated split
+  is for, and it is a better sentence than any in §10.4. v2 wanted decaying numeric
+  confidence (0.85, reinforced on access); we refused numeric scores in §17 and
+  kept `certainty` as HIGH/MEDIUM/LOW, which is his version, arrived at
+  independently.
+- **Supersession as reconciliation, not a data structure.** *"You do not need a
+  formal supersession chain. You need the AI to actually resolve the conflict
+  instead of hoarding it."* We have `gnosis_supersedes` as a formal edge — worth
+  keeping, because a team corpus needs the audit trail a single-user vault does
+  not, but his point stands: the structure is not the value, the resolution is.
+- **Lifecycle hooks as scheduled agents.** *"You do not need an event-bus
+  abstraction. You need cron and a rules file."* That is §14.3.1's periodic review,
+  and it names the mechanism.
+- **Quality-scoring engines are weight.** Independent agreement with §17.
+
+**Skipped, and this is the challenge:**
+
+> "At wiki scale, you do not have a retrieval problem. A curated wiki is 50,000 to
+> 100,000 tokens. That is small. Grep plus read finds the right note faster and more
+> predictably than an embedding lookup… Bolting embeddings onto a 200-note vault is
+> solving a problem you do not have."
+
+We already keep the semantic reranker optional (§11), so this is not a
+contradiction. But it is the only *measured* statement in the survey about the
+scale these systems actually run at, and it points at something larger than
+embeddings: **gnosis may be over-engineered for the corpus it will hold.** At 200
+notes, a SQLite index with FTS5, four tiers, claim-level addressing, and three
+adjudication tiers is a great deal of machinery.
+
+The honest reply is that his evidence comes from a single-person vault, and every
+mechanism here that looks heavy exists for something a single-person vault does not
+have: contradictory sources admitted by different people, contributors of mixed
+skill, and a corpus that carries the team's authority rather than one person's
+memory. But that is a *reason to expect* the machinery to pay, not evidence that it
+does — and his caveat cuts both ways, because he is equally clear that scale is
+what decides. It belongs on the record as the strongest available argument that
+this design is too big, to be answered with a real corpus rather than with prose.
+
+**One thing he says that we should simply adopt:** *"The point of a forgetting curve
+is not the math. It is that something deletes."* §14.3.1 reports unreviewed claims
+and explicitly never invalidates, on the grounds that an old claim is not a wrong
+claim. He is describing the failure that rule permits — notes that accumulate become
+a graveyard — and he is right that reporting is not the same as pruning.
+
+#### `stigmergy` — Gates, Refusal, and Minting
+
+**Local copy:** `stigmergy/`
+
+The most operationally serious project surveyed, and the only one designed for a
+team from the start. Three ideas worth taking.
+
+**"A model writes; code decides."** An agent drafts a page; **eight deterministic
+gates** run over the resulting *diff* — zone, binary-page, body-rewrite, secrets,
+pii, frontmatter, contract, anchoring — and *"the diff those gates approved is
+provably the diff that lands."* Their summary is the sharpest statement of this
+family's thesis: **"A model can be argued with. A gate cannot."**
+
+The property in that sentence is one we do not state. Our promote gate checks
+content and then a write happens; nothing says the checked artifact and the
+committed artifact are the same bytes. That is a time-of-check-to-time-of-use gap,
+and it is exactly the gap a gate exists to close.
+
+Note also `body-rewrite` as a *gate*: §6.3 separates mechanical accretion from
+gated synthesis as two operations, and stigmergy enforces the same split as a check
+on the diff, which is harder to route around.
+
+**"An honest refusal beats a confident guess."** Their read path — a single MCP
+server — *"answers questions with sources, and refuses when it cannot support an
+answer,"* and: **"A system that never refuses is the failure, not the success."**
+gnosis has `blocked` and `needs_human` on the *write* path and nothing equivalent on
+the read path. `ask` emits a prompt with retrieved context and never declines.
+
+**Identity minting is human-gated.** *"A name the registry does not know makes it
+ask ONCE and park until a steward answers."* The capture waits rather than guessing.
+We take the opposite line — UUIDv7 assigned automatically at admission (§5.1) —
+and it is worth being clear that these are different problems: they gate *which
+entity this is*, we gate *whether this claim is supported*. Their approach would
+catch the duplicate-concept case §4.6.1 leaves to a post-merge check.
+
+#### `akbp` — Protocol Discipline and Graded Conformance
+
+**Local copy:** `akbp/` — rohitg00's own implementation of the v2 gist.
+
+Two mechanisms worth stealing.
+
+**Review-gated writes as a protocol, not a workflow.** `dry_run: true`,
+`approved: true`, `approval_required` — an agent previews a decision, the same write
+is *rejected without approval*, and applied after it. The core rule: **"agents can
+propose memory, but durable writes are review-gated."** Our promote gate is a
+command; theirs is a property of every write call, which is harder to bypass.
+
+**Conformance has levels.** Their demo *"runs level 3 conformance"* — a graded
+suite rather than a boolean. Our §11 treats OKF conformance as pass/fail, and a
+graded ladder would let a producer state how far it conforms and let a consumer
+require a level. Also worth noting: `export-check`, `import-check`, and
+`import-apply` as distinct verbs, which makes bundle round-tripping testable.
+
+#### `wenlan` — Which Parts of a Page the Machine May Rewrite
+
+**Local copy:** `wenlan/`
+
+Its refresh model makes a distinction we do not: *"Wenlan rebuilds it from current
+Sources and Memories, records the revision, and **stages changes to human writing
+for review**."*
+
+So a page has machine-owned regions and human-owned regions, and a refresh may
+rewrite the first while the second must be staged. §6.3 splits accretion from
+synthesis at the level of the *operation*; wenlan splits at the level of the
+*region*. That is finer and it is the version that survives an agent refreshing a
+page a person has edited — which is the common case and one our design currently
+resolves by gating the whole rewrite.
+
+Its two linked lifecycles — Sources and Memories, "linked without collapsing them
+into one layer" — are our tier 0 and the corpus, and the vocabulary is clearer.
+
+#### `piekbs` — Four Concrete Findings
+
+**Local copy:** `piekbs/` — 87 Go files, `modernc.org/sqlite`, FTS5, MCP.
+
+The closest implementation to ours in language and stack, and the one that
+produced specific findings rather than principles.
+
+**It solved the snippet problem the way we guessed we would have to.** Their commit
+*"perf(search): avoid slow FTS5 snippet generation"* drops FTS5's `snippet()`
+entirely and computes an excerpt in Go: parse the markdown, take
+`ParseMarkdown(content).Content`, collapse whitespace, find the first keyword, and
+window 120 characters around it. Our own note on this recorded a tension — strip
+link syntax at index time and slugs become unsearchable, strip at render time and
+FTS5's offsets no longer match what is shown — and concluded that re-deriving the
+snippet rather than offset-mapping it was "probably right". They did exactly that,
+and had a second reason we did not have: FTS5's `snippet()` was measurably slow.
+Independent confirmation of an untested guess is worth more than the guess.
+
+**Per-document `schema_version` — a gap we have.** Their `documents` table carries
+one, and `FindOutdatedNotes` reports every document written under a version older
+than the current one. That is not staleness against an upstream source, and it is
+not index drift. It is *a document written under an older version of the corpus's
+own conventions*, and we have no way to express it.
+
+The gap is about to bite. §5.5.1 introduces `gnosis_claims` frontmatter that no
+document written in Phase 1 carries, so on the day extraction lands, every existing
+document predates the format — and nothing records which. The same applies to any
+future change in required frontmatter or in `ontology.toml`'s shape.
+
+**Their tokenizer is `trigram`; ours is `porter unicode61`.** Theirs is a Chinese
+team with a Lark importer, and the choice follows: porter stems English and
+unicode61 splits on word boundaries, which is close to useless for a language that
+does not put spaces between words. Trigram handles CJK and substring matching and
+gives up stemming.
+
+Neither choice is wrong, but ours is an *assumption* rather than a decision — §5.5
+justifies the `tokenchars` and says nothing about the corpus being English. It
+should say so, because the day someone ingests a Chinese source into a corpus
+tokenized with porter, search will quietly stop finding it.
+
+**Two divergences where we are on the better side, and one where they are.**
+Their `links.target_doc_id` is `NOT NULL` with a foreign key, so a link to a page
+that does not exist yet cannot be stored — OKF §6.1's "not-yet-written knowledge"
+is unrepresentable, and our nullable target plus retained `href` is the more useful
+model for a corpus that grows. Their `links.confidence REAL DEFAULT 1.0` is the
+per-edge score §17 refuses, and refuses for reasons that apply here too.
+
+Against that: their frontmatter validator distinguishes an **absent** field from an
+**explicitly empty** one — *"`sources: []` is considered present; it means 'no
+sources' rather than 'field missing'"* — which is our own absent-versus-empty
+discipline (`Unchecked` versus `Missing`, `HasLog` versus `LogLines`) applied
+somewhere we have not yet applied it. Phase 1 reads only scalar frontmatter, so
+this is guidance for when `gnosis_evidence` and `sources` arrive rather than a
+present defect.
+
+Finally, a false alarm worth recording because checking it was cheap: their whole
+`kb` package is gated behind `//go:build fts5` and their CI wants
+`CGO_ENABLED=1`. We use FTS5 with no build tag. `modernc.org/sqlite` v1.57 has no
+`fts5` tag at all — FTS5 is compiled in unconditionally — so their constraint looks
+like a convention carried over from a CGo driver, and our pure-Go, no-tag posture
+is correct.
+
+#### Nearest Architecture (`kvt`), and a Library That Exists (`okf`)
+
+`kvt` is the closest thing to gnosis anyone else has built: markdown as the source
+of truth, a **derived SQLite index with FTS5, links, and frontmatter fields**,
+every write committed to git, exposed over REST and MCP. Its one visible divergence
+is that it *regenerates* `index.md` as a service-owned file where §5.6 keeps it a
+curated map — the same disagreement `kb-lint` has with us, now twice.
+
+`okf` (skosovsky) is a Go OKF toolkit with `bundle`, `validator`, `graph`, `store`,
+and `store/fs` packages and transactional mutations. It is a genuine build-versus-
+adopt question for `internal/okf`, and the reason to keep ours is narrow but real:
+our `Parse`/`Render` retains the frontmatter block **verbatim** so a round trip is
+byte-exact, which a general-purpose library that re-encodes YAML cannot offer. Worth
+re-checking if that assumption ever stops holding.
+
+#### Noted, Not Adopted
+
+`chroma` and `milvus` are vector databases; relevant only if §11's optional
+reranker is ever enabled, and both are far heavier than a corpus of this size
+justifies — a judgement the practitioner report above turns from an intuition into
+a measured one. `synthadoc` and `swarmvault` compile multi-format sources into
+markdown wikis with linting, and are ingestion prior art to read when Phase 2 needs
+adapters rather than now. `expo-llm-wiki` is a second OKF implementation, useful as
+a conformance cross-check because two independent readings of one spec is how the
+ambiguities get found. `cq-gitstore` is the most interesting of the small ones: it
+makes a git repository of OKF markdown a `Store` adapter for mozilla-ai's `cq` SDK,
+which is evidence OKF is becoming an interchange format with consumers that are not
+wikis at all. `mnemos` is agent memory with citations, in the same family as
+`memory-os`. `logseq` and `Zettlr` are end-user PKM applications — the graph view and
+the outliner are worth looking at when §13's viewer is built, and neither
+contributes to the model. `memory-os`, `jarvis-vault`, and `LLM-wiki-dev` are agent
+*session* memory rather than a curated corpus: the distinction is that they capture
+what an agent learned, where gnosis admits what a team has checked. `open-knowledge`
+is an editor. `llm-wiki-skill`, `karpathy-llm-wiki`, and `wiki-gen-skill.md` are
+skill packages that instruct an agent rather than constrain it, which is the
+posture §1.1 argues against for an artifact that outlives its conversation.
+
 ## What We Intend to Build from This
 
 Our tools cover skills. The knowledge base is still a hand-curated repository of
