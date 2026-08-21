@@ -17,12 +17,11 @@ ______________________________________________________________________
 
 ## Blocking a Phase
 
-- [ ] **`quotecheck` — written and adopted; blocked on a skillet release.**
-  `skillet/quotecheck` exists with the three-value `Status`
-  (`Unchecked`/`Found`/`Missing`, unchecked as the zero value), and exegesis has
-  adopted it. **What remains is not code**: skillet must be committed and tagged
-  before exegesis can drop its `replace` directive and before gnosis can depend on
-  the package at all. That is a release decision, not an implementation one.
+- [x] **`quotecheck` is available and no longer blocks anything.** *Released in
+  `skillet v0.18.0` on 2026-08-21; gnosis is on that version.* The package carries
+  the three-value `Status` (`Unchecked`/`Found`/`Missing`, unchecked as the zero
+  value). Wiring it into a `lint` check waits for Phase 2, when there is evidence
+  to run it against — an unused dependency is worse than a deferred one.
   Only the *comparison* was promoted. `Segment` and the `redlines.Quotes`
   extraction stayed in exegesis, because where a quotation begins is precisely
   what the shared package must not know: exegesis says blockquote-in-R, gnosis
@@ -55,8 +54,24 @@ ______________________________________________________________________
   *between sources*), ClaimConsistencyKit, GroundingKit. Lives in `internal/`
   unless canonizer needs the same thing for rule bodies; one consumer is not
   evidence for promotion.
-- [ ] **`evidence/fetch.jsonl` conflicts on every concurrent append. Decide before
-  tier 0 accumulates.** A single append-only file in a git-merged tree (§4.6)
+- [x] **`evidence/fetch.jsonl` conflicts on every concurrent append.** *Decided
+  and specified as §4.3.1: one immutable content-addressed record per source
+  version at `evidence/fetch/<h[:2]>/<h>.json`, with `.gnosis/fetch.jsonl` demoted
+  to a derived rollup.*
+  Two corrections came out of deciding it. First, my claim that a git merge driver
+  "will not survive a fresh checkout" was **wrong**: `merge=union` is git's
+  built-in driver and a committed `.gitattributes` line is sufficient, verified
+  directly. The argument for one-file-per-record is therefore narrower than stated —
+  union merge resolves *silently*, keeping both versions of an edited line, and the
+  `referenced` disposition archives nothing, so for exactly the fetches whose
+  integrity cannot be re-derived the ledger is the only record.
+  Second, **the record carries no timestamp**, reversing my initial recommendation.
+  Including it makes tier 0 grow with *checking* rather than with knowledge — a
+  weekly sweep over 500 sources is ~26,000 permanent records a year — and the check
+  history it buys has no reader, since §14.3 needs only the latest check. Last-checked
+  moved to `.gnosis/checked.jsonl` under §10.7.4's rule: decisions are committed,
+  observations are cached. Recorded as §20 decision 5.
+  Original finding: A single append-only file in a git-merged tree (§4.6)
   conflicts on its final line whenever two users fetch anything. The archive beside
   it merges perfectly because it is content-addressed; only the ledger has the
   problem. **Preferred fix: one file per fetch** under the same content-addressed
@@ -67,12 +82,26 @@ ______________________________________________________________________
   so the layout is expensive to change once real evidence exists. `log.md` has the
   same shape but is expected to conflict and is human-resolvable, so it stays as
   OKF §9 specifies.
-- [ ] **The local API surface is unspecified. Needed when more than one instance
-  writes.** §4.6 states the coordinator's responsibility and `gnosis serve` carries
-  the role, but nothing says what the protocol is, how a client discovers it, what
-  happens when it is absent for a write, or whether a write without it fails or
-  starts one. Bounded by readers being explicitly independent of it. Phase 2 at the
-  earliest — the only writers today are `init` and `index rebuild`.
+- [ ] **The write-coordinator transport is undecided, and is now the smaller half
+  of that question.** §4.6.2 settles the shape: writes are command *values*, one
+  type per operation, carrying their own gating fields, and a transport serialises
+  one. That removed the part that would have been expensive to get wrong —
+  review-gating is a property of the type, so every transport inherits it, and
+  §9.4's diff guarantee follows from preview and apply being one command rather
+  than two code paths.
+  What remains open: **which transport**, and it is deliberately not urgent. A Unix
+  socket carrying the §8.0 envelope is the likely answer — the path is its own
+  discovery, filesystem permissions are the right authorization for a local daemon,
+  and the seam is an `io.ReadWriter`. HTTP is not a competitor but a second
+  transport over the same interface, needed anyway for §13's viewer; MCP likewise,
+  when an agent runtime is the primary caller. What genuinely cannot be predicted
+  from here is whether preview and apply are one call or two, and Phase 2's real
+  writers will say.
+  **The interim step has a visible ceiling.** An advisory `flock` on
+  `.gnosis/writer.lock` satisfies everything `init` and `index rebuild` need and
+  commits to no protocol — but a lock cannot carry a command, so it can never
+  provide §9.4's guarantee. The command type should therefore exist before the
+  second writer does, even if the transport does not.
 
 ______________________________________________________________________
 
@@ -93,7 +122,7 @@ Phase 2 and later.
   the OKF document were left, which §5.0 permits. It also turned up a real error:
   the §10 conflict-payload example used `/concepts/retry-budget.md`, a path prefix
   that has never existed.
-- [ ] ~~Finish the sweep.~~ *Superseded by the entry above.* The schema, §5.0,
+- [x] ~~Finish the sweep.~~ *Superseded by the entry above.* The schema, §5.0,
   §5.5, and everything touched by the rename pass are done. Roughly twenty prose
   uses remain and they split three ways: some correctly mean the OKF document and
   stay (§5.0 permits both words for it), some mean the claim and must change (§10's
@@ -109,18 +138,75 @@ Phase 2 and later.
 
 ______________________________________________________________________
 
+## Noticed While Building Phase 2
+
+- [ ] **`StoreEvidence` never overwrites, and nothing yet reports when it should
+  have.** A record path is the hash of its content, so differing bytes at an
+  existing path is corruption or tampering rather than an update. The writer
+  correctly declines to replace it — and currently says nothing, reporting the
+  same "unchanged" a genuine no-op reports. `doctor` should re-hash tier 0 and
+  report a mismatch. Until it does, the tamper-evidence is a property of the
+  layout that nothing actually checks.
+- [ ] **The per-corpus budget and warning fraction are loaded and unused.**
+  `corpus_budget` and `corpus_warn_fraction` are validated at load and no code
+  consults them, so the repository can still grow without anyone being told —
+  which is the thing they exist to prevent. Wants a `doctor` check that sums
+  `evidence/` against the budget.
+- [ ] **`hasOversizePayload` over-reports on prose about data URIs.** Documented
+  as deliberate — the failure direction is a lost archive rather than a committed
+  raster — but a document *about* data URIs is a plausible corpus member, and the
+  refusal gives no way to say "this one is prose". Revisit if it ever fires on a
+  real source.
+- [ ] **Nothing checks that `evidence/text` has no orphans.** `StoreEvidence`
+  writes content before the record so a crash leaves inert orphaned text rather
+  than a record pointing at nothing. Inert is not free: the orphans count against
+  the corpus budget and never get collected.
+- [ ] **`.gnosis/checked.jsonl` does not exist.** §9.2 says a re-fetch of an
+  unchanged source advances it, recording that this user looked, and §4.3.1 makes
+  it the documented exception to §4.5 — the one per-user observation that is
+  cached rather than committed. Without it a no-op fetch records nothing at all,
+  so `fresh`/`stale`/`unknown` (§14.3) cannot distinguish "checked and unchanged"
+  from "never checked". This is the piece that makes omitting the record timestamp
+  affordable, so it is the natural companion to Step 2.4 rather than a later
+  nicety.
+- [ ] **Nothing derives `sources_fetched` from the committed records.** §9.2 has
+  `sources_fetched.extractor` and `.extractor_version` answering which stripper
+  produced a tier-0 file; §4.3.1 has `.gnosis/fetch.jsonl` as a greppable rollup
+  rebuilt by `index rebuild`. Neither exists, so tier 0 is currently writable and
+  unqueryable — every question about it means walking `evidence/fetch/`.
+- [ ] **The fetch adapters do no hidden-character scan.** §4.4 requires archived
+  text be subject to §9.3's scan, and §9.3 is unbuilt. Currently an SVG — or any
+  source — can carry invisible text into the archive.
+- [ ] **`go-git/v6` is an alpha in the evidence path.** Decided in §20.6 with the
+  cost named. Revisit when `v6.0.0` ships, or sooner if an alpha bump breaks the
+  clone: the exposure is one function and its tests, because a record's identity
+  comes from its own content and not from what produced the bytes.
+- [ ] **A git fetch records no commit, by design, and nothing says so to the
+  user.** The URI is `<remote>#<path>` for the reason in §20.6. A reader looking
+  at a record has no way to learn which revision it came from short of searching
+  the repository for the blob, and `show` does not offer to.
+- [ ] **The git adapter is not exercised against a remote.** Its tests clone a
+  local repository built by `git` itself, which covers the walk, the URI rewrite,
+  and the cleanup — and not authentication, shallow-clone negotiation, or a
+  server that hangs up.
+
 ## Noticed While Building Phase 1
 
 Not blocking, not urgent; each is a real rough edge found by running the thing.
 
-- [ ] **Search snippets carry raw markdown.** A hit on a document containing a
-  link shows the whole `[Timeout](/c/01932b7c-…-timeout-policy.md)` inline, which
-  is most of the snippet's width spent on a UUID. The body is indexed as written,
-  which is right for matching — someone searching for a slug should find it — but
-  the *rendering* should reduce link syntax to its text. Note the tension: strip it
-  at index time and the slug becomes unsearchable; strip it at render time and the
-  offsets FTS5 returns no longer line up with what is shown. Render-time, with the
-  snippet re-derived rather than offset-mapped, is probably right.
+- [x] **Search snippets carry raw markdown.** *Fixed: `index.Snippet` renders the
+  excerpt from the body at query time — code blanked, headings and inline links
+  reduced to their text — replacing FTS5's `snippet()`. Specified as §11.0.1.*
+  Original finding: A hit shows the whole
+  `[Timeout](/c/01932b7c-…-timeout-policy.md)` inline, most of the width spent on a
+  UUID. The body is indexed as written, which is right for matching — someone
+  searching for a slug should find it — so the fix is at render time.
+  `piekbs` did exactly this and had a second reason we lacked: FTS5's `snippet()`
+  was measurably slow, so they dropped it entirely. Their shape: parse the markdown,
+  take the plain content, collapse whitespace, find the first keyword, window ~120
+  characters around it. That resolves the tension the original note recorded — the
+  snippet is **re-derived**, so FTS5's offsets never need to line up with what is
+  shown.
 - [ ] **`index rebuild` cannot repair a schema-shape failure.** `schema-shape`
   reports a missing table and advises deleting the file, which is correct —
   `rebuild` opens the existing database, and migration skips every statement
@@ -198,6 +284,94 @@ ______________________________________________________________________
 - [ ] **Initial `standards/` values are unwritten.** Referenced from §5.2's
   three-format rule and §6.2's threshold discipline, including the `rationale` field
   each value now carries. Phase 3, but the file layout is load-bearing earlier.
+
+______________________________________________________________________
+
+## Field Survey (2026-08-21)
+
+Source: `~/Documents/agent-purple` — 29 implementations, 10 documents. Recorded in
+`manifesto.md`; four findings went into `SPEC.md` (§17.0.1, §9.4, §11.0, §14.3.1)
+and `PLAN.md` §5.6. What remains open is here.
+
+- [ ] **Mark each specification rule by what enforces it.** `canopy`'s philosophy
+  tags every principle `[code]`, `[convention]`, or `[code+convention]`. This spec
+  is full of MUSTs and says nowhere which are machine-checked and which rest on
+  people behaving — a reader cannot tell a guarantee from an intention. Two
+  concrete cases: §4.1's append-only tier 0 is enforced and reads like a
+  convention, while several rules phrased as MUST are conventions with no checker.
+  Cheap to add as a column or a marker; the value is that it makes the unenforced
+  ones visible enough to either enforce or downgrade.
+
+- [ ] **§12's check table should carry an auto-fixable column.** `kb-lint`'s does.
+  We have the axis already — `finding.Action` is `automatic`/`guided`/`human` — and
+  the table does not show it, so a reader cannot see at a glance which findings a
+  tool can close for them.
+
+- [x] **Two lexical checks, now built** (`placeholder`, `empty-section`). The
+  empty-section rule needed a level distinction the first implementation got wrong:
+  a heading followed by a *deeper* one is a parent whose content is its
+  subsections, and only a same-or-shallower successor leaves it empty. Caught by
+  its own test. Original finding: `{{PLACEHOLDER}}` markers left in
+  a document, and empty sections. Both are what an agent leaves behind when it runs
+  out of material, both are pure text, and neither needs a model. From `kb-lint`.
+
+- [ ] **Machine-owned versus human-owned regions of a document.** §6.3 splits
+  accretion from synthesis at the level of the *operation*; `wenlan` splits at the
+  level of the *region* — a refresh rewrites machine-written prose and **stages
+  human-written prose for review**. That is the finer and more survivable version,
+  because the common case is an agent refreshing a page a person has edited, and we
+  currently resolve it by gating the whole rewrite. Needs a way to mark regions,
+  which is a frontmatter or fence-marker design question. Phase 3.
+
+- [ ] **Graded conformance rather than a boolean.** `akbp` runs "level 3
+  conformance". §11's OKF conformance is pass/fail, so a producer cannot state how
+  far it conforms and a consumer cannot require a level. Worth defining if gnosis
+  ever exports bundles other tools consume — and `cq-gitstore` and `expo-llm-wiki`
+  suggest that is where OKF is heading.
+
+- [ ] **Review-gated writes as a protocol property, not a command.** `akbp` puts
+  `dry_run` / `approved` / `approval_required` on every write call; our promote gate
+  is a command someone runs. Theirs is harder to bypass. Relevant when §4.6's write
+  coordinator gets its API — that is the moment to decide, and after it the answer
+  is baked in.
+
+- [ ] **Consider `okf` (skosovsky) for `internal/okf`.** A Go OKF toolkit with
+  `bundle`, `validator`, `graph`, `store` packages and transactional mutations. The
+  reason to keep ours is narrow and real — `Parse`/`Render` retains the frontmatter
+  block verbatim so a round trip is byte-exact, which a library that re-encodes YAML
+  cannot offer. Re-check if that stops being true.
+
+- Noted, no action: `stigmergy` gates *identity* on a human steward (an unknown name
+  parks the capture until someone decides) where we auto-assign UUIDv7 at admission.
+  Different problems — they gate *which entity this is*, we gate *whether this claim
+  is supported* — but their approach catches the duplicate-concept case §4.6.1
+  leaves to a post-merge check.
+
+- Noted, no action: `kvt` and `kb-lint` both **regenerate** `index.md` as a derived
+  file; §5.6 keeps it a curated map. Two independent projects disagreeing with us on
+  the same point is worth knowing, and the disagreement is real rather than an
+  oversight: a generated listing is available from `search` and `graph`, and what
+  `index.md` is for is the handful of paths a newcomer actually needs.
+
+- [x] **`gnosis_schema_version` and its check are built.** *`okf.Int`/`okf.Has`
+  accessors, a nullable `SchemaVersion` on the document model, `gnosis.SchemaVersion = 1`, and a `schema-version` check that skips until the corpus starts versioning.*
+  Original finding: A document records the corpus conventions it was written under; `lint`
+  reports documents older than the current version and never rewrites them.
+  Not urgent, but the first instance is scheduled rather than hypothetical: no
+  Phase 1 document carries the `gnosis_claims` frontmatter §5.5.1 requires, so on
+  the day extraction lands every existing document predates the format and nothing
+  distinguishes those from documents that *should* have claims and lack them.
+  Cheapest if the field exists before that, since backfilling a version onto
+  documents whose conventions are already unknown is guesswork.
+
+- [x] **A self-contradiction in the spec, found by questioning the timestamp.**
+  §9.2 said re-fetching an unchanged source "records a `fetch_history` row" while
+  §5.5 said that table was keyed `(uri, sha256)` — under which the second unchanged
+  re-fetch cannot append, only overwrite. The key's stated justification ruled out
+  `uri` alone and settled nothing about `fetched_at`, so it read as decided while
+  being underspecified. Both sections now agree, and `fetch_history` is replaced by
+  `sources_fetched` (keyed by record hash, derived) plus `checked` (per-user, not
+  reconstructible — the one documented exception to §4.5).
 
 ______________________________________________________________________
 

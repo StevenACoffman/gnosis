@@ -147,7 +147,7 @@ because "immutable" is an assertion nothing currently enforces.
 ```text
 Tier 0   evidence/            append-only, never rewritten, committed to git
            ├── text/<sha256[:2]>/<sha256>.<ext>   archived text: .md .txt .svg (see §4.3)
-           └── fetch.jsonl                        every fetch: uri, hashes, kind, decision
+           └── fetch/<sha256[:2]>/<sha256>.json   one record per source version (see §4.3.1)
 
 Tier 1   .gnosis/quarantine/  admitted mechanically, not authoritative, NOT in the bundle
            └── <slug>.md                          trust: unverified
@@ -198,7 +198,7 @@ is checked against — the text extracted from it is. So `gnosis` archives the
 
 ```text
 source:  https://example.org/paper.pdf     ← never stored
-         sha256 of the fetched bytes       ← recorded in fetch.jsonl
+         sha256 of the fetched bytes       ← recorded in the fetch record (§4.3.1)
 extract: evidence/text/ab/abc123….md       ← stored, committed, quote-validated
 ```
 
@@ -212,7 +212,8 @@ extractor and its version are recorded per archived file.
 ### 4.3 Archive Admission Policy
 
 Every fetched source gets exactly one of three deterministic dispositions,
-recorded in `fetch.jsonl` and in `sources_fetched.disposition`:
+recorded in its fetch record (§4.3.1) and, derived from those, in
+`sources_fetched.disposition`:
 
 | Disposition  | When                                                 | Evidence durability                                  |
 | ------------ | ---------------------------------------------------- | ---------------------------------------------------- |
@@ -258,6 +259,52 @@ load-bearing the claim is** rather than reported flat (§14.4). Weak evidence
 under a peripheral claim is ordinary; weak evidence under a claim the rest of the
 corpus leans on is the thing worth surfacing, and centrality is derivable from
 the link graph rather than declared.
+
+#### 4.3.1 One Ledger File per Source Version
+
+A fetch record is a single immutable JSON file at
+`evidence/fetch/<h[:2]>/<h>.json`, where `h` is the sha256 of the canonical
+record: `{uri, source_sha256, byte_size, media_type, disposition, archive_path, extractor, extractor_version, extracted_from, reject_reason}`.
+
+**It is one file rather than one append-only ledger because a shared ledger merges
+silently.** A single `fetch.jsonl` in a git-merged tree conflicts on its final line
+whenever two users fetch anything, and the available fix — git's built-in
+`union` driver, which needs only a committed `.gitattributes` line — resolves by
+keeping both sides' lines unconditionally. For a genuine append that is right. For
+a line somebody edited it keeps both versions, leaving two records that assert
+different things about one fetch with no marker that a merge happened.
+
+That is tolerable wherever a check can catch it. It is not tolerable here, because
+the `referenced` disposition archives nothing (§4.3) — so for exactly the fetches
+whose integrity cannot be re-derived from any other artifact, the ledger is the
+only record. One file per record makes append-only **structural**: a rewritten
+record lands at a different path, so tampering is visible rather than absorbed.
+
+**The record carries no timestamp, and that is the load-bearing part.**
+Content-addressing over the source bytes rather than the fetch event means tier 0
+grows when the corpus learns something — a new source, or a changed one — and not
+when somebody checks. A re-fetch finding unchanged bytes produces the same path,
+finds the record already there, and writes nothing: a no-op on disk, which is what
+§9.2 calls it.
+
+Including the timestamp was considered and refused for two reasons. It makes growth
+a function of *checking* rather than of knowledge — a weekly staleness sweep over
+500 sources is some 26,000 permanent committed records a year, each identical to
+its neighbours but for a timestamp, in the tier whose purpose is evidence. And the
+history it buys has no reader: §14.3's `fresh`/`stale`/`unknown` distinction needs
+only the *latest* check, and nothing in this specification consumes the sequence.
+
+**So when did we last look?** That lives in `.gnosis/checked.jsonl` — per-user,
+gitignored — and the reason is §10.7.4's rule rather than convenience: *decisions
+are committed, observations are cached.* That upstream **changed** is a fact about
+the corpus, produces new bytes and a new record, and must travel. That *I looked
+and nothing had changed* is an observation made at a moment, and two users who
+report different freshness at the same commit are both right, because one of them
+looked. What this gives up is stated in §20.
+
+`.gnosis/fetch.jsonl` remains as a **derived rollup**, rebuilt by
+`index rebuild` from the committed records, so the ledger is still greppable
+without being authoritative.
 
 ### 4.4 SVG Is Active Content
 
@@ -368,10 +415,74 @@ it needs. This is the cost of assigned identity, and it is the right cost: the
 alternative — deriving identity from content so that duplicates collide — would
 mean every typo correction changed a document's identity (§5.1.3).
 
-The `fetch.jsonl` row is a real defect rather than a design: a single append-only
-file in a merged tree conflicts on every concurrent append. The archive itself is
-content-addressed and merges perfectly; only the ledger has the problem, and the
-fix is recorded in `TODO.md`.
+The last row used to be a defect: the ledger was a single append-only
+`fetch.jsonl`, which conflicts on every concurrent append. §4.3.1 replaced it with
+one content-addressed record per source version, so the ledger now merges for the
+same reason the archive does — two users who fetch the same thing produce the same
+bytes at the same path, and git sees one blob.
+
+#### 4.6.2 Writes Are Commands, and the Command Is a Value
+
+The split above is already command-query segregation, and naming it settles a
+question that otherwise looks like a transport decision.
+
+**Reads bypass the coordinator by requirement.** `lint`, `search`, `show`, and
+`graph` open the index directly and MUST work with no writer running, because a
+corpus has to be inspectable when nothing is serving. **Writes go through it.** So
+the coordinator is a command bus, and what crosses it is a command.
+
+A command is a **value**, not a verb: one type per write operation, carrying
+everything needed to decide whether and how to execute.
+
+```go
+type Promote struct {
+	Path      string
+	Effect    Effect // preview or apply; see below
+	Approver  Actor  // who authorised it
+	Rationale string // why, when the tier requires one (§10.6.4)
+}
+```
+
+Three consequences, and the second is the reason this is in §4 rather than left to
+the implementation.
+
+**Every transport inherits the gating fields for free.** The CLI populates them
+from flags, a socket or HTTP or MCP transport from a payload, an internal caller
+directly — and none of them can construct the command without them. Review-gating
+is therefore a property of the **type**, not of the wire format, which is stronger
+than a schema-validated protocol field because it also binds the callers a protocol
+never sees. It is what makes the transport question small: a transport serialises a
+command and nothing more.
+
+**§9.4's diff guarantee becomes constructible rather than promised.** That section
+requires the diff the gate approved to be the diff that lands. If preview and apply
+were two commands, or two code paths, the guarantee would reduce to a claim that
+two functions agree — which is exactly the kind of claim this design refuses
+elsewhere. As **one command differing in one field**, they cannot diverge: the same
+handler receives the same input, computes the same diff, and `Effect` decides only
+whether the final write happens. The property follows from the data model.
+
+**`Effect`'s zero value MUST NOT be "apply".** A `DryRun bool` has this backwards —
+`false` means *really do it*, so a caller that forgot the field performs a live
+write. That inverts the rule this design applies everywhere else: `quotecheck`'s
+`Unchecked` is the zero value, `finding.Action` has no `ActionUnknown`, `claims.pos`
+is nullable because `0` is a real position. Go cannot make a struct field
+mandatory, so the enforcement is a constructor plus a zero value that **fails
+closed**:
+
+```go
+type Effect int
+
+const (
+	EffectUnset   Effect = iota // zero value: rejected, never assumed
+	EffectPreview               // run every gate, write nothing
+	EffectApply                 // run every gate, then write what they approved
+)
+```
+
+`EffectUnset` is rejected rather than treated as a preview. A preview is a
+deliberate request for a report, and silently substituting one would let a caller
+that meant to write believe it had.
 
 ______________________________________________________________________
 
@@ -527,6 +638,15 @@ decided by a rule rather than per file:
 | YAML   | OKF concept frontmatter                                                              | **Mandated by OKF §4** — not gnosis's choice                   |
 | TOML   | configuration a human edits to change behaviour: `ontology.toml`, `standards/*.toml` | unambiguous scalars, and a mistyped key is *detectable*        |
 | JSON   | machine-generated artifacts and interchange: `--jsonl` output, manifests, SARIF      | the consumer is a program, and the format is often fixed by it |
+
+**The corpus is assumed to be in English, and the FTS5 tokenizer encodes that
+assumption** (§5.5). `porter` stems English and `unicode61` splits on word
+boundaries — which is close to useless for a language that does not put spaces
+between words. A corpus taking in Chinese, Japanese, or Korean sources needs a
+`trigram` tokenizer instead, giving up stemming to get substring matching.
+This is stated because it is otherwise invisible: nothing fails, search simply
+stops finding the material, and the tokenizer is fixed at table creation so the
+repair is a migration rather than a flag.
 
 The middle row is the one worth justifying, because YAML would have been the
 lazy choice for consistency with frontmatter. Measured against `goccy/go-yaml`,
@@ -684,10 +804,15 @@ claims_fts USING fts5(
 
 -- One row per fetched source. source_sha256 is always recorded; archive_path is
 -- NULL for `referenced`. extracted_from links an extraction to its origin.
-sources_fetched(source_sha256 PK, uri, fetched_at, byte_size, media_type,
+-- One row per committed fetch record (4.3.1), keyed by the record's own hash.
+-- Derived: `index rebuild` reproduces every row from evidence/fetch/.
+sources_fetched(record_sha256 PK, uri, source_sha256, byte_size, media_type,
                 disposition, archive_path, extractor, extractor_version,
                 extracted_from, reject_reason)
-fetch_history(uri, source_sha256, fetched_at)  -- (uri, sha256); append-only
+
+-- When this user last verified a source against upstream. Per-user and NOT
+-- committed, because it is an observation rather than a decision (4.3.1).
+checked(uri, source_sha256, checked_at, PRIMARY KEY (uri, source_sha256))
 llm_cache(cache_key PK, source_hash, prompt_hash, model, model_version,
           response, created_at)
 findings(id PK, kind, severity, category, certainty, fix_class, state,
@@ -739,9 +864,19 @@ Notes on shape, each of which is load-bearing:
 - `evidence.pos` records where a quote sits **in the archived source**, so a
   reader can be sent to it. It does not share a coordinate space with
   `claims.pos`, which is why §5.5.2 states both.
-- `fetch_history` is keyed `(uri, sha256)` so a changed source appends a version.
-  A `uri UNIQUE` key would permit exactly one version per source and therefore no
-  source history at all.
+- **`sources_fetched` is keyed by the record hash, not by the source hash.** A
+  source hash key would permit one row per set of bytes, so the same document
+  reached through two URIs — a mirror, a moved page — could not be recorded twice,
+  and the uri-to-hash mapping is most of what the ledger is for. An earlier draft
+  keyed it `(uri, sha256)` and said that was so "a changed source appends a
+  version"; that reasoning rules out `uri` alone and settles nothing about the rest,
+  which is how the key came to look decided while being underspecified.
+- **`checked` is the only table here that is not reconstructible from the bundle**,
+  and it is the exception §4.5 does not cover: it records what this user observed
+  about the outside world, which no rebuild can re-derive because the observation
+  is gone. It is therefore per-user by necessity rather than by choice, and losing
+  it degrades freshness to `unknown` — which is the honest state for a clone that
+  has never looked.
 - `findings.state` is open, closed, or **deferred**. It is not a score. See §17.
 - `findings.opened_by` names a check or a person, because "who says so" is the
   first thing a reader asks of a finding and a check name is as much an answer as
@@ -799,6 +934,41 @@ This is the mechanism Luhmann implemented with ink: "In the note itself, I use r
 letters or numbers to mark the place of connection." The address is inscribed in
 the artifact, and the register indexes it. An address that lives only in a
 regenerable cache is not an address.
+
+#### 5.5.1.1 Documents Record the Conventions They Were Written Under
+
+A document carries `gnosis_schema_version`, an integer, and the index mirrors it.
+
+This is a fourth kind of drift, distinct from the three already specified, and
+naming it is the point: `stale_after` and archive-versus-upstream are the *source*
+changing (§14.3), `index-drift` is the *cache* falling behind the bundle (§12), and
+`schema-shape` is the *database* not matching its migrations (§12). This one is the
+**corpus's own conventions changing underneath documents that already exist**.
+
+It is not hypothetical, and the first instance is already scheduled. §5.5.1 requires
+`gnosis_claims` frontmatter, and no document written before extraction lands
+carries it — so on that day every existing document predates the format, and
+without a version there is no way to tell those from documents that should have
+claims and are missing them. The same applies to any later change in required
+frontmatter or in what `ontology.toml` declares.
+
+Three properties keep this from becoming a migration treadmill:
+
+- **It reports; it does not rewrite.** `lint`'s `schema-version` check names
+  documents written under an older version. What to do about one is a decision per
+  change, because some convention changes are worth backfilling and most are not.
+- **An absent version means "before versioning", not zero.** The distinction
+  matters for exactly the documents this exists to find.
+- **The version advances only when a change makes old documents wrong**, not on
+  every edit to this specification. A new optional key does not; a new required one
+  does.
+- **The check is skipped until the corpus starts versioning.** Until some document
+  declares a version, none do, and reporting the whole corpus on the day versioning
+  is introduced would teach a reader to ignore the check before it ever said
+  anything useful. It activates on the first versioned document and then finds
+  exactly the ones left behind — the derived applicability of §12, applied to the
+  one case where "nothing is versioned yet" and "everything is out of date" look
+  identical.
 
 #### 5.5.2 Position Conventions
 
@@ -1268,7 +1438,8 @@ the model" measurable rather than aspirational. Its `MissEntry` records
 — and `KeywordsNotFound` is the load-bearing field, because it says *why* the
 deterministic layers missed.
 
-This file, `fetch.jsonl`, and `audit.jsonl` are **tracers**: instrumentation added
+This file, the derived `fetch.jsonl` rollup, and `audit.jsonl` are **tracers**:
+instrumentation added
 so that something which otherwise leaves no trace begins leaving one. A
 determinism claim is untestable if the misses are invisible, and a miss is a
 non-event — nothing happened, deterministically, and then a model was asked. The
@@ -1306,16 +1477,26 @@ of 58 checks carries `{dimension, name, scope, fix_type, evidence_sources, evide
 annotates the weak one honestly ("n=1 case study, useful reference point not
 universal benchmark").
 
-`gnosis/standards/` carries the same three files for every threshold in the tool,
-plus `operators.json` — the comparison-operator patterns used to derive
-constraints from prose (§10.2.2), as data with their own test corpus rather than
-regexes in Go. Operator inversions are the first cases in that corpus, because
-*"no fewer than three"* and *"should not exceed three"* turn on a word naive
-patterns miss, and a wrong operator produces a false conflict.
+`gnosis/standards/` carries the same content, **as TOML rather than JSON**, plus
+`operators.toml` — the comparison-operator patterns used to derive constraints
+from prose (§10.2.2), as data with their own test corpus rather than regexes in
+Go. Operator inversions are the first cases in that corpus, because *"no fewer
+than three"* and *"should not exceed three"* turn on a word naive patterns miss,
+and a wrong operator produces a false conflict.
 
-The three shared files carry:
-candidate rank cuts, hop limits, `MinPassageWords`, staleness defaults, the
-promote gate's signals. Two consequences:
+The format follows §5.2's rule and not AgentLint's example: these are files a
+human edits to change behaviour, and `toml.Decode` reports the keys it did not
+consume, so a mistyped threshold is caught by name rather than silently ignored.
+A JSON config cannot distinguish a typo from a key it was not built to read, and
+a threshold somebody believes they changed is the expensive failure here.
+
+**Each value carries its rationale in the same structure as the value**, not in a
+sibling file joined on a key. AgentLint's three-file join is the part deliberately
+not copied: a rationale reachable only by joining is a rationale that can go
+missing without anything failing, and this one is required at load. See §6.2.
+
+The files carry: candidate rank cuts, hop limits, `MinPassageWords`, staleness
+defaults, the archive gates, and the promote gate's signals. Two consequences:
 
 - A threshold change is a reviewable diff carrying its own justification.
 - The standards files are hash-pinned into every finding and every audit row, so
@@ -1370,11 +1551,11 @@ Requires **skillet v0.17.0 or later** (the scaffold already pins v0.17.0).
 | YAML            | `github.com/goccy/go-yaml`            | exegesis and skillsaw agree; skillet pins `v1.19.2`                            |
 | Markdown AST    | `github.com/yuin/goldmark` (+GFM)     | via `skillet/markdown`; never parsed twice                                     |
 | SQLite          | `modernc.org/sqlite`                  | pure Go, no CGo, single binary; FTS5 present                                   |
-| Git             | `github.com/go-git/go-git/v6`         | skillet's declared choice for provenance                                       |
+| Git             | `github.com/go-git/go-git/v6`         | `v6.0.0-alpha.5`; chosen deliberately over stable `v5` — see §20.6            |
 | CLI             | `github.com/peterbourgon/ff/v4`       | the scaffold; `climax` conventions                                             |
 | TOML config     | `github.com/BurntSushi/toml`          | adh's choice, per the constraint table                                         |
 | Secret scanning | `betterleaks`                         | **see below**                                                                  |
-| HTML → markdown | `JohannesKaufmann/html-to-markdown`   | pure Go, deterministic; the one pinned extractor                               |
+| HTML → markdown | `JohannesKaufmann/html-to-markdown/v2` | pure Go, deterministic; the one pinned extractor. `v2.5.2`, pinned in `standards/archive.toml` |
 | Units ↔ prose   | `github.com/dustin/go-humanize`       | bidirectional `ParseBytes`/`ParseSI`; keeps stored constraints legible (§10.2) |
 | Spelled numbers | `github.com/rodaine/numwords`         | `ParseString` normalizes "three and a half" to 2.5-style digits; see §7.3      |
 | HTTP fetch      | stdlib `net/http`                     | no framework                                                                   |
@@ -1650,8 +1831,10 @@ Rules:
   external binary, no offline proof, and the weakness recorded rather than
   papered over.
 - **Archiving is append-only and content-addressed.** Re-fetching an unchanged
-  source is a no-op that records a `fetch_history` row. Re-fetching a *changed*
-  source appends a new archive file and marks every claim citing the old one
+  source is a genuine no-op: the record already exists at its content-addressed
+  path (§4.3.1) and nothing is written to the bundle. Only `.gnosis/checked.jsonl`
+  advances, recording that this user looked. Re-fetching a *changed* source writes a
+  new archive file and a new record, and marks every claim citing the old one
   `stale`. Nothing is ever rewritten in place.
 - **Sanitization refuses, never repairs** (§4.4). A rejected file is recorded with
   its `reject_reason` and the source falls through to `referenced`, so a refusal
@@ -1726,6 +1909,25 @@ corpus's central invariant:
 > Every `gnosis_evidence` quote MUST appear in the named archived file under
 > `textnorm.Fold` normalization, with the passage at or above
 > `MinPassageWords`.
+
+**The gate approves an artifact, and that artifact is what lands.** Between
+checking a candidate and committing it there is a window, and nothing above closes
+it: the promote gate validates content, a write then happens, and no rule says the
+bytes checked are the bytes written. A corpus whose gate can be raced is a corpus
+whose gate is decorative.
+
+So promotion is stated over a **diff** rather than over a document: the gate
+receives the exact change to be applied, and the writer applies precisely the
+change the gate approved or nothing at all. A re-read between the two is a defect,
+not an optimisation.
+
+**The guarantee comes from the command shape, not from care.** §4.6.2 makes a write
+one command value with an `Effect` field, so a preview and an apply are the same
+handler over the same input, differing only in whether the final write happens.
+Two code paths could agree by inspection and drift by edit; one path cannot
+disagree with itself. The coordinator owns the bundle so that "the approved diff"
+and "the committed diff" are one object rather than two reads of a file, and the
+command type is what makes them one computation.
 
 **The invariant is stated per claim, and that is only sound because claims are
 segmented first.** Bound to a sentence it would be unsound: *"The cache is enabled
@@ -2421,6 +2623,46 @@ additions are one frontmatter family, two cached columns (`challenge_class`,
 
 ## 11. Search
 
+### 11.0 Against Enabling Semantic Search
+
+The reranker below is optional, and the reason to expect it stays optional is worth
+recording, because it is the only *measured* claim available about the scale these
+systems run at.
+
+From months of daily operation of a comparable wiki: *"At wiki scale, you do not
+have a retrieval problem. A curated wiki is 50,000 to 100,000 tokens. That is small.
+Grep plus read finds the right note faster and more predictably than an embedding
+lookup, with no vector database to host, no index to keep fresh, and no 'why did it
+return that chunk' debugging. Vector search earns its keep at hundreds of thousands
+of documents."*
+
+FTS5 is the baseline here for the same reason, and it already sits well past grep.
+The bar for turning on embeddings is therefore not "it might help" but a measured
+retrieval failure that FTS5 cannot fix — and the miss log (§6.4) is what would
+supply that evidence, since it records the queries the deterministic path did not
+answer. Enabling a reranker before the miss log says why is solving a problem this
+corpus has not been shown to have.
+
+#### 11.0.1 Snippets Are Rendered, Not Excerpted
+
+A search result's snippet is rendered from the document body at query time — code
+blanked, headings and inline links reduced to their text, whitespace collapsed —
+rather than taken from FTS5's `snippet()`.
+
+The reason is a constraint that pulls both ways. FTS5 excerpts the *indexed* text,
+which is the document as written, so a hit beside a link renders most of its width
+as `[Timeout](/c/01932b7c-…-timeout-policy.md)` and the reader gets an identifier
+instead of a sentence. The obvious repair — strip markdown before indexing — is
+worse: someone searching for a slug should find it, and the index is the only thing
+that can answer that.
+
+So the body is **indexed as written** and the snippet is **re-derived for reading**.
+That the two no longer share offsets is the point rather than a cost: an
+offset-mapped snippet would have to hold rendered text and indexed text in
+correspondence forever, and a re-derived one holds nothing. A comparable
+implementation reached the same design from a different direction, having measured
+`snippet()` as the slow part of its search path.
+
 ### 11.1 Progressive Disclosure First
 
 Karpathy's observation is that `index.md` alone works at ~100 sources and
@@ -2751,6 +2993,22 @@ discipline event-driven systems reliably lack. The point is not the interval. It
 that "nobody has examined this since it was admitted" is a fact about the corpus,
 and no existing check reports it.
 
+**The objection to reporting-without-pruning, which is not answered here.** The one
+field report available on running an LLM wiki daily for months puts it plainly:
+*"The point of a forgetting curve is not the math. It is that something deletes."*
+A corpus that only ever reports its unreviewed claims accumulates them, and notes
+that accumulate become a graveyard — the reader stops opening the report long
+before the corpus stops growing.
+
+The rule above stands, because deleting a claim nobody has looked at is deleting on
+the basis of attention rather than truth, and this corpus carries a team's
+authority rather than one person's memory. But the objection identifies a real
+failure mode and the mitigation is not yet designed. The likely shape is that
+`stale --unreviewed` gains a companion that proposes *deprecation* rather than
+deletion — `status: deprecated` is already in the model (§5.4), it is reversible,
+it is visible in review, and it removes a claim from default retrieval without
+destroying it. Recorded rather than specified.
+
 ### 14.4 Evidence Durability Is a Fourth Derived Signal
 
 Because the archive holds text and not sources (§4.2), not every claim is
@@ -2993,6 +3251,30 @@ system is not that problems go undetected but that detected problems go
 unanswered, and silence is indistinguishable from nobody having looked. Reviewing
 the deferred set is a different activity from reviewing the open set, and it is
 the one that tells a team what it has decided to live with.
+
+#### 17.0.1 Read Paths That Cannot Refuse Are Not Trustworthy
+
+Everything above governs the write path: a claim is admitted or it is not, a
+finding blocks or it does not. The read path has no equivalent, and that is a gap
+rather than a simplification.
+
+`ask` retrieves context and emits a prompt. It has no way to say **"the corpus does
+not support an answer to this"** — so a question the corpus cannot answer produces
+the same shape of output as one it can, and the caller cannot tell which they got.
+That is the failure §17 spends its length preventing, moved one surface over.
+
+So: **`ask` MUST be able to refuse**, and a refusal is an ordinary outcome rather
+than an error. It carries `status: blocked`, `reason: needs_human`, and names what
+was missing — no claim on the subject, claims found but none with evidence, or
+claims that contradict each other with no adjudication. The distinction that makes
+this worth building is between *the corpus is silent* and *the corpus is
+unresolved*, and only the second is a `conflict` waiting to be filed.
+
+The principle is worth stating in the form the field has converged on: **a system
+that never refuses has not demonstrated that it is careful, it has demonstrated
+that it is not checking.** A confident answer assembled from nothing is the most
+expensive output this design can produce, because it carries the corpus's
+authority.
 
 ### 17.1 Structural Verification Is Not Semantic Agreement
 
@@ -3239,9 +3521,11 @@ ______________________________________________________________________
 
 ## 20. Deferred Decisions
 
-Four decisions are deliberately left open. Each would change the work materially,
+Five decisions are deliberately left open. Each would change the work materially,
 none blocks Phase 1, and each is cheaper to make against a real corpus than
-against an imagined one.
+against an imagined one. A sixth has since been settled and is kept below with its
+reasoning, because the option chosen is the one carrying the visible cost and a
+future reader deserves to know it was chosen rather than defaulted into.
 
 1. **Presented hierarchy.** Deferred *by design* rather than by postponement.
    Because identity is opaque and presented paths are computed views (§5.6),
@@ -3289,6 +3573,39 @@ against an imagined one.
    those properties. What is genuinely unknown is whether anyone builds trails
    deliberately or only in retrospect, and that is answerable only from a corpus
    with a real link graph in it.
+
+6. **Settled: `fetch` clones with `go-git/v6`.** Recorded here rather than
+   removed, because the reasoning is the part worth keeping and the option chosen
+   is the one with the visible cost.
+
+   §7.2 had named `go-git/v6` and credited the choice to skillet. Both halves were
+   wrong — `v6` publishes only alphas, and skillet has no go-git dependency at all,
+   so there was no existing consistency to preserve. Three real options remained:
+   stable `v5`, the `v6` alpha, and shelling out to `git`.
+
+   The argument for shelling out is stronger than §4.3's pdftotext precedent makes
+   it sound, and is recorded so nobody has to reconstruct it: git is **not**
+   pdftotext. A gnosis bundle *is* a git repository — §4.5 makes git the transport
+   between users and §4.6 the merge mechanism — so no user can have a corpus
+   without it, and the adapter would add no dependency that is not already
+   required. What it adds is process invocation, credential prompts inherited from
+   an interactive terminal, and version skew across machines.
+
+   `v6` was chosen anyway. The cost is named rather than argued away: this pins an
+   alpha in the code path that produces evidence. Two things bound it — the clone
+   is shallow, single-branch, and immediately discarded, so the library's surface
+   here is one call; and the property that matters downstream is enforced by the
+   *record*, not by the library, since a record is the hash of its own content
+   whatever produced the bytes. If `v6` churns, the blast radius is one function
+   and its tests.
+
+   One consequence is worth stating because it is easy to get wrong: **the recorded
+   URI carries no commit.** It is `<remote>#<path>`. Including the commit would
+   make a record's identity depend on the repository's activity rather than the
+   file's, so a single unrelated push would re-record every file in the tree —
+   which is §4.3.1's argument against a timestamp, arriving by a different route.
+   Which commit a text came from stays recoverable: the repository still holds the
+   blob.
 
 ______________________________________________________________________
 
