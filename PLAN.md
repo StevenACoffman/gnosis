@@ -504,6 +504,7 @@ ______________________________________________________________________
 | 2.4 — `fetch`          | **done**    | Four adapters, the pinned HTML extractor, `--dry-run` as a command field; a re-fetch of unchanged bytes is a verified no-op   |
 | 2.5 — command + lock   | **done**    | `Effect` fails closed, `Promote` validates itself, one writer per bundle. Found three readers that were writing — see §6.9    |
 | 2.6 — gate + quarantine | **done**   | Five signals run, two report `unchecked` and block; the gate proves it can fail on every invocation — see §6.10              |
+| 2.7 — ingest/admit     | **done**    | Two-phase relay, content-addressed cache, `--cache-only`; segment-then-check wired end to end — see §6.11                    |
 
 Three findings from the per-step reviews changed the design rather than the code
 around it:
@@ -958,6 +959,59 @@ already took.
 path arrives from a model's reply, so `../../etc/whatever` is an input this
 function will actually receive — and tier 1 exists precisely to keep untrusted
 content out of the working tree (§3083).
+
+### 6.11 What Building Step 2.7 Turned Up
+
+**`--cache-only` was wrong on the first pass, and a test caught it.** The flag was
+checked in the report, after `PromptsFor` had already written the prompts to disk —
+so a caller learned which replies were missing and found the prompts emitted
+anyway. §6.1 says the flag "refuses to emit", and refusing has to happen where the
+writing happens. The fix moved it into `PromptOptions`, which is also the shape a
+third option would have wanted.
+
+**The model belongs in the cache key, and this is worth defending.** A reply is a
+claim about what a *particular* model said about a *particular* text. Keying on the
+text alone would serve one model's answer to another model's question, which is not
+a cache hit — it is a substitution nobody was told about. The cost is that changing
+models re-asks the whole corpus, and that cost is the honest one.
+
+**The key needs a separator, and the reason is a collision nobody would find.**
+Concatenating the components bare makes model `gpt` version `4o` hash identically
+to model `gpt4` version `o`. A cache collision here means one source's reply
+answering for another's, which would be discovered — if ever — as a claim citing a
+document it has nothing to do with.
+
+**A reply is cached before it is parsed, deliberately.** The model call is already
+spent. Caching only replies that turned out to be usable would make a caller pay
+again to receive the same unusable answer, and §6.1's promise is that a second run
+over unchanged inputs makes no model calls — not that it makes none when the first
+run went well.
+
+**Three fields on a reply are the caller's, not the model's**, and each would be an
+attack if it were not. `SourceURI` — a model that could name its own source could
+cite one it never read. `Claim.ID` — an identifier a reply chose could collide with
+one in the corpus, or be reused to make two claims look like one. `ArchivePaths` —
+a reply nominating its own archive could choose the file its quotations happen to
+appear in, which is the check answering to the thing it checks. The last is derived
+from the check's own findings, so the document records where evidence *was found*.
+
+**`Unchecked` finally does the work it was built for.** A quotation too short to be
+evidence, or one with no archived text to check against, is not a fabrication:
+`quotecheck` reports Unchecked and `admit` reports it under its own heading.
+Collapsing it into "missing" would accuse an agent of inventing a quotation that
+may well be accurate, and the two need different fixes — a longer quotation versus
+an archived source to check against.
+
+**`Admit` was the second command, and the interface held.** Nothing in it restates
+how a write is gated: `Effect`, `Validate`, the coordinator's lock, and the
+envelope all applied with no new plumbing. That is the first real evidence that
+§4.6.2's shape was worth building before there was a second writer.
+
+**There was no ID generator.** §5.1 says an identifier is assigned "once, at
+admission", and admission is exactly this step — the domain package had a parser
+and no constructor. `gnosis.NewID` is now the one impure function in that package,
+and its comment says so, because everything else there is a value operation and a
+reader is entitled to know which one reads a clock.
 
 ## 7. Rules Review of This Plan
 

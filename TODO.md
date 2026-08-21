@@ -140,6 +140,19 @@ ______________________________________________________________________
 
 ## Noticed While Building Phase 2
 
+- [ ] **No `--resume` and no crash-resumable queue.** §9.2 wants the ingest queue
+  SQLite-backed so a killed process resumes rather than restarting. Prompts are
+  currently emitted in one pass and a crash halfway through leaves some written and
+  some not — recoverable by re-running, since emission is idempotent, but not what
+  the spec describes. Worth building when ingestion is bulk; it is not yet.
+- [ ] **No `--relay` chaining.** §8.2 offers it to cut round-trips, the way
+  `adh run --relay` does. Two commands came first deliberately.
+- [ ] **Prompts are never cleaned up.** `.gnosis/prompts/` accumulates one file per
+  unanswered question and nothing removes an answered one. Gitignored, so it costs
+  only disk, but a reader listing the directory cannot tell what is outstanding.
+- [ ] **`admit` does not verify the key names a prompt that was emitted.** It caches
+  under whatever key it is given, so a typo files a reply against a question nobody
+  asked and the cache quietly gains an entry nothing will ever hit.
 - [ ] **`standards/promote.toml` does not exist.** §9.5 requires every gate signal
   to be declared in `standards/`, and `gate.Limits` is currently built from a
   literal `HedgingMax: 3` in `bundle.gateInputs`. That is exactly the hardcoded
