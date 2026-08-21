@@ -99,8 +99,25 @@ disagree.`,
 
 // exec is the imperative shell: make directories, write absent files, open the
 // index so the schema exists.
+//
+// The writer lock is taken first and covers the whole run, including the markdown
+// scaffold. SPEC §4.6 states the requirement in full for exactly this reason: the
+// writer owns the bundle rather than the database, so serialising only the
+// index-open would coordinate the cache and leave two concurrent `init` runs
+// racing over ontology.toml.
 func (c *Config) exec(ctx context.Context, _ []string) error {
 	result := Result{Bundle: c.Bundle, Created: []string{}, Existing: []string{}}
+
+	// The bundle root has to exist before a lock can be placed inside it, and
+	// `init` is the one command whose job is to create it.
+	if err := os.MkdirAll(c.Bundle, 0o750); err != nil {
+		return c.fail(err)
+	}
+	lock, err := bundle.AcquireWriterLock(ctx, c.Bundle)
+	if err != nil {
+		return c.fail(err)
+	}
+	defer lock.Release()
 
 	for _, dir := range []string{".", "c"} {
 		if err := os.MkdirAll(filepath.Join(c.Bundle, dir), 0o750); err != nil {

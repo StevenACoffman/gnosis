@@ -61,7 +61,21 @@ describes the bundle, which is what a CI job runs.`,
 }
 
 // exec is the imperative shell: load the bundle, compare, write unless --check.
+//
+// The writer lock is taken even under --check, because opening the index applies
+// any pending migration and that is a write (SPEC §4.6: the writer owns the
+// bundle, not merely the database). A --check that raced a rebuild would compare
+// against a schema being changed underneath it.
 func (c *Config) exec(ctx context.Context, _ []string) error {
+	lock, err := bundle.AcquireWriterLock(ctx, c.Bundle)
+	if err != nil {
+		if bundle.WriterBusy(err) {
+			return c.fail(root.ReasonWriterBusy, err)
+		}
+		return c.fail(root.ReasonNoBundle, err)
+	}
+	defer lock.Release()
+
 	db, err := bundle.OpenIndex(ctx, c.Bundle)
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
