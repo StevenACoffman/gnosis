@@ -39,21 +39,24 @@ func Snapshot(fsys fs.FS, idx IndexState) (*lint.Snapshot, error) {
 	}
 
 	return &lint.Snapshot{
-		Documents:   documents(docs),
-		Links:       links(docs),
-		Resolutions: gnosis.Reconcile(Observed(docs), idx.Rows),
-		LogLines:    logLines,
-		HasLog:      hasLog,
-		HasIndex:    idx.Present,
+		Documents:     documents(docs),
+		Links:         links(docs),
+		Resolutions:   gnosis.Reconcile(Observed(docs), idx.Rows),
+		SchemaVersion: gnosis.SchemaVersion,
+		LogLines:      logLines,
+		HasLog:        hasLog,
+		HasIndex:      idx.Present,
 	}, nil
 }
 
 // documents projects loaded files into the check-facing shape.
 func documents(docs []Document) []lint.Document {
 	out := make([]lint.Document, 0, len(docs))
-	for _, d := range docs {
+	for i := range docs {
+		d := &docs[i]
 		out = append(out, lint.Document{
 			ID: d.ID, Path: d.Path, Type: d.Type, Title: d.Title,
+			Body: d.Body, SchemaVersion: d.SchemaVersion,
 		})
 	}
 	return out
@@ -68,14 +71,15 @@ func documents(docs []Document) []lint.Document {
 // identifier no document carries resolves to nothing, which is legal.
 func links(docs []Document) []lint.Link {
 	present := make(map[gnosis.ID]bool, len(docs))
-	for _, d := range docs {
-		if d.ID != "" {
-			present[d.ID] = true
+	for i := range docs {
+		if docs[i].ID != "" {
+			present[docs[i].ID] = true
 		}
 	}
 
 	out := make([]lint.Link, 0)
-	for _, d := range docs {
+	for i := range docs {
+		d := &docs[i]
 		if d.ID == "" {
 			continue
 		}

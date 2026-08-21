@@ -44,6 +44,10 @@ type Snapshot struct {
 	// HasLog distinguishes an absent log from an empty one.
 	HasLog bool
 
+	// SchemaVersion is the conventions version this build of gnosis writes.
+	// Documents declaring an older one are reported by the schema-version check.
+	SchemaVersion int
+
 	// HasIndex reports whether the bundle has a derived index at all. A bundle
 	// freshly cloned has none, and in that state every document differs from the
 	// index trivially — which is why the index-relative checks are skipped
@@ -52,11 +56,16 @@ type Snapshot struct {
 }
 
 // Document is the subset of a document the checks examine.
+//
+// SchemaVersion is nil for a document that declares none, which is the state the
+// schema-version check reports (§5.5.1.1).
 type Document struct {
-	ID    gnosis.ID
-	Path  string
-	Type  gnosis.TypeKey
-	Title string
+	ID            gnosis.ID
+	Path          string
+	Type          gnosis.TypeKey
+	Title         string
+	Body          string
+	SchemaVersion *int
 }
 
 // Link is one link found in a body.
@@ -107,6 +116,9 @@ func Checks() []Check {
 		brokenLinkCheck(),
 		orphanCheck(),
 		logFormatCheck(),
+		schemaVersionCheck(),
+		placeholderCheck(),
+		emptySectionCheck(),
 	}
 	sort.Slice(checks, func(i, j int) bool { return checks[i].Name < checks[j].Name })
 	return checks

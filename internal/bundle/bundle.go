@@ -30,16 +30,26 @@ const conceptDir = "c"
 // idKey is the frontmatter field carrying a document's identity (SPEC §5.1).
 const idKey = "gnosis_id"
 
+// versionKey is the frontmatter field recording which corpus conventions a
+// document was written under (SPEC §5.5.1.1).
+const versionKey = "gnosis_schema_version"
+
 // Document is one file as read from disk, before any interpretation.
+//
+// SchemaVersion is a pointer because absent and zero are different states: a
+// document written before versioning existed carries no key, and one written
+// under version 0 does not exist. §5.5.1.1 depends on telling those apart, since
+// the documents with no version are exactly the ones the check is looking for.
 type Document struct {
-	Path    string
-	ID      gnosis.ID
-	Type    gnosis.TypeKey
-	Title   string
-	Hash    string
-	Bytes   int
-	Body    string
-	Invalid error
+	Path          string
+	ID            gnosis.ID
+	Type          gnosis.TypeKey
+	Title         string
+	Hash          string
+	Bytes         int
+	Body          string
+	SchemaVersion *int
+	Invalid       error
 }
 
 // isReserved reports whether name is one of the filenames OKF §3.1 gives a
@@ -110,8 +120,8 @@ func LoadLog(fsys fs.FS) (lines []string, present bool, err error) {
 // tell an unidentified document from an absent one.
 func Observed(docs []Document) []gnosis.Observed {
 	out := make([]gnosis.Observed, 0, len(docs))
-	for _, d := range docs {
-		out = append(out, gnosis.Observed{Path: d.Path, ID: d.ID})
+	for i := range docs {
+		out = append(out, gnosis.Observed{Path: docs[i].Path, ID: docs[i].ID})
 	}
 	return out
 }
@@ -144,6 +154,10 @@ func read(fsys fs.FS, path string) Document {
 	// An absent or malformed identifier leaves ID empty, which Reconcile reads
 	// as "created outside gnosis" and quarantines. Parsing it here rather than
 	// trusting the frontmatter string keeps one definition of a valid identifier.
+	if v, ok := parsed.Int(versionKey); ok {
+		doc.SchemaVersion = &v
+	}
+
 	if rawID, ok := parsed.Text(idKey); ok {
 		if id, idErr := gnosis.ParseID(rawID); idErr == nil {
 			doc.ID = id
@@ -167,7 +181,8 @@ func isNotExist(err error) bool {
 // an identity it never claimed.
 func Rows(docs []Document) []index.DocumentRow {
 	out := make([]index.DocumentRow, 0, len(docs))
-	for _, d := range docs {
+	for i := range docs {
+		d := &docs[i]
 		if d.ID == "" {
 			continue
 		}

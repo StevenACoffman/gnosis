@@ -23,6 +23,7 @@ package okf
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -143,4 +144,52 @@ func (d *Document) Type() string {
 func (d *Document) Text(key string) (string, bool) {
 	v, ok := d.Fields[key].(string)
 	return v, ok
+}
+
+// Int reads an integer frontmatter value.
+//
+// Requires: nothing.
+// Ensures: reports false for an absent key and for a key holding anything that is
+// not a whole number, rather than coercing. Present-but-wrong and absent are
+// different states and the caller must be able to tell them apart, which is the
+// same rule Text follows.
+//
+// YAML decoders may hand back an integer as int, int64, or float64 depending on
+// how it was written, so all three are accepted. A float carrying a fraction is
+// not an integer and is reported absent: `1.5` is a mistake, not a 1.
+func (d *Document) Int(key string) (int, bool) {
+	switch v := d.Fields[key].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case uint64:
+		// A value too large for an int is reported absent rather than wrapped.
+		// Silently truncating would turn an unreadable number into a plausible
+		// one, which is the coercion this accessor exists to refuse.
+		if v > math.MaxInt {
+			return 0, false
+		}
+		return int(v), true
+	case float64:
+		if v != math.Trunc(v) {
+			return 0, false
+		}
+		return int(v), true
+	default:
+		return 0, false
+	}
+}
+
+// Has reports whether a key is present at all, whatever its value.
+//
+// Requires: nothing.
+// Ensures: distinguishes an absent key from one holding an empty value. SPEC §5.4
+// requires that distinction to survive: `sources: []` says a claim has no sources,
+// which is a statement, while a missing `sources` says nobody recorded any, which
+// is not. A reader that collapses the two destroys the only evidence of which it
+// was.
+func (d *Document) Has(key string) bool {
+	_, ok := d.Fields[key]
+	return ok
 }
