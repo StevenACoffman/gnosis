@@ -1,0 +1,101 @@
+# Archive admission gates: which fetched sources become durable evidence, and
+# which fall through to a bare reference. See SPEC §4.3.
+#
+# Two rules govern edits to this file.
+#
+#   1. Every value carries a `rationale`, and the loader rejects one that does
+#      not. Say why the number is the number, not what the number does — the key
+#      already says that.
+#   2. A value moved in the loosening direction is reported by `gnosis doctor`
+#      and MUST be recorded in log.md with the finding count before and after
+#      (SPEC §6.2). A corpus can be made to lint clean by widening a cap, and
+#      every run afterwards will be perfectly reproducible and perfectly quiet.
+#      The rationale is the only thing that distinguishes a threshold that was
+#      wrong from one that was inconvenient.
+#
+# A mistyped key is an error, not a silent no-op, which is why this is TOML.
+
+[allowlist]
+value = [".md", ".txt", ".svg"]
+rationale = """
+Text-like formats a quotation can be validated against offline, forever. The list
+is a weight budget rather than a security boundary: sanitization (§4.4) is what
+refuses active content, and SVG is on that list precisely because it is markup
+that can carry script. Anything absent here is not rejected — it is extracted if
+an extractor applies, and referenced if none does, which is a supported outcome.
+"""
+
+[per_file_cap]
+value = 262144
+rationale = """
+256 KiB. Well above any prose document worth quoting — the longest source in the
+seed corpus is under 90 KiB — and below the size at which a repository clone
+becomes a thing people avoid. A source over the cap is not lost: it is extracted
+or referenced.
+"""
+
+[corpus_budget]
+value = 268435456
+rationale = """
+256 MiB, the point past which git operations on a laptop stop being instant. This
+is not a hard refusal, it is the size at which someone should have decided to
+allow the growth rather than discovering it.
+"""
+
+[corpus_warn_fraction]
+value = 0.8
+rationale = """
+Warn at 80% so the ceiling is never reached silently. Chosen for the lead time it
+buys, not from measurement: at the observed accretion rate a corpus crossing 80%
+has weeks before the budget, which is long enough to prune deliberately.
+"""
+
+[embedded_payload_cap]
+value = 8192
+rationale = """
+8 KiB. Large enough for the small inline icons that legitimately appear in SVG and
+markdown; far below a base64 raster, which is the case this gate exists for. A
+payload above it reintroduces exactly the binary weight the allowlist excludes,
+inside a file the allowlist admitted.
+"""
+
+[html_extractor]
+value = "JohannesKaufmann/html-to-markdown"
+rationale = """
+HTML to markdown is the common extraction case and has a deterministic pure-Go
+answer, so exactly one extractor is pinned — the library SPEC §7.2 names, for
+being pure Go and deterministic. There is deliberately no PDF
+extractor: the pure-Go options extract poorly and pdftotext would buy a non-Go
+external dependency no other tool in the family carries, for a format nobody has
+yet needed to quote. A PDF falls to `referenced`.
+"""
+
+[html_extractor_version]
+value = "v2.5.2"
+rationale = """
+The version wired in at Step 2.4, and it must match the module in go.mod. An
+unversioned extractor is worse than none: every record would claim a provenance
+indistinguishable from the next release's. Every extracted record carries this
+string, so a re-extraction by a different stripper is visible rather than silent.
+Bumping the module without bumping this is caught by a test.
+"""
+
+[staleness_days]
+value = 180
+rationale = """
+Six months, the default for a source whose document declares no absolute
+`stale_after`. Long enough that ordinary reference material does not churn, short
+enough that a source revised annually is re-checked before it is cited again. A
+document with a faster-moving source should set its own date rather than argue
+this number down.
+"""
+
+[in_degree_cut]
+value = 5
+rationale = """
+A document five or more other documents link to is load-bearing, and a claim in it
+should carry evidence proportional to what depends on it (§14.4.1). Provisional:
+the cut wants the corpus's own in-degree distribution, which does not exist yet.
+Revisit once there are enough documents for the distribution to mean anything, and
+record the empirical basis here when it does.
+"""
