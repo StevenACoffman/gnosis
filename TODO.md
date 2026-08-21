@@ -332,6 +332,73 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Field Survey — `agent-green` (2026-08-21)
+
+Findings from the governance/memory survey recorded in `manifesto.md`. Ordered by
+how cheap they are relative to what they buy.
+
+- [ ] **`index rebuild` has no sanity guard on the document count.** `haft` hard-
+  rejects a refresh whose derived unit count falls below 50% of the last verified
+  one. A gnosis rebuild that finds three documents where there were five hundred is
+  a corrupted bundle or a bad `--bundle`, and it currently writes that index without
+  comment — destroying the only copy of the state that would have shown the problem.
+  Cheapest high-value item in the survey.
+- [ ] **A reader cannot see a claim's freshness.** §14.3 computes `fresh`/`stale`/
+  `unknown` and `show` renders none of it. `obsidian-second-brain` writes every fact
+  as `(as of YYYY-MM, source.com)` inline. Staleness that only the index knows is
+  staleness the person reading the claim does not.
+- [ ] **`skillsaw`'s ratchet may not re-verify prior passes.** `oh-my-agent`'s judge
+  re-checks every criterion each iteration "because fixing C2 is how C1 silently
+  regresses." Needs checking in skillsaw; if the ratchet re-scores only failed
+  dimensions it cannot see a regression its own fix caused.
+- [ ] **Nothing says what the corpus should decline to hold.** `gentle-wiki` scopes
+  itself by refusing to become "a second source of truth for product behavior."
+  §5 says at length what a document is and nowhere what does not belong. A corpus
+  restating what the code already says drifts invisibly, because both halves stay
+  internally consistent.
+- [ ] **The promote gate can deadlock with no cap and no recorded reason.** Two
+  signals are unimplementable, so nothing promotes. That is correct and it is also a
+  trap. `oh-my-agent` caps reinforcement at five "so a permanently red gate can't
+  trap you." The honest form is a bound with a recorded reason, not a bypass — and
+  the decision belongs to §9.5.
+- [ ] **The link graph is untyped, and §20's trails assume it is not.** FPF is
+  relation-first: order is layout until a claim says it is a path. `systems-thinking`
+  names Factor Listing as an anti-pattern for the same reason. gnosis cannot
+  distinguish "cites", "supersedes", "causes", and "is filed near". Typing the graph
+  needs a relation vocabulary, which is §5.8's problem, so this is Phase 3 at the
+  earliest — but §20's trails entry should stop assuming an ordered list is a path.
+- [ ] **No claim carries a causal rung.** FPF's CAUSAL-USE exists because
+  association, intervention, and counterfactual claims get treated as
+  interchangeable. §10.2's constraint extraction is the natural place for a rung, and
+  a claim whose wording is causal but whose evidence is associational is exactly the
+  silent upgrade §9.4 guards against for quotations.
+- [ ] **`gnosis schema` should adopt the marker contract.** `agents-md`: generated
+  regions in HTML-comment markers, everything outside preserved, and **a file with
+  no markers is never overwritten** — write `AGENTS.generated.md` beside it. Rule
+  three is the fail-closed one: a file predating the tool was not written under its
+  contract. Closes the open machine-vs-human-owned-regions item.
+- [ ] **Consider a fourth gate verdict: admitted-with-findings.** `haft`'s
+  `review_ready` is "an auditable semantic-delta classification, not a veto" — the
+  candidate is adopted, a prominent warning prints, every finding is retained. gnosis
+  has pass/fail/unchecked and no way to say "this landed and here is what we noticed."
+  Whether §9.5 wants one is a genuine question, not an obvious yes: the whole point
+  of `unchecked` blocking is that a gate which can be talked past is decorative.
+- [ ] **"Retrieval is not evidence" should be stated where a reader will hit it.**
+  FPF: "a publication carrier does not become its subject, and a readable view does
+  not become evidence, assurance, permission, decision, architecture, or work
+  without the corresponding exact relation and test." §11 and §17 both imply it;
+  neither says it.
+- [ ] **§10.7.4's rule has a sharper formulation.** `haft`: records become durable
+  when later work must **rely** on them — handoff, replay, authority, automation,
+  evidence. "Decisions are committed, observations are cached" agrees everywhere it
+  has been applied; reliance is the version that decides the next case without a
+  fresh argument. Worth adopting as the stated test with the current wording kept as
+  its gloss.
+- [ ] **§9.3 should treat any agent-nameable string as an execution surface.**
+  `oh-my-agent` allowlists exactly three executable commands "so an agent that writes
+  anything else into the state file gets it ignored, never run." gnosis already
+  refuses traversal on a quarantined path; the general rule is the one to write down.
+
 ## Field Survey (2026-08-21)
 
 Source: `~/Documents/agent-purple` — 29 implementations, 10 documents. Recorded in

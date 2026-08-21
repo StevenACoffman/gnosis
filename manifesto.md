@@ -2383,6 +2383,259 @@ is an editor. `llm-wiki-skill`, `karpathy-llm-wiki`, and `wiki-gen-skill.md` are
 skill packages that instruct an agent rather than constrain it, which is the
 posture §1.1 argues against for an artifact that outlives its conversation.
 
+### Governance, Memory, and the Opposite Choice — the `agent-green` Survey
+
+**Local copies:** `~/Documents/agent-green` — 39 repositories.
+
+Where `agent-purple` was a field of LLM-wiki implementations, this is a field of
+*governance layers*: things that sit between a person, an agent, and a repository
+and decide what may be relied on. Two findings dominate. One repository pair — FPF
+and `haft` — supplies vocabulary this specification has been circling without
+naming. And one repository, `obsidian-second-brain`, implements Karpathy's pattern
+and chooses the **opposite** of gnosis on every axis, which is worth more than any
+agreement here.
+
+#### FPF and `haft` — "Reliance-Bearing Memory"
+
+The [First Principles Framework](https://github.com/ailev/FPF) (Anatoly Levenchuk)
+is a 105,000-line pattern language for keeping meanings, claims, evidence, and
+decisions coherent across people, tools, and time. `haft` is its Go implementation:
+"a local governance layer for AI coding agents ... what problem is being solved,
+which options were compared, which decisions the human made, what evidence supports
+them, and what has gone stale."
+
+That sentence is most of §4 through §14 in one line, arrived at independently. What
+it adds is a **better test than the one §10.7.4 states**:
+
+> Ordinary local reasoning may stay in chat; records enter the project graph for
+> handoff, replay, authority, automation, **evidence**, or another explicit
+> downstream reliance.
+
+§10.7.4 says *decisions are committed, observations are cached*, and that rule is
+sound but hard to apply at the margin — is a fetch record a decision? `haft`'s
+criterion is **downstream reliance**: does later work need to depend on this? Under
+that test the fetch record is obviously committed (a quotation relies on it) and
+`checked.jsonl` obviously is not (nothing relies on when you looked). The two rules
+agree everywhere §4.3.1 and §4.6 already reasoned; reliance is the one that decides
+the next case without a fresh argument. **Recorded as the sharper formulation of
+the same rule, not as a replacement.**
+
+Four more things transfer directly:
+
+- **"Kernel gates, not prompt-only discipline."** Skills carry the procedure; the
+  MCP kernel validates required fields, parity gaps, missing evidence, and
+  authority boundaries *server-side*. This is exactly the family's own division —
+  everything measurable is a CLI, the agent is reserved for what a deterministic
+  check cannot decide — and finding it independently in a project built on a
+  different framework is the strongest evidence yet that the split is forced by the
+  problem rather than by taste.
+- **"Evidence decays."** Old proof is not treated as forever current. §14.3.
+- **"Human authority stays explicit."** Agents may frame, compare, verify, and
+  *prepare* records; binding decisions require the human principal. §9.5, and
+  §4.6.2's `Approver` is the field that makes it a property of the type.
+- **"Retrieval is not application, evidence, approval, or performed work."**
+  gnosis half-states this. A `search` hit is not evidence that a claim is true, and
+  a document existing in the corpus is not the corpus having checked it. FPF's
+  longer form is sharper still: *"a publication carrier does not become its
+  subject, and a readable view does not become evidence, assurance, permission,
+  decision, architecture, or work without the corresponding exact relation and
+  test."* Worth a line in §11 and §17.
+
+#### The Idea gnosis Does Not Have: Order Is Not Causality
+
+FPF is **relation-first**, and states the consequence plainly:
+
+> The order of text, graph edges, cards, skills, or a demonstrative walkthrough
+> does not by itself prescribe causal, temporal, method, or performed-work order.
+> Such order exists only when an explicit, separately governed causal claim states
+> it. This does not make FPF acausal. Causality must be carried as a claim rather
+> than inferred from layout.
+
+gnosis's `links` table is **untyped**: a link is a link, and §5.5 records `href` and
+direction and nothing about what the connection *asserts*. That is defensible for
+Phase 1 — an untyped link cannot lie about a relationship it does not name — but it
+means the corpus cannot distinguish "A cites B", "A supersedes B", "A causes B", and
+"A is filed near B". §20's deferred trails decision assumes an ordered list of links
+is a path; FPF's point is that an ordered list is a *layout* until something claims
+it is a path.
+
+Two other repositories arrived at the same place from different directions. FPF's
+CAUSAL-USE card exists because "association, intervention, and counterfactual claims
+are being treated as interchangeable" — Pearl's rungs, as an admission gate.
+`systems-thinking` names **Factor Listing** as its first anti-pattern: *"listing
+multiple causes without showing how they connect ... the word 'and' connects causes
+that should have causal arrows."* Three independent sources, one conclusion: **an
+unlabelled connection is not a causal claim, and a list is not an explanation.**
+Recorded as a TODO against §5.5 and §20 rather than acted on — typing the link graph
+is a Phase 3 decision and it needs a vocabulary, which is §5.8's problem.
+
+#### `obsidian-second-brain` — The Same Pattern, Every Choice Inverted
+
+This is the most useful repository in the survey and it agrees with almost nothing
+here. It implements Karpathy's LLM Wiki and publishes a table of how it *extends*
+it. Set beside gnosis:
+
+| | `obsidian-second-brain` | gnosis |
+| --- | --- | --- |
+| A new source contradicts a page | **Rewrite the page.** "Claims revised, stale facts replaced." | Append a version; never rewrite (§4.1, §9.6) |
+| Contradictions | Resolved **automatically** | Adjudicated, with a warrant carrying a required rationale (§10.6) |
+| Patterns across pages | Synthesized **unprompted** into new pages | A synthesis is a claim and needs its own evidence (§17) |
+| Cadence | Four scheduled agents: morning, nightly, weekly, health | "Nothing here is periodic, and one thing should be" (§14.3.1) |
+| Note format | **AI-first**, "for LLM retrieval, not human review" | Human-readable OKF; the reader is the point (§11) |
+| Thesis | "A knowledge base that maintains itself" | A corpus that will not maintain itself without a warrant |
+
+Every one of those is a real position honestly held, and the differences are not
+carelessness — they follow from a different goal. That project serves **one person's
+recall**, where gnosis serves **a team's shared account of what it has checked**.
+For one person's recall, rewriting is right: you want the current answer, not the
+history of your own wrongness. For a shared account it is fatal, because a rewritten
+claim cannot be told from a fabricated one, and §9.6's whole argument is that a
+correction has to accrete rather than overwrite.
+
+What it does supply, and gnosis should steal, is the **per-fact recency marker**:
+its research dossiers write every key fact as `(as of YYYY-MM, source.com)`, inline.
+gnosis puts freshness in the index and in `checked.jsonl`; a reader looking at a
+rendered claim sees none of it. §14.3's staleness is currently a fact about the
+corpus that the corpus does not show a reader.
+
+The `--jsonl` envelope is the counter-example to the "AI-first" format: an artifact
+can be machine-legible without ceasing to be human-legible, and the family's whole
+posture is that a document nobody can read is a document nobody can review.
+
+#### `oh-my-agent` — Verification, Not Narration
+
+Directly applicable to `agentic-dev-harness` and `skillsaw`. Its opening claim is
+the harness thesis stated better than adh states it: *"Each mechanism is mechanical:
+a command exits 0 or it doesn't, a file is on disk or it isn't. No LLM is asked
+whether the work 'looks correct.'"* Five mechanisms are worth lifting:
+
+- **The Anti-Circumvention Gate** checks four artifacts a shortcut cannot fake —
+  phase records, the plan, a *distinct* QA agent's result file, a *distinct*
+  refactor agent's result file. *"Missing artifacts mean the phase did not run,
+  whatever the narration says."* This is `proof`'s no-proof-no-close generalised
+  from artifacts to **stages**, and the distinctness requirement is the part adh
+  does not have: a QA result written by the implementer is not a QA result.
+- **The independent judge is briefed on the criteria only, never on what the
+  implementer claims it fixed**, and **re-verifies every criterion each iteration,
+  including prior passes** — *"because fixing C2 is how C1 silently regresses."*
+  That is a direct finding against `skillsaw`'s ratchet, which should be checked:
+  a ratchet that re-scores only the failed dimensions cannot see a regression its
+  own fix caused.
+- **An allowlist of executable commands.** Only `typecheck`, `test`, and `lint` may
+  run; *"an agent that writes anything else into the state file gets it ignored,
+  never run."* A state file an agent can write is an execution surface, and gnosis's
+  §9.3 should say so about anything a reply can name.
+- **A cap on reinforcement** — five, *"so a permanently red gate can't trap you."*
+  gnosis's promote gate currently blocks unconditionally while two signals are
+  unimplementable, with no cap and no escape. That is the correct behaviour and it
+  is also a deadlock; the honest form is a bound with a recorded reason, not a
+  bypass.
+- **`oma skills eval` measures utility lift on held-out tasks, treatment versus
+  baseline, "instead of assuming a skill helps."** This is a stronger claim than
+  `skillsaw`'s rubric produces. A rubric score says a skill is well-formed; a
+  measured lift says it works. They are different claims and the second is the one
+  a user cares about.
+
+#### `agents-md` — The Marker Contract, Which Answers an Open TODO
+
+gnosis has `gnosis schema [link|--check]` for maintaining `AGENTS.md`, and an open
+TODO about machine-owned versus human-owned regions. `agents-md` has the whole
+answer and it is three rules:
+
+1. Generated sections are wrapped in HTML-comment markers.
+2. Everything outside the markers is preserved forever.
+3. **A file with no markers is never overwritten** — a `AGENTS.generated.md` is
+   written beside it instead.
+
+Rule 3 is the one a naive implementation misses and the one that matters: a file
+that predates the tool was not written under its contract, so the tool may not claim
+it. That is the same fail-closed direction as `EffectUnset` and `VerdictUnchecked`,
+applied to a file format. It also runs both a skill and a CLI against **one shared
+marker contract**, which is skillet's thesis with a different noun.
+
+#### Convergences Worth Recording
+
+- **`Acontext`** — "skill memory": agent memory as plain markdown skill files, and
+  explicitly *"progressive disclosure, not search ... no embeddings ... Git, grep."*
+  Independent agreement with §11.0's refusal of semantic search, reached for the
+  same reason — a retrieval path nobody can inspect is a retrieval path nobody can
+  correct. Where it parts company is the write path: an LLM distillation pass infers
+  "what worked and what failed" and writes it to a skill file with no quotation and
+  no gate, which is precisely the admission this specification exists to refuse.
+- **FPF's "unknowns propagate (never coerce to zero")** for constraint-fit. The
+  same rule as `quotecheck.Unchecked`, `VerdictUnchecked`, and `EffectUnset`, stated
+  as a measurement principle. Three unrelated derivations of one discipline.
+- **FPF's edition pinning** — `DescriptorMapRef.edition`, `policy-id`, and a
+  `PathSliceId` recorded with every parity run, because results without them are
+  *"refresh-unsafe."* §6.5's standards-hash-in-every-finding, independently.
+- **`haft`'s four-valued refresh verdict** — `no_change`, `apply_ready`,
+  `review_ready`, `candidate_rejected` — where `review_ready` is *"an auditable
+  semantic-delta classification, not a veto"*: the candidate is adopted, a prominent
+  warning prints, and every finding is retained for later review. gnosis's gate has
+  pass / fail / unchecked and no equivalent of "admitted, with the concerns
+  recorded." Whether §9.5 wants one is a real question and it is now in TODO.
+- **`haft`'s rebuild sanity guard** — a refresh is hard-rejected when the derived
+  source-unit projection falls *below 50% of the preceding verified count*. gnosis's
+  `index rebuild` has no such guard: a rebuild that finds three documents where
+  there were five hundred is a corrupted bundle, and gnosis would write it without
+  comment. A cheap, high-value check, and now a TODO.
+- **`gentle-wiki`'s scope rule** — a wiki *"complements product repositories by
+  explaining practices and concepts without becoming a second source of truth for
+  product behavior."* gnosis says at length what a document **is** and nowhere what
+  a corpus should **decline to hold**. A corpus that restates what the code already
+  says is a second source of truth that drifts, and the drift is invisible because
+  both halves are internally consistent.
+- **`systems-thinking`'s anti-pattern catalogue** — named failures with *mechanical*
+  detection criteria (phrase lists, structural absences) and a separate fix. That is
+  `skilllens` in a different domain, and it is the right shape: the detector is
+  deterministic and the repair is guidance. Worth mining for `canonizer`.
+- **`agent-sop`** — `.sop.md`, natural-language parameterised workflows, from the
+  Strands project. A sibling format to `SKILL.md` with a published specification;
+  relevant to `steve-skill-market` as an interchange question rather than a
+  competitor.
+
+#### Read Shallowly — Warranting Deeper Exploration
+
+Judged by README, layout, and targeted greps only. Each could repay a closer look:
+
+- **`haft` internals** (Go, ~40 packages: `authority`, `autonomyenvelope`,
+  `decisionbinding`, `contextgraph`, `graphrank`, `governance`, `p13acceptance`).
+  This is the single highest-value item in the survey and only its README was read.
+  It is a Go implementation of the same problem gnosis solves, with a worked model
+  of authority and decision-binding that §10.6 would benefit from.
+- **`FPF-Spec.md` beyond the practical-use cards** — 105,000 lines. The TIME,
+  CAUSAL-USE, DESCRIPTION-USE, NAMING, and WORDING cards were read; the pattern
+  bodies they point into (C.27, C.28, E.17, F.18, E.10) were not. NAMING's
+  `NameCard` and WORDING's `KindRestorationCheck` both look directly applicable to
+  §5.8's vocabulary problem.
+- **`ruflo`** (Rust, 623M) — "self-learning / self-optimizing agent architecture."
+  Relevant to adh's optimization loop and `skillsaw`'s ratchet; not opened.
+- **`hindsight`** — claims state-of-the-art on LongMemEval with "biomimetic data
+  structures" rather than vector search or a knowledge graph. gnosis will not adopt
+  a learned memory, but the *benchmark* is interesting: it is a measured claim about
+  retrieval quality, and §11 currently argues from principle alone.
+- **`oh-my-agent`'s `judge-protocol.md` and `event-spec.md`** — read only as
+  summarised in the README table; the protocols themselves are the artefact.
+- **`Context-Engineering`** (86M, course material) — surveyed at the top level only.
+- **`evals`** (Strands Evals SDK) and **`scientific-agents`** (503 expert profiles) —
+  identified as relevant to `skillsaw` in principle, not examined.
+- **`ECC`, `gstack`, `opengap`, `superpowers`, `acpx`, `hankweave-runtime`** — agent
+  harnesses and runtimes, read at README level. `superpowers`' composable-skill
+  methodology is the most likely of these to matter to `steve-skill-market`.
+
+#### Surveyed and Set Aside
+
+`camel`, `semantic-kernel`, `trpc-agent-go`, `nexent`, `deer-flow`, `Archon`,
+`hive`, `MMCTAgent`, `oh-my-openagent`, `gentle-ai`, `cascadeflow` — agent
+frameworks, orchestration platforms, and model-routing layers. gnosis calls no
+model and builds no agent; these solve a problem it does not have.
+`Gentleman-Skills`, `ai-agent-skills`, `thinking-skills`, `agent-thinking-skills`,
+and `doceo` are skill catalogues rather than components — useful as corpora to
+*grade* with `skillsaw`, which is a different relationship from lifting a mechanism.
+`agents.md` is the AGENTS.md standard's own website. `principles` generates agent
+networks from first-principles decomposition and is an experiment its author
+labels as such.
+
 ## What We Intend to Build from This
 
 Our tools cover skills. The knowledge base is still a hand-curated repository of
