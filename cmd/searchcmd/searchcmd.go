@@ -82,7 +82,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 			errors.New("no index; run `gnosis index rebuild` first"))
 	}
 
-	db, err := bundle.OpenIndex(ctx, c.Bundle)
+	db, err := bundle.OpenIndexForRead(ctx, c.Bundle)
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
 	}

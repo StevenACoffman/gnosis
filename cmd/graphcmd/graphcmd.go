@@ -58,7 +58,7 @@ difference between them can be read as a diff.`,
 
 // exec is the imperative shell: open the index, read the graph, render.
 func (c *Config) exec(ctx context.Context, _ []string) error {
-	db, err := bundle.OpenIndex(ctx, c.Bundle)
+	db, err := bundle.OpenIndexForRead(ctx, c.Bundle)
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
 	}

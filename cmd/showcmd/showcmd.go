@@ -72,7 +72,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 			"show needs exactly one path or identifier; try `gnosis show c/<id>-<slug>.md`"))
 	}
 
-	db, err := bundle.OpenIndex(ctx, c.Bundle)
+	db, err := bundle.OpenIndexForRead(ctx, c.Bundle)
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
 	}
