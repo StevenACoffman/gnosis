@@ -359,6 +359,7 @@ linters:
             - "**/internal/archive/**"
             - "**/internal/standards/**"
             - "**/internal/segment/**"
+            - "**/internal/command/**"
             - "**/internal/lint/**"
             - "**/internal/web/**"
           deny:
@@ -374,6 +375,8 @@ linters:
               desc: "adapters import internal/gnosis only, never each other; the shell maps standards onto archive.Gates — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/segment"
               desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/internal/command"
+              desc: "adapters import internal/gnosis only, never each other; the coordinator in internal/bundle is what executes a command — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/lint"
               desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/bundle"
