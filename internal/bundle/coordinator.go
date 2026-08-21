@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"context"
+	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
@@ -22,6 +23,20 @@ import (
 type Coordinator struct {
 	// Dir is the bundle root.
 	Dir string
+
+	// Now is the clock the audit trail stamps rows with. A nil Now uses
+	// time.Now, so a caller that does not care need not supply one.
+	//
+	// It is a field rather than a package-level call because an audit row's whole
+	// value is the time on it, and a value the tests cannot pin is a value the
+	// tests do not check.
+	Now func() time.Time
+
+	// auditErr holds the last audit-append failure, if any. It is surfaced on the
+	// outcome rather than returned, because the write it describes already
+	// happened and reporting it as the operation's error would tell a caller to
+	// retry something that succeeded.
+	auditErr error
 }
 
 // Execute runs one command against the bundle.
@@ -57,7 +72,28 @@ func (c *Coordinator) Execute(ctx context.Context, cmd command.Command) (gnosis.
 	}
 	defer lock.Release()
 
-	return c.dispatch(ctx, cmd)
+	outcome, err := c.dispatch(ctx, cmd)
+	return c.withAuditNote(outcome), err
+}
+
+// withAuditNote appends any audit-append failure to the outcome's message.
+//
+// It does not change the status. The operation did what it reported; what failed
+// is the record of it, and a caller that treated a missing audit row as a failed
+// write would undo work that succeeded. Saying so in the message is the honest
+// middle: visible to a person, and not something a machine branches on as an
+// operation failure.
+func (c *Coordinator) withAuditNote(outcome gnosis.Outcome) gnosis.Outcome {
+	if c.auditErr == nil {
+		return outcome
+	}
+	note := "the operation completed but its audit row was not written: " + c.auditErr.Error()
+	if outcome.Message == "" {
+		outcome.Message = note
+	} else {
+		outcome.Message += "; " + note
+	}
+	return outcome
 }
 
 // dispatch routes a validated command to its handler.

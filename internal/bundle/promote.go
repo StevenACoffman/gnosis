@@ -2,11 +2,14 @@ package bundle
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 
+	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gate"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
@@ -49,7 +52,17 @@ func (c *Coordinator) promote(_ context.Context, cmd *command.Promote) (gnosis.O
 
 	report := gate.Evaluate(candidate, corpus, limits)
 	if !report.Approved() {
-		return withheld(&report, cmd), nil
+		outcome := withheld(&report, cmd)
+		// A refusal is recorded too. "We declined to promote this eleven times" is
+		// a fact about the corpus that a successful-writes-only trail would not
+		// hold, and it is the fact most worth having when somebody asks why a
+		// document never landed.
+		c.record(&audit.Row{
+			At: c.now(), Op: audit.OpPromote, Actor: string(cmd.Approver),
+			Paths: []string{cmd.Path}, Outcome: string(outcome.Status),
+			Detail: outcome.Message,
+		})
+		return outcome, nil
 	}
 	if !cmd.Eff.Writes() {
 		return gnosis.OK(map[string]any{
@@ -80,6 +93,14 @@ func (c *Coordinator) apply(
 	if err := Discard(c.Dir, cmd.Path); err != nil {
 		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
 	}
+	c.record(&audit.Row{
+		At: c.now(), Op: audit.OpPromote, Actor: string(cmd.Approver),
+		Paths:      []string{cmd.Path},
+		HashBefore: hashOrEmpty(candidate.Before),
+		HashAfter:  hashOrEmpty(candidate.After),
+		Outcome:    string(gnosis.StatusOK),
+		Detail:     "promoted from quarantine",
+	})
 	return gnosis.OK(map[string]any{
 		"path": cmd.Path, "effect": cmd.Eff.String(),
 		"approved": true, "wrote": true,
@@ -113,6 +134,16 @@ func withheld(report *gate.Report, cmd *command.Promote) gnosis.Outcome {
 		"approved": false, "failed": failed, "unchecked": unchecked,
 		"report": report,
 	})
+}
+
+// hashOrEmpty is the content hash of some bytes, or "" for none. An empty
+// HashBefore is how a creation is told from a revision, so nil must not hash.
+func hashOrEmpty(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 // readIfPresent reads a file, reporting nil rather than an error when it is

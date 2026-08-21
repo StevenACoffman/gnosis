@@ -2,9 +2,12 @@ package bundle
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 
+	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/relay"
@@ -28,9 +31,21 @@ import (
 func (c *Coordinator) admit(_ context.Context, cmd *command.Admit) (gnosis.Outcome, error) {
 	const op = "bundle.Coordinator.admit"
 
+	// What this key was a question about, before anything else. A key naming no
+	// emitted prompt is a reply to a question nobody asked, and caching it would
+	// leave an entry nothing will ever hit.
+	meta, err := LoadPromptMeta(c.Dir, cmd.Key)
+	if err != nil {
+		if errs.ErrorCode(err) == errs.ENOTFOUND {
+			return gnosis.Blocked(gnosis.ReasonNeedsHuman, err.Error(),
+				map[string]any{"key": cmd.Key}), nil
+		}
+		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+	}
+
 	reply, parseErr := relay.ParseReply([]byte(cmd.Reply))
-	if err := c.cacheReply(op, cmd); err != nil {
-		return gnosis.Outcome{}, err
+	if cErr := c.cacheReply(op, cmd, &meta); cErr != nil {
+		return gnosis.Outcome{}, cErr
 	}
 	if parseErr != nil {
 		// A malformed reply is a finding about the reply, not a broken tool. The
@@ -43,12 +58,18 @@ func (c *Coordinator) admit(_ context.Context, cmd *command.Admit) (gnosis.Outco
 	// what the cached prompt was about — never from the reply. A model that could
 	// name its own source could cite one it never read, and one that could nominate
 	// its own archive could choose a file its quotations happen to appear in.
-	checked, err := c.checkReply(op, &reply)
+	reply.SourceURI = meta.URI
+	checked, err := c.checkReply(op, &reply, &meta)
 	if err != nil {
 		return gnosis.Outcome{}, err
 	}
 	if len(checked.unsupported) > 0 || len(checked.unchecked) > 0 {
-		return checked.outcome(cmd), nil
+		outcome := checked.outcome(cmd)
+		c.record(&audit.Row{
+			At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),
+			Outcome: string(outcome.Status), Detail: outcome.Message,
+		})
+		return outcome, nil
 	}
 	if !cmd.Eff.Writes() {
 		return gnosis.OK(map[string]any{
@@ -66,23 +87,28 @@ func (c *Coordinator) admit(_ context.Context, cmd *command.Admit) (gnosis.Outco
 // again to receive the same unusable answer, and §6.1's promise is that a second
 // run over unchanged inputs makes no model calls — not that it makes none when the
 // first run went well.
-func (c *Coordinator) cacheReply(op string, cmd *command.Admit) error {
-	if err := StoreCached(c.Dir, &CachedReply{Key: cmd.Key, Reply: cmd.Reply}); err != nil {
+func (c *Coordinator) cacheReply(op string, cmd *command.Admit, meta *PromptMeta) error {
+	if err := StoreCached(c.Dir, &CachedReply{
+		Key: cmd.Key, URI: meta.URI, Reply: cmd.Reply,
+	}); err != nil {
 		return &errs.Error{Op: op, Err: err}
 	}
 	return nil
 }
 
 // checkReply segments the reply's claims and validates each against the archive.
-func (c *Coordinator) checkReply(op string, reply *relay.Reply) (*checked, error) {
-	text, err := archivedText(op, c.Dir)
+// Quotations are checked against **the one archived file the prompt was built
+// from**, not against the whole archive. Checking against everything would let a
+// reply about one source pass on a phrase that happens to appear in another, which
+// is the evidence check answering a question nobody asked.
+func (c *Coordinator) checkReply(
+	op string, reply *relay.Reply, meta *PromptMeta,
+) (*checked, error) {
+	body, err := os.ReadFile(filepath.Join(c.Dir, filepath.FromSlash(meta.ArchivePath)))
 	if err != nil {
-		return nil, err
+		return nil, &errs.Error{Op: op, Err: err}
 	}
-	sources := make([]quotecheck.Source, 0, len(text))
-	for name, body := range text {
-		sources = append(sources, quotecheck.Source{Name: name, Text: body})
-	}
+	sources := []quotecheck.Source{{Name: meta.ArchivePath, Text: string(body)}}
 
 	out := &checked{}
 	for i := range reply.Claims {
@@ -155,9 +181,17 @@ func (c *Coordinator) quarantineReply(
 	}
 	rel := "c/" + id.String() + "-" + gnosis.SlugFrom(reply.Title).String() + ".md"
 
-	if _, err = Quarantine(c.Dir, rel, renderQuarantined(id, reply, k)); err != nil {
+	content := renderQuarantined(id, reply, k)
+	if _, err = Quarantine(c.Dir, rel, content); err != nil {
 		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
 	}
+	c.record(&audit.Row{
+		At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),
+		Paths:     []string{rel},
+		HashAfter: hashOrEmpty(content),
+		Outcome:   string(gnosis.StatusOK),
+		Detail:    "quarantined from reply " + cmd.Key,
+	})
 	return gnosis.OK(map[string]any{
 		"key": cmd.Key, "effect": cmd.Eff.String(),
 		"path": rel, "claims": len(k.claims), "quarantined": true,
