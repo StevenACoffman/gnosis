@@ -131,6 +131,20 @@ func renderPending(
 		return pending, nil
 	}
 
+	// The metadata is written before the prompt, so a crash between them leaves a
+	// meta file describing a prompt that is not there — inert, and re-emitting
+	// fixes it. The reverse would leave a prompt an agent could answer and admit
+	// could not accept.
+	meta := PromptMeta{
+		Key:         prompt.Key,
+		URI:         rec.URI,
+		SourceHash:  rec.SourceSHA256,
+		ArchivePath: rec.ArchivePath,
+	}
+	if err := StorePromptMeta(bundleDir, &meta); err != nil {
+		return Pending{}, err
+	}
+
 	rel := filepath.ToSlash(filepath.Join(stateDir, promptDir, prompt.Key+".md"))
 	full := filepath.Join(bundleDir, filepath.FromSlash(rel))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
