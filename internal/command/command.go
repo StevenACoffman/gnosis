@@ -35,7 +35,10 @@ package command
 // satisfied by accident, and a renamed method would surface at the coordinator
 // rather than here. It also keeps `unused` from deleting an interface that has no
 // caller yet — which it did once, silently, before this line existed.
-var _ Command = (*Promote)(nil)
+var (
+	_ Command = (*Promote)(nil)
+	_ Command = (*Admit)(nil)
+)
 
 // Command is one write, as a value.
 //
