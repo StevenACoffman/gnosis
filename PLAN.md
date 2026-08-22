@@ -473,8 +473,8 @@ from one source and would otherwise be scattered across four phases.
 - **The rebuild floor** (§4.5). **Done.** It cost less than budgeted: the previously
   indexed count is `len(indexed)`, which `indexcmd` already loads to compute drift,
   so the planned meta row was unnecessary.
-- **`standards/promote.toml`** (§9.5). Already outstanding; the rebuild floor and the
-  hedging limit both belong in it, so it stops being one literal in Go.
+- **`standards/promote.toml`** (§9.5). **Done**, holding both the hedging limit and
+  the rebuild floor.
 - **Corruption versus operational failure** (§15). Still open for `AuditTrail`.
   `StoreEvidence` now draws the line for the case that matters most — differing
   bytes at a content-addressed path is ECONFLICT rather than a quiet no-op.

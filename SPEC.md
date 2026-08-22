@@ -1418,7 +1418,18 @@ pushing a staleness default out, and every run afterwards will be perfectly
 reproducible and perfectly quiet.
 
 So each `standards/` value carries a `rationale`, and a change that loosens one is
-recorded in `log.md` alongside the finding count before and after. This is not
+recorded in `log.md` alongside the finding count before and after **where such a
+count exists** — which, on inspection, is fewer thresholds than this section
+originally assumed.
+
+Tracing which values actually reach a finding: `corpus_budget` and
+`corpus_warn_fraction` feed the archive-budget diagnostic, so raising either can
+silence a real finding and the delta is exact. The allowlist and the size caps
+govern what enters tier 0 rather than what any check reports. The gate thresholds
+govern promotion. And two values are read by nothing at all. `gnosis standards
+check` therefore states which case a loosening is in rather than printing a zero
+delta — a zero reads as *this cost nothing*, when what happened is that nothing
+measured it, and that is precisely the reassurance this section exists to withhold. This is not
 version control — git already has the diff. It is the distinction between a
 threshold that was wrong and a threshold that was inconvenient, which the diff
 cannot show and which nobody reconstructs a year later.

@@ -143,6 +143,27 @@ ______________________________________________________________________
 
 ## Noticed While Building Phase 2
 
+- [ ] **`staleness_days` and `in_degree_cut` are read by nothing.** Loaded,
+  validated, rationalised, and dead — the same state `hedging_max` was in, except
+  that one was at least consulted. `staleness_days` is §14.3's default window and
+  `gnosis.FreshnessOf` now exists to use it; `in_degree_cut` is §14.4.1's
+  centrality cut and nothing computes centrality. Found by tracing which standards
+  values reach a finding.
+- [ ] **§6.2 assumes every threshold affects the finding count and two of seven
+  do.** `corpus_budget` and `corpus_warn_fraction` feed `doctor`'s budget
+  diagnostic and their delta is exact. The allowlist and caps govern admission;
+  `hedging_max` and `rebuild_floor_fraction` govern the gate and the rebuild;
+  the other two are read by nothing. `standards check` says which case each
+  loosening is in rather than printing a zero, but §6.2's own wording should be
+  revised to ask for the count *where one exists*.
+- [ ] **Freshness is computed and nothing calls it.** `gnosis.FreshnessOf` and
+  `checked.jsonl` are both in place; no command joins them. `show` still renders no
+  freshness and `doctor` reports no stale sources. This is the last mile of the
+  §14.3 work and it is small.
+- [ ] **`init` does not scaffold `standards/`.** Deliberate for now — an absent
+  file falls back to the embedded seed, so a seed improvement reaches every
+  existing bundle, which scaffolding would prevent. Worth revisiting if the values
+  become something people are expected to tune per corpus.
 - [ ] **§9.3 stages two through four are unbuilt.** Injection and exfiltration
   patterns, secrets via `betterleaks`, and the oversize bound. Each needs its own
   decision — a pattern corpus with a test set, a dependency, a `standards/` value —
@@ -156,8 +177,7 @@ ______________________________________________________________________
   deliberate, because the alternative makes every caller carry a stub. It means the
   wiring is a property one test asserts rather than one the type guarantees, and if
   a second shell ever builds Gates that test is what stands between it and no scan.
-- [ ] **`rebuild_floor_fraction` lodges in `archive.toml`.** It is not an admission
-  gate. Move it when `standards/promote.toml` exists and there is somewhere better.
+- [x] **`rebuild_floor_fraction` moved to `standards/promote.toml`.**
 - [ ] **No `--resume` and no crash-resumable queue.** §9.2 wants the ingest queue
   SQLite-backed so a killed process resumes rather than restarting. Prompts are
   currently emitted in one pass and a crash halfway through leaves some written and
@@ -180,15 +200,20 @@ ______________________________________________________________________
   with silent gaps cannot answer the question it exists for. Wants either a
   `doctor` check that the trail's last row matches the corpus's last change, or an
   explicit field on the envelope.
-- [ ] **`log.md` is not written automatically on a threshold change.** §6.2 requires
+- [x] **`gnosis standards check --log` files the entry.** *Reads the previous values
+  from git. The finding count is reported only for the two thresholds that produce
+  findings — see the new item below.* Original: §6.2 requires
   a loosened `standards/` value to be recorded there with the finding count before
   and after. `standards.CompareArchive` can detect the loosening and `okflog.Add`
   can file the note; nothing joins them, so the requirement is currently a
   convention a person has to remember — which is the thing §6.2 says not to rely on.
-- [ ] **`init` and `index rebuild` emit no audit rows.** §15 says every mutation.
+- [x] **`init` and `index rebuild` emit audit rows.** *Actor is `check:init` /
+  `check:index-rebuild`, because the tool caused the write.* Original: §15 says every mutation.
   They write scaffold and derived state rather than corpus content, which is an
   argument for a different row rather than for none.
-- [ ] **`standards/promote.toml` does not exist.** §9.5 requires every gate signal
+- [x] **`standards/promote.toml` exists.** *`hedging_max` moved out of Go with a
+  rationale that admits it was guessed; `rebuild_floor_fraction` moved out of
+  `archive.toml`.* Original: §9.5 requires every gate signal
   to be declared in `standards/`, and `gate.Limits` is currently built from a
   literal `HedgingMax: 3` in `bundle.gateInputs`. That is exactly the hardcoded
   threshold §6.5 forbids, and it has no rationale attached. `MinPassageWords` is
@@ -215,7 +240,8 @@ ______________________________________________________________________
   same "unchanged" a genuine no-op reports. `doctor` should re-hash tier 0 and
   report a mismatch. Until it does, the tamper-evidence is a property of the
   layout that nothing actually checks.
-- [ ] **The per-corpus budget and warning fraction are loaded and unused.**
+- [x] **The corpus budget is reported by `doctor`.** *Warns at the threshold, errors
+  past the budget, names the five largest files, and refuses nothing.* Original:
   `corpus_budget` and `corpus_warn_fraction` are validated at load and no code
   consults them, so the repository can still grow without anyone being told —
   which is the thing they exist to prevent. Wants a `doctor` check that sums
@@ -229,7 +255,10 @@ ______________________________________________________________________
   writes content before the record so a crash leaves inert orphaned text rather
   than a record pointing at nothing. Inert is not free: the orphans count against
   the corpus budget and never get collected.
-- [ ] **`.gnosis/checked.jsonl` does not exist.** §9.2 says a re-fetch of an
+- [x] **`.gnosis/checked.jsonl` exists.** *Per-user, upsert rather than append
+  because §4.3.1 says nothing consumes the sequence; a check is keyed on a source
+  *version*, not a URI. `gnosis.FreshnessOf` is the four-state vocabulary.*
+  Original: §9.2 says a re-fetch of an
   unchanged source advances it, recording that this user looked, and §4.3.1 makes
   it the documented exception to §4.5 — the one per-user observation that is
   cached rather than committed. Without it a no-op fetch records nothing at all,
@@ -237,7 +266,9 @@ ______________________________________________________________________
   from "never checked". This is the piece that makes omitting the record timestamp
   affordable, so it is the natural companion to Step 2.4 rather than a later
   nicety.
-- [ ] **Nothing derives `sources_fetched` from the committed records.** §9.2 has
+- [x] **`sources_fetched` is derived on rebuild.** *Keyed on the record hash so both
+  versions of a twice-fetched source survive; replaced rather than merged. The
+  tier-0 walks stay, because readers must work with no index.* Original: §9.2 has
   `sources_fetched.extractor` and `.extractor_version` answering which stripper
   produced a tier-0 file; §4.3.1 has `.gnosis/fetch.jsonl` as a greppable rollup
   rebuilt by `index rebuild`. Neither exists, so tier 0 is currently writable and
