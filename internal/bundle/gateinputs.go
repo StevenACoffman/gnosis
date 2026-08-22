@@ -78,11 +78,16 @@ func (c *Coordinator) gateInputs() (*gate.Corpus, gate.Limits, error) {
 		return nil, gate.Limits{}, err
 	}
 
-	// Provisional until standards/promote.toml exists, which is recorded in TODO.
-	// MinPassageWords comes from quotecheck so the gate and the guard cannot
-	// disagree about how short a passage is too short to be evidence.
+	// The hedging limit is declared in standards/promote.toml, per §6.5.
+	// MinPassageWords is not: it comes from quotecheck, so the gate and the guard
+	// cannot disagree about how short a passage is too short to be evidence, and a
+	// second declaration would be a second place for them to drift.
+	promote, err := LoadPromoteStandards(c.Dir)
+	if err != nil {
+		return nil, gate.Limits{}, err
+	}
 	limits := gate.Limits{
-		HedgingMax:      3,
+		HedgingMax:      promote.HedgingMax.Value,
 		MinPassageWords: quotecheck.MinPassageWords,
 	}
 

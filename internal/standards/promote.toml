@@ -1,0 +1,42 @@
+# Promote gate thresholds: what may leave quarantine and enter the corpus.
+# See SPEC §9.5.
+#
+# The same two rules as standards/archive.toml govern edits here.
+#
+#   1. Every value carries a `rationale`, and the loader rejects one that does
+#      not. Say why the number is the number.
+#   2. A value moved in the loosening direction is reported and MUST be recorded
+#      in log.md (SPEC §6.2). A gate can be made quiet by widening it, and every
+#      run afterwards will be reproducible and uninformative.
+
+[hedging_max]
+value = 3
+rationale = """
+Three distinct softening phrases in one body. Guessed, not measured, and this
+rationale exists partly to say so — the value was a literal in Go with no
+justification at all until standards/promote.toml existed, which is the state §6.5
+forbids precisely because nobody can tell a measured threshold from an invented one
+after the fact.
+
+The count is of distinct phrases rather than occurrences, so a document that says
+"generally" four times is at one rather than four. Prose legitimately hedges: a
+claim that is genuinely uncertain should say so, and a corpus that banned the words
+would get the same uncertainty asserted flatly, which is worse. Three is meant to
+catch a body that is hedged throughout rather than one that hedges where it should.
+
+Revisit against the corpus's own distribution once there is one, and record the
+basis here when there is.
+"""
+
+[rebuild_floor_fraction]
+value = 0.5
+rationale = """
+A rebuild finding fewer than half the documents the index already held refuses
+rather than writing (SPEC §4.5). Half is chosen for what it excludes rather than
+from measurement: a wrong --bundle, a partial clone, or an unstaged `c/` produces a
+count near zero, and no ordinary editing session deletes half a corpus. A real
+halving is rare, and `--force` is one word.
+
+Moved here from archive.toml, where it lodged because one value did not earn a
+file. A rebuild is not an admission gate and archive.toml is about admission.
+"""

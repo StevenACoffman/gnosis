@@ -60,7 +60,6 @@ func (a *Archive) badFractions() []string {
 		value float64
 	}{
 		{"corpus_warn_fraction", a.CorpusWarnFraction.Value},
-		{"rebuild_floor_fraction", a.RebuildFloorFraction.Value},
 	} {
 		if f.value <= 0 || f.value > 1 {
 			bad = append(bad, f.name+" must be in (0, 1]")

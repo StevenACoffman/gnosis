@@ -90,21 +90,6 @@ document with a faster-moving source should set its own date rather than argue
 this number down.
 """
 
-[rebuild_floor_fraction]
-value = 0.5
-rationale = """
-A rebuild finding fewer than half the documents the index already held refuses
-rather than writing (SPEC §4.5). Half is chosen for what it excludes rather than
-from measurement: a wrong --bundle, a partial clone, or an unstaged `c/` produces a
-count near zero, and no ordinary editing session deletes half a corpus. A real
-halving is rare, and `--force` is one word.
-
-Lodging here rather than in standards/index.toml because one value does not earn a
-file, and this is admission-adjacent in spirit even though a rebuild is not an
-admission gate. Move it when standards/promote.toml arrives and there is somewhere
-better; TODO records that.
-"""
-
 [in_degree_cut]
 value = 5
 rationale = """

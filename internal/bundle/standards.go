@@ -39,6 +39,31 @@ func LoadArchiveStandards(bundleDir string) (*standards.Archive, error) {
 	return a, nil
 }
 
+// LoadPromoteStandards reads a bundle's gate thresholds, falling back to the seed.
+//
+// Requires: bundleDir is a path, which need not exist.
+// Ensures: the same rule as LoadArchiveStandards — an absent file gets the
+// embedded default, and a present file that will not load is a hard error. A
+// bundle cloned before promote.toml existed must still promote; a bundle whose
+// file is malformed must not silently promote against thresholds nobody wrote.
+func LoadPromoteStandards(bundleDir string) (*standards.Promote, error) {
+	const op = "bundle.LoadPromoteStandards"
+
+	src, err := os.ReadFile(filepath.Join(bundleDir,
+		filepath.FromSlash(standards.PromoteFileName)))
+	if errors.Is(err, fs.ErrNotExist) {
+		src = standards.DefaultPromote()
+	} else if err != nil {
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+
+	p, err := standards.LoadPromote(src)
+	if err != nil {
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+	return p, nil
+}
+
 // ArchiveGates projects the loaded standards onto what the archive policy needs.
 //
 // This is the join §0.1's layering requires: adapters do not import each other,

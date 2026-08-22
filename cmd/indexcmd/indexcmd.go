@@ -194,7 +194,7 @@ func (c *Config) write(
 // only applied once somebody wrote a config would protect the corpora least likely
 // to have one.
 func (c *Config) floorFraction() (float64, error) {
-	std, err := bundle.LoadArchiveStandards(c.Bundle)
+	std, err := bundle.LoadPromoteStandards(c.Bundle)
 	if err != nil {
 		return 0, fmt.Errorf("index rebuild: %w", err)
 	}
