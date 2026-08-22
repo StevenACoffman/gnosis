@@ -72,6 +72,13 @@ func CompareArchive(old, cur *Archive) []Loosening {
 	add(cur.InDegreeCut.Value > old.InDegreeCut.Value, "in_degree_cut",
 		strconv.Itoa(old.InDegreeCut.Value), strconv.Itoa(cur.InDegreeCut.Value),
 		cur.InDegreeCut.Rationale)
+	// A *lower* floor refuses fewer rebuilds, so this one loosens downward — the
+	// opposite direction from every other fraction here, which is exactly why the
+	// direction lives in Go rather than beside the value.
+	add(cur.RebuildFloorFraction.Value < old.RebuildFloorFraction.Value, "rebuild_floor_fraction",
+		formatFraction(old.RebuildFloorFraction.Value),
+		formatFraction(cur.RebuildFloorFraction.Value),
+		cur.RebuildFloorFraction.Rationale)
 	add(cur.CorpusWarnFraction.Value > old.CorpusWarnFraction.Value, "corpus_warn_fraction",
 		formatFraction(old.CorpusWarnFraction.Value), formatFraction(cur.CorpusWarnFraction.Value),
 		cur.CorpusWarnFraction.Rationale)

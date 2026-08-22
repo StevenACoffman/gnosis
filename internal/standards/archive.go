@@ -51,6 +51,10 @@ type Archive struct {
 	// only the default for one that does not (§14.3).
 	StalenessDays Value[int] `toml:"staleness_days"`
 
+	// RebuildFloorFraction is the share of the previously indexed document count
+	// below which `index rebuild` refuses (§4.5).
+	RebuildFloorFraction Value[float64] `toml:"rebuild_floor_fraction"`
+
 	// InDegreeCut is the inbound-link count above which a document is treated as
 	// central, which raises the evidence a claim in it must carry (§14.4.1).
 	InDegreeCut Value[int] `toml:"in_degree_cut"`
