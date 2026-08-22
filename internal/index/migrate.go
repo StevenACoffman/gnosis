@@ -47,6 +47,7 @@ func migrations() []string {
 	all = append(all, documentSchema()...)
 	all = append(all, linkSchema()...)
 	all = append(all, vocabularySchema()...)
+	all = append(all, sourceSchema()...)
 	return all
 }
 

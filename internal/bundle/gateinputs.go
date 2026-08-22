@@ -9,6 +9,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/archive"
 	"github.com/StevenACoffman/gnosis/internal/gate"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/okf"
 	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/quotecheck"
@@ -174,6 +175,51 @@ func walkRecords(op string, fsys fs.FS, visit func(*archive.Record)) error {
 		return &errs.Error{Op: op, Err: err}
 	}
 	return nil
+}
+
+// SourceRows projects every committed fetch record for the derived index.
+//
+// Requires: bundleDir is a bundle root.
+// Ensures: one row per record, in the order the walk found them; the caller sorts
+// if it cares. A bundle with no archive yields none rather than an error, which is
+// the ordinary state of a corpus that has fetched nothing.
+//
+// This reads the **records**, not the index, because the index is what it is
+// building. §4.3.1 makes the committed records authoritative and the table a
+// rollup, so a rebuild that read the previous table would be copying a cache
+// forward rather than re-deriving it — and the byte-identical guarantee of §4.5
+// would then hold over whatever the last run happened to leave behind.
+func SourceRows(bundleDir string) ([]index.SourceRow, error) {
+	const op = "bundle.SourceRows"
+
+	var out []index.SourceRow
+	err := walkRecords(op, os.DirFS(bundleDir), func(rec *archive.Record) {
+		hash, hErr := rec.Hash()
+		if hErr != nil {
+			// Unreachable: the record parsed, so it marshals. Skipping rather than
+			// failing would drop a source from the projection silently, so the row
+			// is written with an empty key and the primary key rejects a second one
+			// — visible, rather than absent.
+			hash = ""
+		}
+		out = append(out, index.SourceRow{
+			RecordSHA256:     hash,
+			URI:              rec.URI,
+			SourceSHA256:     rec.SourceSHA256,
+			ByteSize:         rec.ByteSize,
+			MediaType:        rec.MediaType,
+			Disposition:      string(rec.Disposition),
+			ArchivePath:      rec.ArchivePath,
+			Extractor:        rec.Extractor,
+			ExtractorVersion: rec.ExtractorVersion,
+			ExtractedFrom:    rec.ExtractedFrom,
+			RejectReason:     string(rec.RejectReason),
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // titlesByFold maps each existing document's folded title to its path.

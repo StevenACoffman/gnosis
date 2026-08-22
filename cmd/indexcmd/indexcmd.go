@@ -29,9 +29,14 @@ type Config struct {
 
 // Result is the payload for a rebuild or a check.
 type Result struct {
-	Documents int  `json:"documents"`
-	Drifted   int  `json:"drifted"`
-	Wrote     bool `json:"wrote"`
+	Documents int `json:"documents"`
+	Drifted   int `json:"drifted"`
+
+	// Sources is how many tier-0 records the projection now holds. Reported
+	// separately from Documents because the two answer different questions —
+	// how much the corpus says, and how much evidence it holds to say it with.
+	Sources int  `json:"sources"`
+	Wrote   bool `json:"wrote"`
 }
 
 // New registers the index command group under parent.
@@ -123,13 +128,42 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	}
 
 	if !c.CheckOnly {
-		if err := db.Replace(ctx, bundle.Rows(docs), bundle.LinkRows(docs)); err != nil {
-			return c.fail(root.ReasonIndexDrift, err)
+		if err := c.write(ctx, db, docs, &result); err != nil {
+			return err
 		}
-		result.Wrote = true
-		result.Drifted = 0
 	}
 	return c.report(result, drift)
+}
+
+// write rebuilds both derived tables.
+//
+// Extracted from exec because the linter reported the complexity, and it was
+// right: exec had come to do loading, the floor check, drift, and two writes, and
+// only the last of those is what --check turns off.
+//
+// The documents and the tier-0 projection are rebuilt in one pass but not one
+// transaction. That is acceptable because both are derived (§4.5): an interruption
+// between them leaves an index that disagrees with the bundle, which is exactly the
+// state `--check` reports and a second rebuild repairs.
+func (c *Config) write(
+	ctx context.Context, db *index.DB, docs []bundle.Document, result *Result,
+) error {
+	if err := db.Replace(ctx, bundle.Rows(docs), bundle.LinkRows(docs)); err != nil {
+		return c.fail(root.ReasonIndexDrift, err)
+	}
+	// Rebuilt from the committed records rather than merged into what was there
+	// (§4.3.1): a record deleted from tier 0 must disappear here too.
+	sources, err := bundle.SourceRows(c.Bundle)
+	if err != nil {
+		return c.fail(root.ReasonIndexDrift, err)
+	}
+	if err = db.ReplaceSources(ctx, sources); err != nil {
+		return c.fail(root.ReasonIndexDrift, err)
+	}
+	result.Sources = len(sources)
+	result.Wrote = true
+	result.Drifted = 0
+	return nil
 }
 
 // floorFraction reads the declared floor.
