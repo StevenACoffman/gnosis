@@ -2898,6 +2898,88 @@ argument for treating a commissioned survey as a claim to be checked rather than
 finding to be filed — which is, unavoidably, the argument this entire project is
 about, arriving from the outside.
 
+##### `hindsight` — a working system, and the first survey that costs us an argument
+
+**Local copy:** `~/Documents/agent-green/hindsight-summary.md`, over
+`agent-green/hindsight`.
+
+The third commissioned summary, and the first over a substantial working system
+rather than a persona catalogue or a specification. Every concept it names is real
+and documented: world facts and experiences, observations with proof counts,
+mental models projected as knowledge pages, memory defense at intake, disposition
+traits, and four-strategy recall fused by RRF with a cross-encoder reranker.
+
+Its best contribution is a distinction gnosis does not have, and its worst
+recommendation would break a guarantee gnosis does. Both are worth stating
+carefully, and neither is the most important thing in the repository — which the
+summary does not mention at all.
+
+**What the summary misses, and it is the whole point.** `hindsight` reports 94% and
+91% on LongMemEval and claims state of the art. §11.0 refuses semantic search on
+inspectability grounds — *"a retrieval path nobody can inspect is a retrieval path
+nobody can correct"* — and argues the position entirely from principle. Here is a
+measured claim about what the other architecture achieves on an adjacent task.
+**That refusal has a price and this specification has never named one.** The task is
+not gnosis's task, the benchmark is conversational recall rather than corpus
+adjudication, and the claim is the vendor's own — but "we decline this and here is
+the number we decline" is a stronger position than "we decline this", and only one
+of them is honest about the trade. Recorded against §11.0.
+
+**The distinction worth taking: world facts against experiences.** A standard —
+*"React 19 prohibits X"* — and an episode — *"in session 12 the team applied this
+rule to file Y, and it was approved"* — are different kinds of knowledge with
+different evidence. gnosis has a place for the first and none for the second, and
+the second is arguably the *tribal* knowledge this project is named for: not what
+the guideline says, but what happened when this team applied it here.
+
+The summary's mapping is wrong in a way that matters. It puts experiences in
+**tier 3**, which is the derived cache — and §4.5 is unambiguous that *"anything
+that exists only in SQLite is a bug."* Session traces cannot be re-derived from the
+bundle, so filing them there would put irreplaceable primary data in the one tier
+designed to be destroyed and rebuilt. An experience belongs in tier 2 as a
+committed document of its own type, with a commit hash as its evidence — which is
+the same shape as every other claim, because §1.1 makes an experience testimony
+like anything else.
+
+**Three recommendations conflict with positions this project argues.**
+
+- **Proof counts.** *"Increment the card's proof count"* as new sources corroborate
+  a claim. §1.1 is local reductionist — *a source's reliability is never inherited
+  by its claims* — and a count invites exactly that inheritance: three sources
+  agreeing is not three times as true, and may be three sources copying one
+  another. `hindsight`'s own version is better than the summary's rendering of it
+  (*"refined as evidence strengthens, weakens, or contradicts it — history is
+  preserved"*), and the salvageable idea is the **multi-source evidence ledger** —
+  recording that four sources support a claim, without collapsing four into a
+  number that reads as strength.
+- **A background consolidation loop** merging quarantined claims into canonical
+  cards. This is §14.3.1's *nothing here is periodic* and, more seriously, it is
+  the `obsidian-second-brain` failure this survey already recorded: an unattended
+  merge with no gate and no warrant. gnosis's answer to "these two claims are the
+  same" is `duplicate`, a finding a person resolves (§4.6.1).
+- **Disposition traits as gating strictness** — *"strict in CI, empathic in local
+  loops."* This is the summary's extrapolation and not the source: `hindsight`'s
+  dispositions are *"soft traits that influence reasoning style"* on a 1–5 scale,
+  shaping interpretation rather than admission. Converted into gate strictness it
+  becomes the single most demoralising property a checking tool can have — a
+  developer sees a pass locally and a failure in CI, for one corpus at one commit,
+  which is what §4.6's *two users at the same commit hold the same index* exists to
+  prevent. The legitimate version is what gnosis already does: **one verdict, two
+  renderings.** `--jsonl` and human output differ in presentation and never in
+  finding.
+
+**Two are confirmation rather than news.** Memory defense at intake is §9.3 stage 3,
+already specified down to redaction before anything reaches disk and already in
+TODO; the agreement is useful and the design is not new. Mental models — standing
+answers computed offline and read at zero cost — is §8.3's `gnosis file`, specified
+and unbuilt, and finding it independently is a mild vindication of that section.
+
+**One is self-defeating.** The four-strategy retrieval proposal keeps RRF and the
+cross-encoder in the description and then, for gnosis, drops the semantic and
+reranking parts in favour of *"grep plus NameCards plus validity windows"* — which
+is the existing FTS5 search plus two features that do not exist. It removes exactly
+the components that produce the accuracy it cites, and then claims the benefit.
+
 #### Convergences Worth Recording
 
 - **`Acontext`** — "skill memory": agent memory as plain markdown skill files, and

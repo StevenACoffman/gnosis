@@ -394,6 +394,32 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Reviewed Summaries — `hindsight` (2026-08-22)
+
+- [ ] **§11.0 refuses semantic search and never names the price.** `hindsight`
+  reports 94% and 91% on LongMemEval for an architecture gnosis declines on
+  inspectability grounds. The task is not gnosis's and the number is the vendor's,
+  but "we decline this, and here is roughly what declining costs on an adjacent
+  benchmark" is a stronger and more honest section than the one there now, which
+  argues entirely from principle. Revise §11.0 to state the trade.
+- [ ] **Nothing holds an *experience*.** A standard and an episode are different
+  knowledge with different evidence: "React 19 prohibits X" versus "the team applied
+  this here and approved it." The second is arguably the tribal knowledge this
+  project is named for and there is no document type for it. It belongs in tier 2
+  with a commit hash as evidence — **not** tier 3, where the summary put it, because
+  a session trace cannot be re-derived and §4.5 forbids anything existing only in
+  SQLite. Needs a type in §5.8 first, so Phase 3.
+- [ ] **Multi-source corroboration is not recorded as a structure.** A claim
+  supported by four independent sources and one supported by one look alike in the
+  frontmatter. The salvageable half of `hindsight`'s proof count: record *which*
+  sources support a claim without collapsing them into a number, since §1.1's local
+  reductionism refuses the inheritance a count implies.
+- [ ] **State that one verdict may have two renderings and never two verdicts.**
+  The disposition-traits proposal — strict in CI, lenient locally — would give a
+  developer a pass locally and a failure in CI for one corpus at one commit. §4.6
+  implies this is forbidden and no section says it outright, which is why a
+  reasonable reviewer proposed it.
+
 ## Reviewed Summaries — `scientific-agents` and FPF (2026-08-22)
 
 Both summaries are in `manifesto.md` with what survived review. These are the items
