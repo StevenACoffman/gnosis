@@ -32,6 +32,7 @@ func Inspect(ctx context.Context, dir string) (lint.Environment, error) {
 	env.OntologyPresent, env.OntologyError, env.Types = inspectOntology(dir)
 	env.Archive, env.StandardsError = inspectArchive(dir)
 	env.TunedButUnread, env.MispinnedStandards = inspectStandardsReach(dir)
+	env.Audit = inspectAudit(dir)
 	env.IndexDocPresent = exists(filepath.Join(dir, "index.md"))
 	env.StateIgnored = stateIgnored(dir)
 
@@ -124,6 +125,38 @@ func inspectIndex(
 // which reads as "no budget declared" and produced a clean bill of health for a
 // corpus whose standards file does not parse. That is the one output this command
 // must never produce.
+// inspectAudit gathers the write trail's health.
+//
+// Requires: nothing; a bundle with no trail and a directory that is not a git
+// worktree are both ordinary.
+// Ensures: never an error. `doctor` must run in exactly the broken cases, and a
+// diagnostic command that fails instead of diagnosing is useless when it is
+// needed — the same rule Inspect states for the vocabulary and the index.
+//
+// A read failure lands in Unreadable rather than being dropped. Reporting zero
+// rows for a trail nobody could open would be an observation this function did not
+// make, and it is the shape that let a malformed standards file produce a clean
+// bill of health once already.
+func inspectAudit(dir string) lint.AuditHealth {
+	trail, err := AuditTrail(dir)
+	if err != nil {
+		return lint.AuditHealth{Unreadable: err.Error()}
+	}
+	health := lint.AuditHealth{
+		Rows:      len(trail.Rows),
+		Malformed: trail.Malformed,
+		Newest:    trail.Newest(),
+	}
+	// A git failure is not reported: HeadTime already returns the zero time for
+	// the two states that are not failures, and the comparison skips on a zero.
+	// Surfacing a genuine git error here would put a second unrelated finding on
+	// the trail's own report.
+	if head, hErr := HeadTime(dir); hErr == nil {
+		health.Head = head
+	}
+	return health
+}
+
 // inspectStandardsReach reports edits to the standards files that changed nothing:
 // values tuned off the seed that no code branches on, and values pinned to
 // something this binary does not implement.
