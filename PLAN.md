@@ -475,11 +475,17 @@ from one source and would otherwise be scattered across four phases.
   so the planned meta row was unnecessary.
 - **`standards/promote.toml`** (§9.5). **Done**, holding both the hedging limit and
   the rebuild floor.
-- **Corruption versus operational failure** (§15). Still open for `AuditTrail`.
-  `StoreEvidence` now draws the line for the case that matters most — differing
-  bytes at a content-addressed path is ECONFLICT rather than a quiet no-op.
-- **Freshness at the point of reading** (§14.3). `show` renders no staleness. The
-  index knows; the person reading the claim does not.
+- **Corruption versus operational failure** (§15). **Done.** `AuditTrail` and
+  `LoadChecks` name a malformed line as corruption and carry its line number.
+  `StoreEvidence` already drew the line for the case that matters most — differing
+  bytes at a content-addressed path is ECONFLICT rather than a quiet no-op. §15 now
+  records the limit: `errs` has no corruption code, so this is legible rather than
+  machine-checkable, and a sixth code belongs at the second consumer.
+- **Freshness at the point of reading** (§14.3). **Done.** `lint`'s `stale` check
+  and `show`'s freshness line both land, joined by `bundle.LoadFreshness`. The
+  §14.3.0 distinction fell out of building it — `stale_after` governs the claim,
+  `staleness_days` governs the check — as did the decision that never-checked is a
+  state rather than a finding. Still per document rather than per claim; filed.
 - **A relay test with a scripted model** (§18). `cmd/relay_test.go` hand-writes every
   reply, so nothing checks that a real agent handed a real emitted prompt produces
   one `admit` accepts. The method is in the manifesto: keep the runtime real, replace
@@ -487,6 +493,34 @@ from one source and would otherwise be scattered across four phases.
 - **An `AI_POLICY.md`** for this repository. Not a code change and not a spec change
   — a repository is a corpus, §1.1 says a claim must name its witness, and this one
   does not.
+
+______________________________________________________________________
+
+### 4.2 What the Second Tier 1 Pass Turned Up
+
+Three items that looked unrelated were one: something built and not connected.
+Two of them were the same work, since joining freshness to a command is what gives
+`staleness_days` a reader.
+
+- **A finding nobody can act on is noise, and the test said so.** `doctor`'s first
+  unread-value check reported gnosis's own dead knob on every freshly initialised
+  bundle. Its owner could not build the reader, and could not delete the value
+  either, because the loader then rejects the file for a missing rationale. The
+  fix was to narrow the claim from *this knob is dead* to *you edited this knob and
+  got nothing*, which is per-corpus, actionable, and silent on a fresh bundle.
+- **Two states were not enough.** `html_extractor` and its version are read only by
+  a test that pins them to Go constants. Calling them consumed tells a reader their
+  edit takes effect; calling them unread invites deleting the provenance every
+  extracted record carries. *Pinned* is the third state and it had to be added.
+- **`hasUpstream` and `everChecked` are different questions.** `lint.FreshnessOf`
+  passed the second for the first, which reported a document nobody had checked as
+  `not_applicable` — "there is nothing to check" instead of "nobody looked". That
+  is the exact collapse the four-state vocabulary exists to prevent, inside the
+  function written to prevent it, and only its own test caught it.
+- **Declining to build a reader is a decision worth writing down.** `in_degree_cut`
+  could have been given one in an afternoon by labelling bare centrality. It would
+  have been a different feature wearing the same number, and would have made the
+  value look consumed while §14.4.1's actual requirement stayed unbuilt.
 
 ______________________________________________________________________
 
