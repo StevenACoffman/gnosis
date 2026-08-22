@@ -1592,6 +1592,30 @@ log is what converts that into a countable observation, which is the whole reaso
 recurs is a deterministic check waiting to be written; that is the backlog that
 shrinks the model's surface area over time.
 
+#### 6.4.1 A Miss Log Measures Coverage, Never Correctness
+
+Stated here because the log is cited elsewhere as evidence for things it cannot
+supply, and a tracer whose limits are unwritten gets over-read.
+
+**A miss is a non-event that fired.** The log answers *how often did the deterministic
+path decline to answer*, and that is a coverage measure. It cannot answer *how often
+did the deterministic path answer wrongly*, because a wrong answer produces no
+fallback, no row, and no trace. The two questions have opposite shapes: coverage is
+observable from inside the path, and correctness is not observable without a ground
+truth the path does not have.
+
+The consequence is a rule about what may be concluded from a rising hit rate. *"Ninety
+percent of queries were answered before step 5"* is true and is a statement about
+**reach**. It is not a statement about accuracy, and the difference is not pedantic:
+a retrieval path that confidently returns the wrong concept every time has a perfect
+miss-log record. §11.0.2 specifies the labelled case set that measures the other half,
+and until it exists the honest form of the determinism claim is *the model was
+consulted this rarely*, never *the deterministic layers were this good*.
+
+The same limit applies to `fetch.jsonl` and to `audit.jsonl`, and for the same reason:
+all three are tracers over actions taken. **A tracer records what happened, and its
+silence is not a claim that nothing should have.**
+
 ### 6.5 Standards as Data, Not Code
 
 `AgentLint/standards/` is the model to copy: `weights.json`,
@@ -2225,6 +2249,29 @@ forbids two sections later, and it is the property most worth testing.
 `refused` outranks `needs_human` when both apply. Offering somebody a signature
 over a document with a known defect in it is worse than refusing it twice.
 
+**The escape is a person, and deliberately not a counter.** The `oh-my-agent` cap
+cited above was read more closely afterward, and its actual verdict rule is
+`PASS: ALL criteria are PASS **or BLOCKED**`, where `BLOCKED` means a criterion failed
+three consecutive times and will not be retried. It breaks the deadlock by **counting
+an unresolved criterion as satisfied**. For a development loop that is a reasonable
+trade — the work is in a branch and a human reads the summary. For an admission gate
+it is the collapse this whole subsection exists to prevent, because the resulting
+`PASS` is indistinguishable from one where everything actually passed, and the
+distinction is gone by the time anybody cites the claim.
+
+So the bound gnosis takes from that design is the *shape* — bounded, reasoned,
+recorded — and not the mechanism. A counter cannot be the escape here, for two
+reasons. A counter that expires into `approved` is a `--yes` with a delay. And a
+counter measures how many times gnosis tried, which is a fact about gnosis; whether
+an unchecked signal is acceptable for *this* document is a fact about the document,
+and only a reader has it. `needs_human` puts the bound where the knowledge is.
+
+Two details of that protocol *are* worth having and are recorded against the ratchet
+work rather than here: a `PASS → FAIL` transition is a distinct status from a
+first-time failure and should be reported as one; and a failure counter must count
+*consecutive* failures and reset on success, because a counter that never resets lets
+an intermittently flaky check accumulate to a permanent verdict on nothing but time.
+
 Carrying an unchecked signal takes three things, each closing a different route
 back to a bypass:
 
@@ -2735,6 +2782,41 @@ with an override present and a reason non-empty, and `audit` can enumerate them.
 A gate with no override is a gate people route around; a gate whose overrides are
 countable is a gate.
 
+##### The Failure Mode of This Bet, Observed
+
+The bet above has a known way of losing and it is not the one a reviewer expects. It
+is not that somebody writes a bad reason — a bad reason is legible and arguable, which
+is the mechanism working. It is that **the field gets satisfied without being used.**
+
+A surveyed system requires a decision rationale, enforces non-empty by schema, and
+then has to warn its own agents in prose: *"an audit log of identical boilerplate
+strings records that decisions happened but not what they were."* Their template text
+was being emitted verbatim into the required field. Non-empty is a check on length,
+and the thing being defended against has length.
+
+So `rationale` carries one more admission rule, which is cheap and deterministic:
+
+- **A rationale that folds to the prompt's own template text is refused.** The emitted
+  prompt and its example rationale are known to gnosis — the relay wrote them — so the
+  comparison is against a value in hand, under `textnorm.Fold` so whitespace and
+  typographic variation do not defeat it.
+- **A rationale byte-identical, after folding, to one already recorded for the same
+  `subject` is refused.** Two claims may legitimately be adjudicated for the same
+  reason, and the honest way to say so is a reference to the first warrant, not a
+  second copy of its prose. The refusal names the earlier warrant so writing that
+  reference is the easy path.
+
+Both are `EINVALID` with the matched text quoted, because a diagnostic that says
+"rationale rejected" without showing what it matched is a diagnostic somebody works
+around by adding a word.
+
+Two limits, stated so the check is not over-trusted. It cannot detect a rationale that
+is original prose and says nothing — no mechanical check can, and §17's refusal to
+score means gnosis will not pretend otherwise. And it deliberately does **not** apply
+to `override.reason`, where *"marcus on leave until 09-02"* is a complete and correct
+answer that will legitimately recur. The check defends the field that carries
+reasoning, not every free-text field.
+
 #### 10.6.5 Reversals Are Recorded, Because They Are the Only Feedback
 
 Everything above governs how a decision is *made*. Nothing so far records whether
@@ -2980,6 +3062,16 @@ BM25, graph traversal, temporal) fused by reciprocal rank and reranked by a
 cross-encoder. That is a measured claim that the architecture this section declines
 works well at what it is built for.
 
+Those figures are quoted as reported and **not as comparable to the benchmark's own
+published results**, because the grader diverges from the paper's in ways the vendor
+documents itself: the abstention category is not implemented, the fallback grader is
+borrowed from a different benchmark and instructed to be generous, and the judge
+returns reasoning-then-label where the paper forces a single token. None of that makes
+the number dishonest and all of it makes the number local. It is recorded here for the
+reason a one-sided section should not stand, not as a figure this specification would
+put in a finding — which is itself the general rule: **a retrieval score is a function
+of its grader, and the grader does not travel with the score.**
+
 Three things make it not decisive here, and stating them is the point of naming it
 at all rather than leaving the section to cite only what agrees with it.
 
@@ -3016,6 +3108,48 @@ offset-mapped snippet would have to hold rendered text and indexed text in
 correspondence forever, and a re-derived one holds nothing. A comparable
 implementation reached the same design from a different direction, having measured
 `snippet()` as the slow part of its search path.
+
+#### 11.0.2 The Trigger in §11.0 Names an Instrument That Cannot Fire It
+
+§11.0 closes by committing to a condition: *"If the miss log ever shows FTS5 failing
+on queries a fused reranker would have answered, that is the trade coming due."* The
+commitment is right and the instrument is wrong, which is worth stating here rather
+than quietly repairing there, because the mistake is the ordinary one.
+
+**The miss log records queries the deterministic path did not answer** (§6.4). A query
+answered *wrongly* — a confident, well-ranked, incorrect hit — is not a miss. Nothing
+fell through, no fallback fired, and no row is written. So the miss log is blind to
+false positives, and a false positive is the failure that matters here: §11.0.0
+already says a ranked list is not an argument, and the case this section is defending
+against is a reader citing the wrong passage under an authoritative frame. **The
+trigger as written cannot fire for the failure mode it exists to catch.** The
+instrument is also self-referential — what counts as answered is decided by the path
+being measured — which is the same defect in a second form.
+
+Measuring it needs a ground truth the corpus does not currently hold:
+
+```text
+standards/retrieval-cases.toml   query, expected concept ids, note
+```
+
+A small committed set of labelled queries with known-correct target concepts,
+**including queries whose correct answer is that the corpus holds nothing** — the
+abstention cases, which are exactly what the surveyed vendor's harness dropped. Graded
+by exact concept-ID match: a pure predicate over a string, no judge, no model, exactly
+reproducible, and gradeable by `gnosis search --jsonl` with no new subsystem. It
+yields recall@k *and* an abstention rate, and both are properties of the corpus at a
+commit rather than of whoever ran the query.
+
+Three constraints, so this does not become the score §17 forbids:
+
+- **It is a finding surface, not a gate.** No threshold promotes or blocks anything.
+  A case that fails names the query and the concept it should have returned.
+- **The cases are authored when a real query disappoints**, not invented up front. A
+  fabricated case set measures the imagination of whoever wrote it.
+- **It is Phase 4**, with §11.4's reranker, because it is the reranker's admission
+  evidence and there is nothing to admit before then. Until it exists, this section's
+  position rests on principle plus one testimonial, and §11.0's opening sentence
+  should be read as the claim it is.
 
 ### 11.1 Progressive Disclosure First
 
@@ -3409,6 +3543,56 @@ deletion — `status: deprecated` is already in the model (§5.4), it is reversi
 it is visible in review, and it removes a claim from default retrieval without
 destroying it. Recorded rather than specified.
 
+#### 14.3.2 Upstream Drift Is Two Findings, Not One
+
+`stale` today means *the archived bytes no longer match upstream*, and that is one
+signal standing for two facts with opposite consequences.
+
+A source is re-fetched and its sha256 differs. Either the passages this corpus quoted
+are **still present** in the new bytes — the document was extended, reformatted,
+re-hosted, or edited elsewhere — or they are **gone**. In the first case every claim
+resting on that source is still supported and only the archive is behind; the work is
+a re-fetch. In the second, a claim in the authoritative corpus has lost its support
+upstream, which is the strongest signal §10 can receive short of a contradiction, and
+it should reach a person. Reporting both as `stale` puts the cheapest maintenance task
+and the most serious evidentiary event in the same bucket, and the bucket is sized for
+the cheap one.
+
+The second signal costs nothing to compute, because the machinery exists: run
+`quotecheck` over the *new* bytes with the passages already recorded for that source.
+So a drifted source resolves to one of:
+
+| State | Condition | Response |
+| ----- | --------- | -------- |
+| `drift-benign` | bytes differ, every recorded passage still matches under `Fold` | re-archive; no finding |
+| `drift-unsupported` | bytes differ, at least one recorded passage no longer matches | a finding per affected claim, naming the passage |
+| `drift-unchecked` | bytes differ, passages could not be re-checked | neither of the above may be asserted |
+
+The vocabulary is `ruflo`'s witness manifest, which pairs a whole-file hash with a
+semantic marker and reports *drift* — *"acceptable, the codebase advanced"* — as a
+state distinct from *regressed*, on the reasoning that a hash-only check *"would flag
+every benign whitespace change as a regression."* The recorded passage is gnosis's
+marker, and it is a better one than that project could use, because it was chosen by
+whoever made the claim rather than by whoever wrote the check.
+
+Three consequences worth naming:
+
+- **`drift-benign` is not a downgrade of trust.** The claim was supported when
+  admitted and is supported now. Rendering it as a warning would train readers past
+  the state that matters.
+- **`drift-unsupported` never rewrites or retracts anything.** It opens a finding.
+  §9.6's accretion rule is unaffected: the corpus records that support was withdrawn
+  upstream, and what to do about it is §10's.
+- **Neither replaces the corruption check.** A passage failing against the *archived*
+  bytes is corruption and fails hard (§4.3.1). This section is only about the archive
+  disagreeing with upstream, where the archive is by definition still intact.
+
+A source that produces `drift-benign` repeatedly is a source that churns without
+changing what it says, and its claims want a shorter `stale_after` than a source that
+never moves. That is a derived default rather than a declared one and it is Phase 4;
+recorded here because the data to compute it accrues from the day this section is
+implemented, and a signal nobody stores cannot be derived later.
+
 ### 14.4 Evidence Durability Is a Fourth Derived Signal
 
 Because the archive holds text and not sources (§4.2), not every claim is
@@ -3503,6 +3687,88 @@ ______________________________________________________________________
   general rule is that any string a reply supplies which later selects a file, a
   command, or a check must be validated against a closed set rather than used.
   Where a command is selected, the set is an allowlist and the default is refusal.
+- **The audit trail is the one component nothing watches, so something must.** Every
+  bullet above is enforced by a check; the trail that records the enforcement is
+  written by the same process it is recording, and a write that silently fails leaves
+  a corpus that looks correct and cannot show it. This is not hypothetical: a surveyed
+  project's nightly ledger-append step *"silently failed for 5 consecutive nights with
+  no alerting"* while every other stage of the same routine succeeded, and the gap was
+  found weeks later by a person reading the file.
+
+  Two mechanisms, both cheap, and neither of which is a second log:
+
+  - **A mutation verifies its own row before reporting success.** The row is
+    written, the tail is re-read, and a mutation whose row cannot be read back
+    returns an error rather than an `Outcome` — the write happened and the record of
+    it did not, which is a state a caller must be told about. Fail-soft here would
+    reproduce the failure exactly.
+
+    **This does not make a failed *append* fail its write, and the distinction is
+    the whole of it.** The two look like one requirement and are two events. An
+    append that returns an error is a known gap: nothing is hidden, the caller is
+    told in three places, and failing the write would tell somebody to retry an
+    operation that succeeded. An append that returns *success* with nothing on disk
+    is the trail lying, and this is the only place it can be noticed. Fail-soft is
+    right for the first and reproduces the failure for the second, which is why the
+    code carries two fields and not one.
+
+    It is stated over *mutations* rather than over the write coordinator on
+    purpose. `init` and `index rebuild` append without going through it — they
+    predate it — so verifying inside the coordinator alone would satisfy this
+    sentence for two mutations out of four. The unverified append is not on the
+    package's surface, so the compiler enforces the rest.
+  - **`gnosis doctor` reports the trail's own health**: the count of malformed
+    lines, named by line number.
+
+    An earlier version of this bullet also asked for the newest row's timestamp
+    against the newest commit touching the bundle, on the reasoning that a trail
+    whose last row predates the last write is the observable form of the failure
+    above. **Building it showed the comparison cannot mean that.** A person editing
+    a document and committing it is the ordinary way a plain-text corpus is used,
+    and it produces a commit newer than any audit row with nothing having gone
+    wrong — so the check fires on the normal workflow, which is worse than not
+    checking. Git commits are not gnosis's writes, and no comparison against them
+    distinguishes a hand-edit from a lost row.
+
+    Nothing is lost by dropping it, because the timestamp comparison was only ever
+    a way to *infer* the failure after the fact, and the bullet above detects it
+    directly at the moment of the write. Both timestamps are still reported as
+    context, because `Environment` exists so that a report pasted into an issue is
+    self-contained — but neither produces a finding.
+
+  **A malformed line is counted and named, never skipped.** The obvious reader —
+  parse each line, ignore what does not decode — makes a truncated or edited trail
+  read as a shorter one, which is the direction that flatters. `bundle.AuditTrail`
+  returns the rows it could parse *and* the count and line numbers it could not, and
+  `--jsonl` carries both, so a consumer cannot accidentally treat a partial trail as
+  whole. Per the corruption bullet above, that count is `EINVALID` territory when it
+  is non-zero and a reader asks for the whole trail; it is a reported number when they
+  ask for a range.
+
+  The two halves are a **value and a method**, not a value and an error. Go's
+  convention is that a non-nil error makes the returned value untrustworthy, and
+  this requirement is precisely that the rows stay usable while the damage is
+  known — so the error channel keeps its one meaning, *the file could not be read*,
+  and the damage is a field. `Trail.Whole()` is how a reader asks for all of it and
+  the only place the count becomes an error. Two intermediate designs failed here:
+  one dropped the unparsable lines and reported a short trail as whole, and one
+  errored on the first bad line and returned no rows at all, so a single bad byte
+  made the other 3,999 rows unreadable.
+
+  `LoadChecks` reads a file of the same shape and deliberately keeps the
+  fail-whole rule. The asymmetry is the point: a partial read of the trail is an
+  incomplete answer about *history*, and a partial read of the check record is a
+  wrong answer about the *corpus* — a source reads as never-checked when the record
+  exists, which §14.3's four states exist to prevent.
+- **Absence of a required record is itself recordable.** The trail today holds writes
+  that happened. Where a decision was required and none was made — a promote that
+  reached `needs_human` and was abandoned, a challenge opened and never resolved —
+  there is nothing to enumerate later, because nothing was written. A surveyed event
+  specification reserves a kind for exactly this, carrying the checkpoint that was
+  missed and the remediation. gnosis does not need a new log for it: the states above
+  are already committed frontmatter (§10.7.4), and what is missing is the *report* —
+  `gnosis audit --outstanding`, which enumerates them. Recorded as the shape; the
+  command is Phase 3, with §10.
 - **Atomic commits.** One operation, one commit, via `atomicfile` plus go-git.
   `beadwork`'s intent-replay-on-conflict model is the reference if concurrent
   writers appear; not built until they do.

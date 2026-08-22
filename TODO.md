@@ -436,7 +436,114 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Deep Reads — `oh-my-agent`, `ruflo`, `hindsight` (2026-08-22)
+
+Three repositories the `agent-green` survey filed as *read shallowly*, opened. Written
+up in `manifesto.md`; five findings went into `SPEC.md` (§6.4.1, §9.5.1, §10.6.4,
+§11.0.2, §14.3.2, §15). What is left to build is here.
+
+Two of the three repaid the read in the direction the survey did not predict. `ruflo`
+is valuable as a **negative control** — a self-optimising loop that logged its own
+failures faithfully enough to be evidence — rather than as an optimisation design.
+`hindsight`'s benchmark turned out to be the claim needing checking rather than the
+evidence that settles §11.
+
+- [ ] **A miss log cannot show that FTS5 was wrong, and §11.0 says it will.** *Stated
+  in §11.0.2 and §6.4.1; what remains is the instrument.* `standards/retrieval-cases.toml`:
+  labelled queries with expected concept ids, **including cases whose correct answer
+  is that the corpus holds nothing**, graded by exact id match against
+  `gnosis search --jsonl`. No judge, no model, no threshold — a finding surface, not a
+  gate (§17). Cases authored when a real query disappoints, never invented up front.
+  Phase 4, with the reranker whose admission evidence it is.
+- [ ] **A mutation does not verify that its audit row was written.** §15 now requires
+  it. `Execute` writes the row, re-reads the tail, and returns an error rather than an
+  `Outcome` when the row cannot be read back. The failure this is for is observed:
+  a surveyed project's ledger-append step failed silently for five consecutive nights
+  while every other stage succeeded. Cheap, and it belongs with the write path rather
+  than after it.
+- [ ] **`bundle.AuditTrail` skips malformed lines instead of counting them.** A
+  truncated or hand-edited trail currently reads as a shorter one, which is the
+  direction that flatters. Return the parsed rows *plus* the count and line numbers
+  that failed, and carry both in `--jsonl`. Pairs with the corruption-versus-operational
+  item already open above — this is the case where the distinction has a caller.
+- [ ] **`gnosis doctor` should report the trail's own health.** Malformed-line count,
+  and the newest row's timestamp against the newest commit touching the bundle. A
+  trail whose last row predates the last write is the observable form of the silent
+  failure above, and it is one comparison.
+- [ ] **Upstream drift resolves to three states, and `quotecheck` already computes
+  the discriminator.** §14.3.2 specifies `drift-benign` / `drift-unsupported` /
+  `drift-unchecked` — re-run the recorded passages against the *new* bytes. Today both
+  the cheap maintenance case and the loss of upstream support report as `stale`. The
+  code is a loop over passages already stored; the work is the finding and the
+  reporting.
+- [ ] **`rationale` admission needs the fold-and-compare refusal.** §10.6.4 specifies
+  it: refuse a rationale that folds to the emitted prompt's own template text, and one
+  byte-identical under `Fold` to a rationale already recorded for the same `subject`,
+  naming the earlier warrant in the diagnostic. Not applied to `override.reason`. This
+  is the observed failure mode of §10.6.4's central bet, not a hypothetical one — a
+  surveyed system with the same required field had to warn its agents in prose that
+  they were emitting the template verbatim.
+- [ ] **`gnosis audit --outstanding`.** Enumerate required decisions that were never
+  made — a promote that reached `needs_human` and was abandoned, a challenge opened
+  and unresolved. The states are already committed frontmatter (§10.7.4); the report
+  is missing, and absence is the one thing an append-only log of writes cannot show.
+  Phase 3, with §10.
+- [ ] **`skillsaw`: a `PASS → FAIL` transition is its own status.** Emitted once on
+  the transition, not incrementing the failure counter, and carrying the diff between
+  the last passing run and now so the next attempt is a diagnosis rather than a
+  reimplementation. Distinct from the re-verification item above, which is its
+  precondition.
+- [ ] **`skillsaw`: the failure counter must be consecutive and reset on success.**
+  Otherwise a flaky dimension accumulates to a terminal verdict on elapsed time. The
+  reasoning is worth keeping with the code: recurring flakiness should surface as
+  repeated regressions, which is a signal about the *check*, not a permanent verdict
+  about the skill.
+- [ ] **`skillsaw`: audit the rubric for count-shaped dimensions.** `ruflo`'s loop
+  moved a harness score 40 → 55 with no capability change, by adding files a
+  presence-counting dimension rewarded — and one of those artefacts, a bare symlink,
+  is still in its repository root. **Any dimension scored by counting artefacts is
+  gameable by creating artefacts.** Check `rubric.Dimensions()` against exactly that
+  predicate.
+- [ ] **`skillsaw`: a change that loosens a gate may not score as improving it.**
+  gnosis's `standards.Value[T]` records the loosening direction, and `ruflo`'s
+  optimiser proves recording is not sufficient — it relaxed a promotion predicate from
+  `AND` to `OR`, doubled the promotion rate, logged it as a win, and committed. The
+  ratchet has to *read* the direction, not merely store it.
+- [ ] **`skillsaw`: estimate the evaluator's noise floor before accepting a delta.**
+  `ruflo` accepted `+0.0028` and rejected `−0.0004`, an order of magnitude apart, with
+  no variance estimate and no re-measurement of the champion. `skillet/stats` and
+  `timeseries` are already there. A ratchet that accepts on one noisy measurement and
+  never re-measures drifts upward on noise alone.
+- [ ] **`canonizer`: `verify.Provenance` wants the two-signal cross.** `ruflo`'s
+  witness manifest pairs a whole-file hash with a semantic marker and reports
+  `Pass` / `Drift` / `Regressed` / `Missing`, because *"a SHA-256-only check would flag
+  every benign whitespace change as a regression."* That is the resolution for
+  `anchor-absent` conflating a fabricated anchor with a drifted source — the same
+  finding as §14.3.2, one repository over.
+- [ ] **`canonizer` and `adh`: record a critic that ran with reduced independence.**
+  The surveyed judge spawns a fresh-context subagent and, when it cannot, runs inline
+  **and emits an event recording the downgrade**. Neither `checked` nor `unchecked`
+  covers *checked under reduced independence*, and a gate that silently degrades its
+  own isolation reports a verdict it did not earn.
+- [ ] **`adh`: guard invariants belong in the hypothesis, frozen before the run.** The
+  same organisation whose optimiser gamed its rubric later rejected two changes with
+  large favourable primary metrics because a *named* guard moved — a density invariant
+  and a recall floor — under a hypothesis marked *"frozen before evaluation began; not
+  modified after seeing results."* An objective without guards is hill-climbed by
+  trading away everything unmeasured.
+- [ ] **A corpus does not know whether an admitted claim was ever used.** `ruflo`'s
+  nightly loop shipped 4 of 80 proposals over three months and could not see it,
+  because each run checked only whether it was repeating itself. gnosis's promote gate
+  decides admission and nothing asks about downstream reliance — the test the survey
+  already adopted from `haft`, now with a measured cost for omitting it. The link
+  graph holds the answer; the report does not exist. Phase 4.
+
 ## Reviewed Summaries — `hindsight` (2026-08-22)
+
+*Superseded in part by the deep read above: this section reviewed a commissioned
+summary, and the repository's own benchmark harness was read afterward. The
+LongMemEval figures are quoted as reported and not as comparable to the benchmark's
+published results — the grader diverges from the paper's, and §11.0 now says so.*
 
 - [x] **§11.0 now names what refusing semantic search costs.** *The section was
   better than this entry credited — it already cited a measurement and named the
@@ -532,7 +639,12 @@ how cheap they are relative to what they buy.
 - [ ] **`skillsaw`'s ratchet may not re-verify prior passes.** `oh-my-agent`'s judge
   re-checks every criterion each iteration "because fixing C2 is how C1 silently
   regresses." Needs checking in skillsaw; if the ratchet re-scores only failed
-  dimensions it cannot see a regression its own fix caused.
+  dimensions it cannot see a regression its own fix caused. *Sharpened by the
+  2026-08-22 protocol read: re-verification is the precondition and not the finding.
+  A `PASS → FAIL` transition wants its own status, emitted once, routed differently
+  from a first-time failure — and the failure counter must count consecutive failures
+  and reset on success, or a flaky check accumulates to a permanent verdict on nothing
+  but elapsed time. Both below.*
 - [ ] **Nothing says what the corpus should decline to hold.** `gentle-wiki` scopes
   itself by refusing to become "a second source of truth for product behavior."
   §5 says at length what a document is and nowhere what does not belong. A corpus

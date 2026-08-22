@@ -496,6 +496,77 @@ from one source and would otherwise be scattered across four phases.
 
 ______________________________________________________________________
 
+### 4.1.1 What the `agent-green` Deep Reads Added (2026-08-22)
+
+Three repositories the survey had filed as read-shallowly were opened:
+`oh-my-agent`'s judge protocol and event specification, `ruflo`'s optimisation logs,
+and `hindsight`'s benchmark harness. Six items, sequenced by what they block rather
+than by size, because two of them are cheap now and expensive later.
+
+**Do with Phase 2, because the write path is being touched anyway:**
+
+- **A mutation verifies its own audit row** (§15). **Done.** It was not one
+  function: `init` and `index rebuild` append outside the coordinator, so the
+  verifying append is the exported one and the bare append is unexported, which
+  makes the compiler enforce what a source-scanning test was briefly asserting.
+- **`bundle.AuditTrail` counts malformed lines rather than skipping them** (§15).
+  **Done**, as a `Trail` value with a `Whole()` method rather than a value plus an
+  error — Go's convention makes a value untrustworthy beside a non-nil error, and
+  the whole requirement is that the rows stay usable while the damage is known.
+- **`gnosis doctor` reports the trail's health** — malformed-line count. **Done,
+  and half of it is withdrawn:** the timestamp comparison fires on the ordinary
+  hand-edit-and-commit workflow, because a git commit is not a gnosis write. §15 is
+  corrected rather than the check being weakened.
+
+**Phase 2 or 3, once `quotecheck` is wired and the passages are stored:**
+
+- **Upstream drift resolves to three states** (§14.3.2). Re-run a source's recorded
+  passages against the *new* bytes: all match is `drift-benign` and needs no finding,
+  any missing is `drift-unsupported` and opens one per affected claim, and unable to
+  check is `drift-unchecked`. Today both report as `stale`, which puts the cheapest
+  maintenance task and the loss of a claim's upstream support in one bucket. The loop
+  is over data already held; the work is the finding, the reporting, and keeping the
+  three states out of the corruption path — a passage failing against the *archived*
+  bytes is still a hard failure and this does not touch it.
+
+**Phase 3, with §10:**
+
+- **`rationale` gains the fold-and-compare refusal** (§10.6.4). Refuse a rationale
+  that folds to the emitted prompt's own template text, or that is byte-identical
+  under `Fold` to one already recorded for the same `subject`, naming the earlier
+  warrant so writing a reference is the easy path. Not applied to `override.reason`.
+  Two `EINVALID` cases and a comparison against a value already in hand, because the
+  relay wrote the prompt.
+- **`gnosis audit --outstanding`** (§15). Enumerates required decisions never made.
+  The states are already committed frontmatter; only the report is missing.
+
+**Phase 4, and it is the one worth naming early:**
+
+- **`standards/retrieval-cases.toml`** (§11.0.2). Labelled queries with expected
+  concept ids, including cases whose correct answer is that the corpus holds nothing,
+  graded by exact id match against `gnosis search --jsonl`. Recorded here rather than
+  left to Phase 4's scope line because it corrects a claim this plan's own sections
+  rest on: §11.0 said the miss log would supply the evidence for enabling a reranker,
+  and the miss log records only queries the deterministic path *declined*, never ones
+  it answered wrongly. **The instrument named cannot measure the thing claimed**, and
+  the replacement is a data file plus a grader that is a pure predicate over a string.
+  No new subsystem, so the reason it waits is that there is nothing to admit before
+  §11.4 exists — not cost.
+
+One item is explicitly *not* taken, recorded so its absence reads as a decision. The
+surveyed judge breaks a permanently-red gate by counting an unresolved criterion as
+passed (`PASS: ALL criteria are PASS or BLOCKED`). §9.5.1 now names that collapse and
+refuses it: gnosis's escape from a red gate is `needs_human`, a person, and a counter
+that expires into `approved` would be a `--yes` with a delay.
+
+The remaining findings are against `skillsaw`, `canonizer`, and `adh` rather than
+gnosis, and live in `TODO.md` — the ratchet's regression status and consecutive-reset
+counter, the count-shaped rubric dimensions, the rule that loosening a gate may not
+score as improving it, the evaluator noise floor, `verify.Provenance`'s two-signal
+cross, and recording a critic that ran with reduced independence.
+
+______________________________________________________________________
+
 ### 4.2 What the Second Tier 1 Pass Turned Up
 
 Three items that looked unrelated were one: something built and not connected.
@@ -554,6 +625,32 @@ ingest and never promote has a full inbox and an empty shelf.
   agent" — an accusation about an action they had not taken — and wrote an audit row
   for a read. Neither was reachable from the test suite as written, because both
   tests supplied an approver.
+
+______________________________________________________________________
+
+### 4.4 What the Third Audit-Trail Pass Turned Up
+
+- **Two spec sentences that looked contradictory were about different events.**
+  §15 wants a mutation to fail hard when its row is unreadable; `Audit`'s comment
+  wants an audit failure never to fail its write. Both are right: a failed *append*
+  is a known gap, and a successful append with nothing on disk is the trail lying.
+  Reading either as the general rule would have produced a wrong design, and the
+  resolution is two fields rather than a compromise.
+- **"A mutation" was four mutations, not one function.** §15 names `Execute`, and
+  `init` and `index rebuild` append outside it. Implementing the sentence as
+  written would have satisfied it for half its subjects — the shape of half-truth
+  the same section is about.
+- **A requirement that fires on the normal workflow is worse than no requirement.**
+  §15's timestamp comparison assumed a commit implies a gnosis write. People edit
+  markdown by hand and commit; that is the point of a plain-text corpus. Found by
+  running the command, which is now the fourth time.
+- **A test of source text is a signal to change the code.** The guard on "every
+  mutation verifies" was briefly a test grepping call sites for `bundle.Audit(`.
+  Unexporting the unverified append made the compiler do it instead.
+- **A wrong severity is invisible to tests.** `diagnoseStandards` blocked while its
+  own comment said it did not, and nothing failed — the symptom is a red CI on a
+  corpus with nothing wrong. Found by reading, and the contract above it had drifted
+  the same way, stating a count of blocking conditions that had been true once.
 
 ______________________________________________________________________
 
