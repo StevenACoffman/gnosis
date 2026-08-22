@@ -14,12 +14,18 @@
 //
 // # Two signals cannot run yet, and the gate says so
 //
-// `security` needs §9.3's admission scan and `conflict` needs §10's adjudication;
-// neither exists. They report VerdictUnchecked, which blocks. The consequence is
-// stated rather than buried: **until those subsystems exist, no promotion
-// succeeds.** That is the correct behaviour. The alternative is a gate that
-// approves writes on evidence it never examined, and a caller reading "approved"
-// would have no way to learn which checks were skipped.
+// `conflict` needs §10's adjudication, which is Phase 3, and `security` can run
+// only the scan stages that exist. Both report VerdictUnchecked, which withholds
+// automatic approval — a gate that approved writes on evidence it never examined
+// would leave a caller reading "approved" with no way to learn what was skipped.
+//
+// What that does *not* mean, any more, is that nothing can be promoted. An earlier
+// version of this comment said exactly that and called it correct; it was half of
+// an answer. A permanently red gate with no sanctioned way through it is a trap,
+// and the way through is Decide: an unchecked signal routes a candidate to
+// DecisionNeedsHuman, where a named person may promote it by confirming, on the
+// record, with the unchecked signals written into the audit row. A *failed* signal
+// routes to DecisionRefused, which nobody may override. See decision.go.
 //
 // # The gate proves it can fail, every time
 //
@@ -120,31 +126,12 @@ func Evaluate(c *Candidate, corpus *Corpus, limits Limits) Report {
 		duplication(c, corpus),
 		hedging(c, limits),
 		conflict(),
-		security(),
+		security(c),
 	}
 	sort.Slice(report.Results, func(i, j int) bool {
 		return report.Results[i].Signal < report.Results[j].Signal
 	})
 	return report
-}
-
-// Approved reports whether this candidate may be written.
-//
-// Requires: nothing; the zero Report is valid and is not approved.
-// Ensures: true only when the control held and **every** signal passed. An
-// unchecked signal withholds approval exactly as a failed one does, because the
-// question the gate answers is "has this been shown to be admissible", and a
-// check that did not run has shown nothing.
-func (r *Report) Approved() bool {
-	if !r.Control.Held || len(r.Results) == 0 {
-		return false
-	}
-	for _, res := range r.Results {
-		if !res.Verdict.Approves() {
-			return false
-		}
-	}
-	return true
 }
 
 // Withheld returns the signals that did not approve, split by why.
