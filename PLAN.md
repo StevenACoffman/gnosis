@@ -439,7 +439,7 @@ Recorded so the Phase 1 interfaces are shaped for them, not built now.
 | Phase      | Adds                                                                               | Key constraint from the rules                                                                                         |
 | ---------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | 2 — Ingest | `archive`, `fetch`, scan, relay, quarantine, promote gate, **claims**, `challenge` | Fetch is shell; every gate is pure. Four adapters, one normalizing seam. Segmentation precedes the evidence invariant |
-| 3 — Curate | `conflict`, `critic`, `gate`, `adjudicate`, `supersede`, subjects accrete          | `ruleset/conflict` must land in skillet first                                                                         |
+| 3 — Curate | `conflict`, `critic`, `gate`, `adjudicate`, `supersede`, subjects accrete, **trust tiers** | Predicates are gnosis's own — `skillet/ruleset/conflict` exists and does not fit (§Blocking). The tier fold reads raw actor strings, never `gnosis.Actor` (§14.1.1) |
 | 4 — Scale  | derived constraints, operator patterns, optional rerank                            | Operator patterns are data with a test corpus, never regexes in Go                                                    |
 | 5 — Serve  | authenticated web viewer, review queue                                             | `NewServer(...) http.Handler`; `addRoutes` never errors; explicit NotFound and healthz                                |
 
@@ -460,10 +460,36 @@ both are expensive to retrofit:
   and address live in the document. Writing claims first and adding anchors later
   means every claim written in between has an identity no rebuild can recover.
 
-**Phase 2 is blocked** on `skillet` promoting `quotecheck` with the
-checked/unchecked third outcome, and on the claim segmenter existing in Go — the
-reference implementation is Swift, so the algorithm transfers and the code does
-not. **Phase 3 is blocked** on `skillet/ruleset/conflict`. Neither blocks Phase 1.
+A third item is cheap now and expensive later, and unlike those two it is not a
+Phase 2 dependency but a Phase 3 one that must be paid in Phase 2:
+
+- **The OKF conformance table test** (§18.5.1). `gnosis.Actor` already rejects two of
+  OKF §7's three actor forms, and §14.1's tier fold — specified, unbuilt — must
+  therefore read raw strings rather than the parsed type (§14.1.1). The test that pins
+  both sides costs one table and belongs **before** §14.1 rather than with it, because
+  the divergence is already in a shipped type and the merge that breaks conformance is
+  the natural thing to write. It is also what `skillet`'s revised promotion trigger
+  watches: the kernel will promote §5.3's fold when a *second* repo classifies an
+  actor, so building the fold as a pure function over `[]string` is what makes it
+  liftable unchanged.
+
+**Nothing is blocked, and all three recorded blockers resolved differently than this
+paragraph predicted** — kept rather than deleted, because two of the three were
+resolved by being *wrong* and that is worth more than the prediction was.
+
+- `quotecheck` with the checked/unchecked third outcome **shipped** in `skillet`
+  v0.18.0; `Unchecked` is the zero value. Only the comparison was promoted —
+  `Segment` and the quotation extraction stayed in exegesis, because where a
+  quotation begins is precisely what a shared package must not know.
+- The **claim segmenter exists** (Step 2.1, `internal/segment`). The Swift reference
+  supplied the guarantee and none of the code, as expected.
+- **`skillet/ruleset/conflict` was never a blocker.** The package already existed, and
+  it reads four fields off a `ruleset.Rule` that a gnosis claim does not have. The
+  overlap is zero; what the two share is a shape, and a shape is followed rather than
+  imported. Phase 3 writes its own predicates.
+
+The live Phase 3 dependency is not a promotion at all: it is the OKF conformance test
+above, which must land before §14.1 rather than with it.
 
 ### 4.1 Small Items the `agent-green` Survey Added
 
@@ -486,10 +512,15 @@ from one source and would otherwise be scattered across four phases.
   §14.3.0 distinction fell out of building it — `stale_after` governs the claim,
   `staleness_days` governs the check — as did the decision that never-checked is a
   state rather than a finding. Still per document rather than per claim; filed.
-- **A relay test with a scripted model** (§18). `cmd/relay_test.go` hand-writes every
-  reply, so nothing checks that a real agent handed a real emitted prompt produces
-  one `admit` accepts. The method is in the manifesto: keep the runtime real, replace
-  only the reasoning, and make the fixture assert on what the agent *sent*.
+- **A relay test with a scripted model** (§18.6). `cmd/relay_test.go` hand-writes
+  every reply, so nothing checks that a real agent handed a real emitted prompt
+  produces one `admit` accepts. The method is in the manifesto: keep the runtime real,
+  replace only the reasoning, and make the fixture assert on what the agent *sent*.
+  **§18.6 now specifies which of three methods this is** and what the other two are
+  for: the scripted model proves the contract and belongs in CI; a real-model run
+  graded by a pure predicate over the transcript proves a live model can satisfy it
+  and must stay out of the gate. Build the scripted one; record the real one as
+  evidence.
 - **An `AI_POLICY.md`** for this repository. Not a code change and not a spec change
   — a repository is a corpus, §1.1 says a claim must name its witness, and this one
   does not.
@@ -651,6 +682,34 @@ ______________________________________________________________________
   own comment said it did not, and nothing failed — the symptom is a red CI on a
   corpus with nothing wrong. Found by reading, and the contract above it had drifted
   the same way, stating a count of blocking conditions that had been true once.
+
+______________________________________________________________________
+
+### 4.5 Two Commissioned Reviews, and What They Cost to Check
+
+Seven-repository gap reviews arrived in two rounds on 2026-08-22. **No work item came from
+either**, and the accounting is worth one paragraph here because the same offer will be
+made again.
+
+Round one proposed roughly seventy findings; `skillet/TODO.md` records that nothing landed
+and why. Round two added a *Code-Reality Verification* step — the improvement the first
+round's assessment explicitly asked for — and produced four findings, three of which are
+restatements of existing backlog entries **including the corrections those entries had
+made to round one's own proposals**. Its verification line reads *"Confirmed via `git diff
+HEAD` and `TODO.md`"*, and the second clause is the mechanism: a report that verifies
+against the backlog converges on the backlog.
+
+The planning consequence is the one worth carrying forward. **A survey of a corpus this
+family has already absorbed cannot produce a gap, because the absorption is what the
+backlog is.** What can produce one is a reading of the *code* — the four items this plan
+has taken from running the binary by hand, and none of the seventy-four from the two
+reviews. Budget accordingly: the reviews cost several hours to check and returned one
+reusable method note apiece, which is a fair price for the note and not for the findings.
+
+The one thing round two supplied that nothing else has is a **specimen**: its own citations
+do not survive a lookup, in a document reviewing the tool that exists to catch exactly
+that. Recorded in `SPEC.md` §1.1.0 and the manifesto, where it does more work than any of
+its recommendations would have.
 
 ______________________________________________________________________
 

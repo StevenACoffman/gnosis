@@ -437,17 +437,21 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Deep Reads — `oh-my-agent`, `ruflo`, `hindsight` (2026-08-22)
+## Deep Reads — `oh-my-agent`, `ruflo`, `hindsight`, `superpowers` (2026-08-22)
 
-Three repositories the `agent-green` survey filed as *read shallowly*, opened. Written
-up in `manifesto.md`; five findings went into `SPEC.md` (§6.4.1, §9.5.1, §10.6.4,
-§11.0.2, §14.3.2, §15). What is left to build is here.
+Four repositories the `agent-green` survey filed as *read shallowly*, opened. Written
+up in `manifesto.md`; six findings went into `SPEC.md` (§6.4.1, §9.5.1, §10.6.4,
+§11.0.2, §14.3.2, §15, §18.6). What is left to build is here.
 
-Two of the three repaid the read in the direction the survey did not predict. `ruflo`
+Three of the four repaid the read in a direction the survey did not predict. `ruflo`
 is valuable as a **negative control** — a self-optimising loop that logged its own
 failures faithfully enough to be evidence — rather than as an optimisation design.
 `hindsight`'s benchmark turned out to be the claim needing checking rather than the
-evidence that settles §11.
+evidence that settles §11. And `superpowers` was filed as a harness and again as a
+catalogue when it is a **measurement discipline for skills** — which is why almost
+none of it lands here. Its findings went to `skillet`, `skillsaw`, `exegesis`, and
+`adh`, and are recorded in each of their backlogs; only the relay-test item below is
+gnosis's.
 
 - [ ] **A miss log cannot show that FTS5 was wrong, and §11.0 says it will.** *Stated
   in §11.0.2 and §6.4.1; what remains is the instrument.* `standards/retrieval-cases.toml`:
@@ -548,6 +552,124 @@ evidence that settles §11.
   decides admission and nothing asks about downstream reliance — the test the survey
   already adopted from `haft`, now with a measured cost for omitting it. The link
   graph holds the answer; the report does not exist. Phase 4.
+- [ ] **The relay test now has three methods and gnosis has the useless one.**
+  *§18.6 specifies all three.* Build the scripted-model fixture — real binary, real
+  emitted prompt, reasoning replaced by a local server, and the fixture asserting on
+  what the agent **sent** and not only on what it received. Record a real-model run
+  graded by a pure predicate over the transcript as evidence, never as a gate:
+  `superpowers` runs exactly that shape under an isolated `HOME`, and its second
+  assertion — that **nothing else happened before** the required step, against an
+  explicit allowlist — is one prose replies cannot be trusted to make about
+  themselves. Phase 2 for the fixture; the real-model run whenever it is wanted.
+- [ ] **No map says what each of this family's suites adds over the others.**
+  `superpowers`' `docs/testing.md` annotates every test with its coverage delta
+  against the other harness — *"drill covers the YAGNI subset; bash adds commit-count,
+  task-tracking, and token telemetry assertions"*, and *"tests description-recall, not
+  behavior."* gnosis has property tests, mutation tests, corpus fixtures, adversarial
+  fixtures, and soon a relay fixture, and nothing states what a second suite covers
+  that the first does not. Cheap, and it is the artefact that makes a redundant-looking
+  test defensible instead of deletable.
+
+______________________________________________________________________
+
+## Applicability — This Repository Is the Family's Reference (2026-08-22)
+
+`skillet` resolved its long-open decision on naming a general `Applicability` type. The
+answer is **no type, a rule** — and the rule is this repository's sentence, lifted verbatim
+from `internal/lint`'s package doc. Recorded here because being the reference implementation
+is a constraint, not a compliment: three other repos now cite this design, and a refactor
+that treated `Report.Skipped` as cosmetic would break something outside gnosis.
+
+Two corrections landed in §12 with it: `coherence`'s `Convention bool` is **not built
+anywhere** — it was a description cited as prior art and counted as a family member — and
+`internal/lint` is the only implementation of the idea in the family, with the part
+`Convention` lacks, which is the reason as a first-class output.
+
+- [x] **§12's attribution corrected and the obligation stated.** *`Convention` named as
+  unbuilt; `Check.Applies (bool, string)` + `Skip{Check, Reason}` named as the family
+  reference; the corollary recorded — what gets suppressed is the consumer's choice, the
+  reason is not.*
+- [ ] **`Report.Skipped` is now load-bearing outside this repo; give it a test that says
+  so.** Today the guarantee lives in prose (*"every check that did not run appears in
+  Skipped with a reason"*) and in `Run`'s six lines. A test that constructs a registry with
+  one always-inapplicable check and asserts the skip is reported **with a non-empty
+  reason** pins the property that three other backlogs now reference. Cheap, and it is the
+  difference between a documented intent and a checked one — which is the distinction this
+  specification spends §18 on.
+- [ ] **If a second tool emits a check report, `Skip{Check, Reason}` promotes.** That is
+  the trigger `skillet` recorded, and gnosis is the current sole holder. Nothing to do now;
+  noted so the type is not casually reshaped in a way that makes lifting it awkward — it is
+  two strings and should stay two strings.
+
+## Commissioned Gap Report — Checked, and One Correction (2026-08-22)
+
+Source: `~/Documents/agent-green/FPF/gnosis_topten.md`, one of seven such files. Checked
+against the code rather than filed. **Nothing from the gnosis file lands** — its ten gaps
+describe `llmwiki`'s design defects, which gnosis was built to avoid and did. Gap 1 wants
+`sources` re-keyed off `UNIQUE uri` in `internal/db/db.go`: that path is `llmwiki`'s and
+does not exist here, and §4.3.1's fetch ledger has been one immutable record per source
+version since Step 2.3. Gap 2 wants raw bytes stored durably; `evidence/text/<sha[:2]>/…`
+has held them since the same step. Gap 8 wants sentence-level claim segmentation;
+`internal/segment.Claims` shipped in Step 2.1. Gap 3 wants a background consolidation
+worker, which is §14.3.1's *nothing here is periodic* and the `obsidian-second-brain`
+unattended merge this survey already refused. The reasoning generalises across all seven
+files and is recorded once, in `skillet/TODO.md`.
+
+**One item was worth chasing, and it found a defect in this specification rather than in
+the report.** The report proposed adding `certainty` to `finding.Diagnostic`; §16.1 had
+proposed the same thing, and both are wrong for the same reason.
+
+- [x] **§16.1 proposed a field that duplicates `finding.Action`.** *Fixed.* §16.1 described
+  `Diagnostic` as `{severity, category, path, message}` — omitting `Action`, which exists —
+  and then argued for `certainty` on the grounds that severity does not say who acts.
+  Severity does not; **`Action` does**, and `agentsys`'s HIGH/MEDIUM/LOW maps one-to-one
+  onto `automatic`/`guided`/`human`. §16.1 now carries that mapping, keeps `certainty` only
+  as a rule about *when* `Action` may be set (requisite uncertainty, which §17 depends on),
+  states that `fix_class` is per-check configuration in `standards/evidence.toml` and never
+  a `Diagnostic` field, and closes with the general rule: **before adding a classification
+  axis to a shared type, check the axes it already has.** §5.4's `findings` table drops the
+  `certainty` and `fix_class` columns for `action`.
+  Recorded as done rather than deleted because the same proposal arrived twice from
+  different directions, which is what a duplicated axis does — it looks like a gap from
+  every angle except the one that lists the existing fields.
+
+## OKF Conformance — the Actor Divergence (2026-08-22)
+
+`skillet` re-reviewed its *OKF trust fields* decision and the review turned up
+something in this repository rather than in the kernel: **`gnosis.Actor` is already
+built and it does not accept two of the three actor forms OKF §7 defines**, while
+§14.1 states the trust fold implements OKF §5.3 verbatim.
+
+Nothing is broken today — `Actor` carries audit rows, warrants, and approvers, and
+the fold is specified but unbuilt. The point of recording it now is that the type
+shipped *without touching trust metadata at all*, which is why `skillet` moved its
+own promotion trigger from **stores trust metadata** to **classifies an actor**. The
+same reasoning applies here: the cost of finding this after §14.1 is a corpus whose
+tiers were computed by a parser that refused half its inputs.
+
+- [ ] **Write the OKF conformance table test before §14.1 is built.** *Specified as
+  §18.5.1.* Six rows over OKF §7's three forms plus `Actor`'s two additions,
+  asserting for each what `ParseActor` does **and** what tier the fold yields. The
+  two rows where those disagree — `process:finance-nightly` and
+  `reference_agent/gemini-2.5-pro`, both rejected by the parser and both
+  machine-confirmed for tier purposes — are the whole test; one that omits them
+  passes under exactly the merge that breaks conformance. Cheap, and it belongs
+  before the code it constrains rather than after.
+- [ ] **§14.1's fold reads raw strings, not `gnosis.Actor`.** *Stated as §14.1.1;
+  this is the implementation note.* Two populations, two treatments: the closed enum
+  stays for actors gnosis mints, because §10.6.4 counts distinct humans and a kind
+  that could pass for a person makes that count wrong in the flattering direction;
+  frontmatter that arrived from elsewhere gets a permissive read asking only *is this
+  `human:`?*, which is the sole question OKF §7 says a trust classifier needs. An
+  unrecognised actor is never an error and never promotes a tier. Do not widen
+  `Actor` and do not narrow the fold to it — §11 forbids rejecting a conformant
+  concept, and §10.6.4 forbids an open mint-side grammar.
+- [ ] **`gnosis` is the trigger the kernel is now watching.** `skillet` will promote
+  §5.3's **fold** — a pure function over actor strings — when a *second* repo
+  classifies an actor or derives a tier, and explicitly not the `generated`/`verified`
+  record types, because `okf` keeps frontmatter verbatim and a struct would be
+  decode-only. Build the fold locally, keep it a pure function over `[]string`, and it
+  lifts unchanged if a second consumer appears. Phase 3, with §14.
 
 ## Reviewed Summaries — `hindsight` (2026-08-22)
 
@@ -1032,3 +1154,41 @@ format.
   independent support for atomic claims; Luhmann's own practice supersedes that —
   his slips run long and continue across `57/12`, `57/13`, and it is the
   document/claim split his method actually supports.
+
+## Commissioned Gap Report, Round Two — Nothing Lands (2026-08-22)
+
+Source: `~/Documents/agent-green/FPF/gnosis_todo.md`. Its verdict is *"no genuinely
+unimplemented, valuable, and relevant gaps found"*, and read as *"this corpus surfaced
+nothing new"* that is correct. **Full reasoning for the family is in `skillet/TODO.md`
+under "Round Two, and What Asking for Code-Reality Verification Actually Bought."** The
+citation failure it exhibits is recorded as evidence rather than as a complaint — §1.1.0
+and the manifesto's closing section — because it is the best specimen anyone has supplied
+of the failure this corpus exists to prevent.
+
+Two addendum items were checked against the backlog rather than dismissed:
+
+- **hindsight's dual-pathway storage** (world facts beside execution traces) is already
+  here as *"Nothing holds an experience"*, which states it better: a standard and an
+  episode are different kinds of thing, and the entry above works out why.
+- **katalyst frontmatter schemas plus a `migrate-schema` pass** is covered on the
+  validation half by OKF conformance and `gnosis.SchemaVersion`. The migration half — a
+  programmatic rewrite of legacy cards when the schema changes — is genuinely unrecorded
+  and genuinely premature: no corpus has a legacy card, and the shape of the migration
+  depends on what the first breaking change turns out to be.
+
+One is filed on its own merits below, because the idea is sound and the report supplies no
+evidence for it beyond a corpus reference.
+
+- [ ] **A claim records who approved it and not what authority they held.** `Actor` is
+  `human:<id>` and `gnosis_warrant` carries a rationale, so a corpus can say *Priya
+  adjudicated this* and cannot say *the platform team owns this rule*. `haft`'s decision
+  records carry a role rather than only an identity, which makes two things possible that
+  are not possible now: filtering a corpus to the rules a given team is accountable for,
+  and noticing that a rule about deployment was adjudicated by nobody who works on it.
+  **The reason to hesitate is §14.1's rule that a trust tier is a signal, never a
+  permission.** A role field is one edit away from becoming a permission — *platform-team
+  claims skip review* — which is the exact collapse that section forbids, and the pressure
+  to make it one will come from whoever maintains the largest set of rules. If it is built,
+  the role must be recorded on the warrant as an attribute of the decision and must not be
+  readable by the gate. Worth doing only alongside a reader that uses it for reporting, so
+  the first consumer establishes the non-gating precedent.

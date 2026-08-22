@@ -85,6 +85,62 @@ The consequence worth stating plainly, because it constrains everything downstre
 admits an unquoted assertion, and no disqualification of a source retroactively
 invalidates a claim whose quote still validates.
 
+#### 1.1.0 A Specimen, Because the Argument Above Is Otherwise Abstract
+
+Everything in §1.1 is a position about testimony in general, and a reader is
+entitled to ask what the expensive posture buys that the cheap one does not. One
+recent artifact answers it precisely, and it is worth recording because it arrived
+as a document *about this family's tooling* rather than as a source somebody tried
+to ingest.
+
+A commissioned review of these seven repositories carried a section of
+recommendations, each supported by references of the form *"Line 123
+(cloudstrategy_book.md), Line 124 (eip_book.md), … and 2 other articles"*. The
+document is well-formed. It names its sources, gives line numbers, distinguishes
+prior-art mappings from research findings, and reads as careful work. Under global
+reductionism — *absent a warning sign, believe it* — it is admissible, because
+there is no warning sign on its face.
+
+Three things are true of it and none is visible without opening the cited lines:
+
+- **The same five references support two unrelated recommendations** in two
+  different files — parameterised rulesets in one, a lockfile of content hashes in
+  the other — with an identical trailing *"and 2 other articles"*.
+- **The line numbers and the filenames disagree.** Lines 123–124, given as a cloud
+  strategy book and an enterprise-integration book, are extracts from Russell's *A
+  History of Western Philosophy*: "the terror of cosmic loneliness", and a
+  Pythagorean "ethic which praised the contemplative life". The lines given as
+  agile-organisation posts are a CLI design guide.
+- **A further claim cites 65 articles** for the proposition that backend and
+  frontend systems have different performance profiles.
+
+This is the failure mode the whole evidence apparatus below exists to make
+impossible, and the reason it is recorded here rather than in a survey note is
+that it is *not* a story about a careless reviewer. It is the ordinary output of
+generating prose over a corpus, and it will be the ordinary input to any corpus
+that accepts prose. The citations were almost certainly attached because a
+citation was expected there, and no step between writing and delivery required
+anybody to open one.
+
+**What separates the two postures is exactly one operation: looking up the line.**
+Global reductionism does not require it and would have admitted every claim above.
+Local reductionism requires a specific positive reason for *this* source on *this*
+topic, and the cheapest such reason is that the quoted passage is present in the
+named source — which is §9.4's rule, mechanised, and the whole of what
+`quotecheck` does. The specimen is not evidence that people are unreliable. It is
+evidence that **a citation is not self-verifying**, that the gap between a
+well-formed reference and a supporting one is invisible at review speed, and that
+a corpus which cannot check the difference will accrete the difference.
+
+Two limits, stated so this does not read as more than it is. One specimen is one
+specimen, and it is drawn from a genre — machine-assisted survey — that is
+unusually prone to this. And gnosis would not have caught this document, because
+gnosis validates a quote against an *archived source*, and these references name a
+line number in a file rather than quoting it. That is a gap worth naming: **a
+citation that gives a location and no passage is unfalsifiable by construction**,
+and §5.5's requirement of a verbatim passage is what forecloses it. The specimen
+argues for that requirement rather than illustrating its sufficiency.
+
 #### 1.1.1 The Other Posture Is the Field's Default, and It Works
 
 This section long argued against an opponent it declined to name, which made the
@@ -871,7 +927,7 @@ sources_fetched(record_sha256 PK, uri, source_sha256, byte_size, media_type,
 checked(uri, source_sha256, checked_at, PRIMARY KEY (uri, source_sha256))
 llm_cache(cache_key PK, source_hash, prompt_hash, model, model_version,
           response, created_at)
-findings(id PK, kind, severity, category, certainty, fix_class, state,
+findings(id PK, kind, severity, category, action, state,
          opened_by, challenge_class,
          claim_id, other_claim_id, message, opened_at, closed_at)
 ```
@@ -3254,6 +3310,31 @@ true only when the corpus demonstrably uses the pattern being checked, and it
 skips promotion when false. `orphan` is meaningless in a corpus with no links
 yet; `gnosis` derives that rather than asking for a flag.
 
+One correction to the attribution, recorded 2026-08-22 because the citation is
+doing work it cannot support: **`Convention` is a description of `coherence`'s
+code and has never been built anywhere in this family.** `gnosis`'s
+`internal/lint` is the only implementation of the idea, and it is a fuller one —
+`Check.Applies` returns `(bool, string)` and every skip lands in
+`Report.Skipped` as a `Skip{Check, Reason}`, so the *reason* is a first-class
+output rather than an inference from a missing finding.
+
+That turned out to matter beyond this section. `skillet` had an open decision on
+whether to name a general `Applicability` type, counting `Convention` as one of
+two members; counting properly resolved it as **a rule rather than a type**,
+because the five real sites across `skillsaw`, `adh`, and `gnosis` each suppress
+a different thing — a deduction, a whole check, or nothing at all — deliberately,
+because their output shapes differ. The rule the family adopted is this
+package's own sentence, quoted from `internal/lint`:
+
+> A check that silently declines to run is indistinguishable from a check that
+> found nothing.
+
+with the corollary that **what** is suppressed is the consumer's choice and the
+reason is not. `gnosis` is the origin and already conforms; the obligation is
+recorded here so a later refactor does not treat `Report.Skipped` as optional
+detail. Should a second tool ever emit a check report, `Skip{Check, Reason}` is
+the unit that promotes to `skillet` — not an `Applicability` type.
+
 **"Every instruction must be backed by a working command"** is Principle 1 of
 `agentic-harness-bootstrap`, whose `verify-harness.sh` parses the module table out
 of the document itself and checks each path exists. The `command` check applies
@@ -3412,6 +3493,41 @@ trust frontmatter MUST remain consumable (OKF §11). This is exactly the
 provenance-tier problem the manifesto identified — the invariant that a person
 read every byte dies the moment ingestion is automatic, and nothing recorded
 which parts still held it. OKF records it.
+
+#### 14.1.1 Two Populations of Actor, and Only One of Them Is gnosis's
+
+`gnosis.Actor` is a **closed** three-kind enum — `human:` / `agent:` / `check:` —
+and `ParseActor` refuses anything else. OKF §7's grammar is
+`<producer>/<version>`, `human:<id>`, and `process:<id>`. Two of those three do not
+parse here, and `agent:`/`check:` are not OKF forms. Stating the divergence rather
+than discovering it when §14.1 is built:
+
+**The closed enum is correct and stays, for actors gnosis mints.** §10.6.4 counts
+*distinct human actors* to decide whether a review tier amplified anything, and a
+kind that could pass for a person makes that count wrong in the direction that
+flatters the corpus. An open actor grammar cannot make that guarantee, so the strict
+type is load-bearing exactly where it is strict.
+
+**It is the wrong reader for frontmatter that arrived from somewhere else.** A
+concept carrying `verified: [{by: reference_agent/gemini-2.5-pro}]` is OKF-valid and
+`ParseActor` rejects it — and §11 forbids rejecting a concept for the shape of an
+optional family. So the fold above does **not** run over `gnosis.Actor`. It runs over
+the raw strings, and it asks one question, which is the only question OKF §7 says a
+trust classifier needs:
+
+> Consumers that classify trust (§5.3) key off the `human:` prefix, so producers
+> MUST use it for hand-authored or human-confirmed content.
+
+Everything that is not `human:`-prefixed is non-human for tier purposes, whether it
+is `agent:ingest`, `process:finance-nightly`, or a producer string gnosis has never
+seen. **An unrecognised actor is never an error and never promotes a tier.** That is
+strictly more permissive than `ParseActor` and strictly less capable — it cannot say
+*which* non-human wrote something — which is right, because the tier does not depend
+on that and a reader who wants it can read the field.
+
+The two must not be merged. Widening `Actor` to accept OKF's forms would give up the
+property §10.6.4 depends on; narrowing frontmatter reads to `Actor` would reject
+conformant documents. §18 carries the conformance test that pins both.
 
 ### 14.2 Credibility Is Inferred, Never Scored
 
@@ -3789,23 +3905,43 @@ ______________________________________________________________________
 
 ### 16.1 Findings Are the Family's
 
-`finding.Diagnostic` `{severity, category, path, message}` on stdout as JSON.
-`canonizer gate` can block on `gnosis` findings and vice versa, because the
+`finding.Diagnostic` is `{severity, category, path, message, action}` on stdout as
+JSON. `canonizer gate` can block on `gnosis` findings and vice versa, because the
 severity model is shared.
 
-Two additive fields, both borrowed and both classification rather than
-measurement:
+**`Action` already answers "who acts", and this section previously proposed a field
+that duplicates it.** `finding.Action` is `automatic` / `guided` / `human` —
+respectively *a tool can generate the fix without asking*, *a tool can propose it
+and a person confirms*, and *closing it needs judgment no tool here has* — with the
+zero value meaning **nobody classified this**, deliberately distinct from `human`.
+An earlier draft of this section listed `Diagnostic` without `Action` and then
+proposed `certainty` on the grounds that severity does not say who acts. Severity
+does not; `Action` does, and its three values are the same three:
 
-- **`certainty`** — `agentsys`'s HIGH / MEDIUM / LOW meaning safe-to-auto-fix /
-  needs-context / needs-human-judgment. The concept it encodes has a name worth
-  using: **requisite uncertainty**, a confidence calibrated to what the system
-  actually allows one to know. A finding asserting HIGH certainty about something
-  the corpus cannot determine is the overclaim §17 exists to prevent, one level
-  down.
-- **`fix_class`** — `AgentLint`'s `guided` / `assisted`, per check, stored in
-  `standards/evidence.toml` beside the check's own evidence.
+| `agentsys` certainty | meaning | `finding.Action` |
+| --- | --- | --- |
+| HIGH | safe to auto-fix | `automatic` |
+| MEDIUM | needs context | `guided` |
+| LOW | needs human judgment | `human` |
 
-Both say *who acts*, which a severity does not.
+So **gnosis adds no field to `Diagnostic` for this.** It populates `Action`. The
+`certainty` vocabulary is kept here for one thing the mapping above does not carry
+and §17 depends on: the concept of **requisite uncertainty** — a confidence
+calibrated to what the system actually allows one to know. A finding claiming
+`automatic` about something the corpus cannot determine is the overclaim §17 exists
+to prevent, one level down. That is a rule about *when* `Action` may be set, not a
+second field.
+
+**`fix_class` is not a `Diagnostic` field either**, and never was: `AgentLint`'s
+`guided` / `assisted` is per *check*, and it lives in `standards/evidence.toml`
+beside that check's evidence (§6.5). A check's fix class is configuration; a
+finding's `Action` is the instance. Conflating them would put a per-check constant
+on every row it produced.
+
+The general rule, since this section got it wrong once: **before adding a
+classification axis to a shared type, check the axes it already has.** Three
+overlapping answers to "who acts" is worse than none, because a consumer then has to
+decide which one wins.
 
 ### 16.2 Manifests and Proofs
 
@@ -4161,6 +4297,76 @@ A source containing zero-width characters, a bidi override, a prompt-injection
 string, and a plausible-looking fabricated quote. Each MUST be caught, and the
 test MUST assert *which* check caught it, so a check silently ceasing to fire is
 visible.
+
+#### 18.5.1 An OKF Conformance Table, Written Before §14.1 Is Built
+
+`gnosis` claims OKF conformance in §5, §11, and §14, and nothing currently checks
+that claim against the specification. One table test, over OKF §7's three actor
+forms plus the two `gnosis.Actor` adds, asserting for each: whether `ParseActor`
+accepts it, and what tier §14.1's fold yields.
+
+| Actor string | `ParseActor` | Tier contribution |
+| --- | --- | --- |
+| `human:priya` | accepts | human-reviewed |
+| `process:finance-nightly` | **rejects** | machine-confirmed |
+| `reference_agent/gemini-2.5-pro` | **rejects** | machine-confirmed |
+| `agent:ingest` | accepts | machine-confirmed |
+| `check:duplicate` | accepts | machine-confirmed |
+| `priya` (unprefixed) | rejects | machine-confirmed |
+
+The two `rejects`-with-a-tier rows are the point: they are the cases where the
+mint-side type and the read-side fold **must** disagree (§14.1.1), and a test that
+does not contain them will pass under the merge that breaks conformance.
+
+Write it now rather than with §14.1. The divergence it pins already exists in a
+shipped type, it was introduced without touching trust metadata at all, and the
+cost of finding it later is a corpus whose tiers were computed by a parser that
+refused half its inputs. This is the same reason `skillet` moved its own promotion
+trigger from *stores trust metadata* to *classifies an actor*: storage is not the
+event, classification is.
+
+### 18.6 The Relay Test, and Which Kind of Real It Needs
+
+Everything above is deterministic and none of it touches the one seam where gnosis
+meets a model. `cmd/relay_test.go` hand-writes every reply, so nothing establishes
+that an agent handed a **real emitted prompt** produces a reply `admit` will accept.
+The relay was designed so that gnosis never calls a model, and that decision makes
+most of its testing easy and this one case hard: the gap exists *because* of the
+determinism, not in spite of it.
+
+Three methods are available and they differ in what they hold fixed:
+
+| Method | Runtime | Reasoning | Assertion | Fits CI |
+| --- | --- | --- | --- | --- |
+| Hand-written replies (today) | none | authored | direct | yes — and proves nothing about the prompt |
+| Scripted model | real binary, real prompt | replaced by a local server speaking the model protocol from a script | on the request *and* the reply | yes |
+| Real model, mechanical predicate | real binary, real prompt | real | a pure predicate over the machine-readable transcript | no |
+
+**The second is the one to build, and the third is the one to have.** They answer
+different questions. A scripted model proves the *contract* — that the prompt gnosis
+emits carries what a replier needs, and that a well-formed reply survives `admit` —
+and it is reproducible, free, and CI-safe. It cannot show that any real model
+produces such a reply. The third can, and cannot go in a gate: it is slow, billed,
+network-dependent, and non-deterministic, and a suite with those properties is
+disabled within a month.
+
+Two disciplines carry over from the projects that built each.
+
+- **From the scripted-model method: assert on what the agent *sent*.** A fixture
+  that only dictates replies is a playback, not a test. The fixture MUST fail when
+  the request arrives without the fields the prompt was supposed to carry, or in the
+  wrong order — the contract is checked in both directions.
+- **From the real-model method: grade the transcript, never the reply's prose.** A
+  surveyed harness runs the real agent under an isolated `HOME`, emits
+  machine-readable transcript events, and asserts with a grep over them. Its second
+  assertion is the instructive one: it checks not only that the required step
+  happened but that **nothing else happened first**, against an explicit allowlist of
+  actions that do not count. Ordering is a property a prose reply cannot be trusted
+  to report about itself.
+
+The third method's output is not a gate and MUST NOT become one. It is evidence,
+recorded like any other, and §18's own standard applies to it: a run that could not
+be performed reports `unchecked`, and a suite that skips it says so.
 
 ______________________________________________________________________
 
