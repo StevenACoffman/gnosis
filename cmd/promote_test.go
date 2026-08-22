@@ -127,8 +127,8 @@ func TestAPreviewWritesNoAuditRow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the trail: %v", err)
 	}
-	if len(after) != len(before) {
-		t.Errorf("a preview added %d audit row(s)", len(after)-len(before))
+	if len(after.Rows) != len(before.Rows) {
+		t.Errorf("a preview added %d audit row(s)", len(after.Rows)-len(before.Rows))
 	}
 }
 

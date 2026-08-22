@@ -162,13 +162,16 @@ func TestTheDebtIsRecorded(t *testing.T) {
 		t.Fatalf("promotion did not succeed: %s", got.Message)
 	}
 
-	rows, err := bundle.AuditTrail(dir)
+	trail, err := bundle.AuditTrail(dir)
 	if err != nil {
 		t.Fatalf("read the trail: %v", err)
 	}
+	if wErr := trail.Whole(); wErr != nil {
+		t.Fatalf("the trail is damaged: %v", wErr)
+	}
 	var found bool
-	for i := range rows {
-		row := &rows[i]
+	for i := range trail.Rows {
+		row := &trail.Rows[i]
 		if row.Op != audit.OpPromote || row.Outcome != string(gnosis.StatusOK) {
 			continue
 		}

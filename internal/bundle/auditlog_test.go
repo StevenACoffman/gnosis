@@ -25,7 +25,7 @@ func TestAppendAndReadTheTrail(t *testing.T) {
 	dir := t.TempDir()
 
 	for _, op := range []audit.Op{audit.OpFetch, audit.OpAdmit, audit.OpPromote} {
-		err := bundle.Audit(dir, &audit.Row{
+		err := bundle.AuditVerified(dir, &audit.Row{
 			At: fixedClock()(), Op: op, Actor: "human:priya",
 		})
 		if err != nil {
@@ -37,13 +37,14 @@ func TestAppendAndReadTheTrail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if len(got) != 3 {
-		t.Fatalf("got %d rows, want 3", len(got))
+	if len(got.Rows) != 3 {
+		t.Fatalf("got %d rows, want 3", len(got.Rows))
 	}
 	// Oldest first: a trail read in write order is the only order that lets a
 	// reader follow what happened.
-	if got[0].Op != audit.OpFetch || got[2].Op != audit.OpPromote {
-		t.Errorf("rows are out of order: %v, %v, %v", got[0].Op, got[1].Op, got[2].Op)
+	if got.Rows[0].Op != audit.OpFetch || got.Rows[2].Op != audit.OpPromote {
+		t.Errorf("rows are out of order: %v, %v, %v",
+			got.Rows[0].Op, got.Rows[1].Op, got.Rows[2].Op)
 	}
 }
 
@@ -55,20 +56,27 @@ func TestAnAbsentTrailIsNotAnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if got == nil {
-		t.Error("an absent trail returned nil")
+	if got.Rows == nil {
+		t.Error("an absent trail returned nil rows")
 	}
-	if len(got) != 0 {
-		t.Errorf("got %d rows from an absent trail", len(got))
+	if len(got.Malformed) != 0 {
+		t.Errorf("an absent trail reported %v as malformed", got.Malformed)
+	}
+	if len(got.Rows) != 0 {
+		t.Errorf("got %d rows from an absent trail", len(got.Rows))
+	}
+	// An absent trail is whole. Nothing was lost, because nothing was written.
+	if err = got.Whole(); err != nil {
+		t.Errorf("an absent trail is not whole: %v", err)
 	}
 }
 
-// TestAMalformedLineIsAnError, not a skip. A trail that quietly drops what it
-// cannot read cannot be counted, and counting is most of what one is for.
-func TestAMalformedLineIsAnError(t *testing.T) {
+// TestAMalformedLineIsCountedAndNamed, not skipped and not fatal. §15 asks for
+// both halves: the rows a reader can have, and the number they did not get.
+func TestAMalformedLineIsCountedAndNamed(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	if err := bundle.Audit(dir, &audit.Row{
+	if err := bundle.AuditVerified(dir, &audit.Row{
 		At: fixedClock()(), Op: audit.OpFetch, Actor: "human:priya",
 	}); err != nil {
 		t.Fatalf("append: %v", err)
@@ -86,19 +94,29 @@ func TestAMalformedLineIsAnError(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	_, err = bundle.AuditTrail(dir)
+	got, err := bundle.AuditTrail(dir)
+	if err != nil {
+		t.Fatalf("a malformed line failed the read: %v", err)
+	}
+	// The good row is still returned. One bad byte on one line must not make the
+	// rest of the trail unreadable, which is what the previous version did.
+	if len(got.Rows) != 1 {
+		t.Errorf("got %d rows, want the one that parsed", len(got.Rows))
+	}
+	// And the damage is counted and located, because a trail that quietly drops
+	// what it cannot read is a trail that cannot be counted.
+	if len(got.Malformed) != 1 || got.Malformed[0] != 2 {
+		t.Errorf("Malformed = %v, want [2]", got.Malformed)
+	}
+
+	// Whole is how a caller asks for all of it, and the only place the corruption
+	// becomes an error.
+	err = got.Whole()
 	if err == nil {
-		t.Fatal("a corrupt trail read cleanly")
+		t.Fatal("Whole accepted a trail with an unreadable line")
 	}
-	// §15 separates corruption from an operational failure because they call for
-	// opposite responses: one is a retry, the other is somebody opening the file.
-	if !strings.Contains(err.Error(), "corruption") {
-		t.Errorf("the error does not say this is corruption: %v", err)
-	}
-	// And it names the line, because a trail with one bad row in ten thousand is
-	// not usefully described as "a trail that will not parse".
-	if !strings.Contains(err.Error(), "line 2") {
-		t.Errorf("the error does not locate it: %v", err)
+	if !strings.Contains(err.Error(), "line") && !strings.Contains(err.Error(), "2") {
+		t.Errorf("the error does not locate the damage: %v", err)
 	}
 }
 
@@ -129,15 +147,15 @@ func TestAnInvalidRowIsNotWritten(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	if err := bundle.Audit(dir, &audit.Row{Op: audit.OpFetch}); err == nil {
+	if err := bundle.AuditVerified(dir, &audit.Row{Op: audit.OpFetch}); err == nil {
 		t.Fatal("a row with no actor and no time was written")
 	}
 	got, err := bundle.AuditTrail(dir)
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if len(got) != 0 {
-		t.Errorf("the rejected row reached the trail: %+v", got)
+	if len(got.Rows) != 0 {
+		t.Errorf("the rejected row reached the trail: %+v", got.Rows)
 	}
 }
 
@@ -158,21 +176,22 @@ func TestAPromotionIsRecordedEvenWhenRefused(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read trail: %v", err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("got %d rows, want the refusal", len(got))
+	if len(got.Rows) != 1 {
+		t.Fatalf("got %d rows, want the refusal", len(got.Rows))
 	}
-	if got[0].Op != audit.OpPromote {
-		t.Errorf("op = %q", got[0].Op)
+	row := &got.Rows[0]
+	if row.Op != audit.OpPromote {
+		t.Errorf("op = %q", row.Op)
 	}
-	if got[0].Outcome != "blocked" {
-		t.Errorf("outcome = %q, want blocked", got[0].Outcome)
+	if row.Outcome != "blocked" {
+		t.Errorf("outcome = %q, want blocked", row.Outcome)
 	}
-	if got[0].Actor != "human:priya" {
-		t.Errorf("actor = %q", got[0].Actor)
+	if row.Actor != "human:priya" {
+		t.Errorf("actor = %q", row.Actor)
 	}
 	// The clock is the one that was injected, exactly.
-	if !got[0].At.Equal(fixedClock()()) {
-		t.Errorf("at = %v, want the injected time", got[0].At)
+	if !row.At.Equal(fixedClock()()) {
+		t.Errorf("at = %v, want the injected time", row.At)
 	}
 }
 
@@ -181,7 +200,7 @@ func TestAPromotionIsRecordedEvenWhenRefused(t *testing.T) {
 func TestTheTrailIsPerUserState(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	if err := bundle.Audit(dir, &audit.Row{
+	if err := bundle.AuditVerified(dir, &audit.Row{
 		At: fixedClock()(), Op: audit.OpFetch, Actor: "human:priya",
 	}); err != nil {
 		t.Fatalf("append: %v", err)

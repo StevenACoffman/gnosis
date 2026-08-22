@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/audit"
@@ -17,7 +17,7 @@ import (
 // auditFile is the write trail, inside stateDir and therefore gitignored.
 const auditFile = "audit.jsonl"
 
-// Audit appends one row to the bundle's write trail.
+// appendRow appends one row to the bundle's write trail.
 //
 // Requires: bundleDir exists and is writable; row is populated.
 // Ensures: the row is appended as one line. Appending rather than rewriting means
@@ -27,9 +27,19 @@ const auditFile = "audit.jsonl"
 // **A failure here does not fail the write it describes**, and callers are
 // expected to treat it that way. If a document landed and this returns an error,
 // reporting that error would tell a caller their write failed when it succeeded —
-// which is the more dangerous of the two wrong answers. See AuditOrReport.
-func Audit(bundleDir string, row *audit.Row) error {
-	const op = "bundle.Audit"
+// which is the more dangerous of the two wrong answers.
+//
+// It is unexported, and that is the point rather than an accident of layering.
+// §15 requires every mutation to verify its own row, and the first guard on that
+// was a test reading the call sites' source text for `bundle.Audit(` — brittle,
+// and written and deleted inside one pass. Taking the unverified append off the
+// package's surface makes the compiler enforce what that test was inspecting:
+// AuditVerified is the only way in, so a writer added later cannot append without
+// checking. Make it impossible rather than tested.
+//
+// See AuditVerified, and Coordinator.auditUnread for why the two failures differ.
+func appendRow(bundleDir string, row *audit.Row) error {
+	const op = "bundle.appendRow"
 
 	line, err := row.Canonical()
 	if err != nil {
@@ -62,40 +72,54 @@ func Audit(bundleDir string, row *audit.Row) error {
 // AuditTrail reads the bundle's write trail, oldest first.
 //
 // Requires: nothing; a bundle with no trail is not an error.
-// Ensures: rows in the order they were written. A malformed line is **corruption**
-// and is reported as such, distinct from a failure to read the file: a trail that
-// quietly drops what it cannot read is a trail that cannot be counted, and counting
-// is most of what one is for — but a reader also has to know whether to look at the
-// disk or at the file.
-func AuditTrail(bundleDir string) ([]audit.Row, error) {
+// Ensures: every row that parsed, in the order written, **and** the line numbers
+// that did not. The returned error is for reading the file — a missing directory, a
+// failing disk — and never for the file's contents, so a caller may always inspect
+// the Trail it got back.
+//
+// That split is the point and it took two attempts. The first version returned rows
+// and dropped what it could not parse, which makes a truncated trail read as a
+// short one: the direction that flatters. The second reported the first malformed
+// line as an error and returned **no rows at all**, so one bad byte on line 3 made
+// the other 3,999 unreadable — worse than either option §15 discusses, and my own
+// doing. This version is §15's: the rows and the damage, both, with Trail.Whole for
+// the caller who needs "all of it or an error".
+//
+// A blank line is not corruption. An append interrupted between the row and its
+// newline leaves one, and so does a hand-edit; neither is a lost record, and
+// counting them would make the reported number mean two different things.
+func AuditTrail(bundleDir string) (Trail, error) {
 	const op = "bundle.AuditTrail"
 
 	f, err := os.Open(filepath.Join(bundleDir, stateDir, auditFile))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return []audit.Row{}, nil
+			return Trail{Rows: []audit.Row{}}, nil
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return Trail{}, &errs.Error{Op: op, Err: err}
 	}
 	defer func() { _ = f.Close() }()
 
-	out := []audit.Row{}
+	out := Trail{Rows: []audit.Row{}}
 	scanner := bufio.NewScanner(f)
 	line := 0
 	for scanner.Scan() {
 		line++
-		if len(scanner.Bytes()) == 0 {
+		if strings.TrimSpace(scanner.Text()) == "" {
 			continue
 		}
 		var row audit.Row
 		if uErr := json.Unmarshal(scanner.Bytes(), &row); uErr != nil {
-			return nil, corrupt(op, auditFile, "line "+strconv.Itoa(line)+
-				" is not a JSON object: "+uErr.Error())
+			out.Malformed = append(out.Malformed, line)
+			continue
 		}
-		out = append(out, row)
+		out.Rows = append(out.Rows, row)
 	}
 	if sErr := scanner.Err(); sErr != nil {
-		return nil, &errs.Error{Op: op, Err: sErr}
+		// The scan stopped part way, so Malformed undercounts and the rows are a
+		// prefix rather than the trail. Reporting a Trail here would be reporting a
+		// count this function knows is wrong.
+		return Trail{}, &errs.Error{Op: op, Err: sErr}
 	}
 	return out, nil
 }
@@ -120,11 +144,19 @@ func (c *Coordinator) now() time.Time {
 // folded into the outcome's detail instead — visible, and not mistaken for the
 // write's own result.
 //
-// That this is best-effort is a real weakness rather than a tidy design, and it is
-// recorded in TODO as such: a corpus whose trail silently has gaps cannot answer
-// the question the trail exists for.
+// **Best-effort applies only to the append.** A row the append claimed to write
+// and that is not on disk is a different event, handled the opposite way: §15
+// requires it to reach the caller as an error, because it is the one failure no
+// other signal reveals. See Coordinator.auditUnread.
 func (c *Coordinator) record(row *audit.Row) {
-	if err := Audit(c.Dir, row); err != nil {
+	err := AuditVerified(c.Dir, row)
+	switch {
+	case err == nil:
+	case AuditLost(err):
+		// §15: an append reporting success is not evidence that a record exists,
+		// and this is the only place the difference is visible.
+		c.auditUnread = err
+	default:
 		c.auditErr = err
 	}
 }
