@@ -400,10 +400,66 @@ how cheap they are relative to what they buy.
   Not an action item for gnosis so much as a calibration one: §1.1's posture is
   contested by the field's default, not merely by an imagined opponent, and the
   specification currently argues against a position nobody in it is named as holding.
-- [ ] **The Gentleman Programming ecosystem is unexamined as an ecosystem.**
-  `gentle-ai`, `gentle-wiki`, `engram`, and `Gentleman-Skills` are four repositories
-  covering roughly this family's concerns — runtime, documentation, memory, skills.
-  Read individually at README level; never compared as an assembly against ours.
+- [x] **The Gentleman Programming ecosystem examined as an ecosystem.** *Recorded in
+  `manifesto.md`; the items below are what it produced.*
+- [ ] **§4.3.1 over-claims what content-addressing detects.** It says a rewritten
+  record makes tampering "visible rather than absorbed." True for a careless edit and
+  false for a local actor who recomputes the hash and renames the file.
+  `gentle-ai/docs/review-authority-threat-model.md` has the sentence to adopt:
+  "checksums only where useful for detecting accidental corruption; they are not
+  authentication" — together with an explicitly stated non-goal, that no
+  tamper-resistance is claimed against a same-user local actor without an external
+  trust anchor. gnosis should state the same non-goal rather than let a reader infer
+  a stronger one.
+- [ ] **No AI-assistance policy in any repository of this family.** Every one of them
+  is built this way and none says so, while §1.1 argues that a claim must name its
+  witness. `gentle-ai/AI_POLICY.md` is the model, and three of its rules are directly
+  adoptable: review on observable quality rather than on whether output looks
+  AI-generated; reject what the contributor cannot explain or defend; and no human
+  attribution trailers for tools, with an optional `Assisted-by`. The third is
+  `gnosis.Actor`'s human/agent/check split expressed in git.
+- [ ] **Nothing tests that an agent's real reply is one `admit` accepts.**
+  `cmd/relay_test.go` hand-writes every reply, which the relay's design made easy and
+  which leaves the seam untested. `gentle-ai`'s method applies directly: keep the
+  runtime real, replace only the reasoning with a scripted local model server, and
+  **make the fixture adversarial** — assert on what the agent sent, not only on what
+  it received. Their own honest-limits note bounds the claim: it does not prove a live
+  model produces the same calls, and that belongs to usage rather than to CI.
+- [ ] **`bundle.AuditTrail` cannot distinguish corruption from operational failure.**
+  Gentleman's threat model draws the line: only malformed state, checksum, or receipt
+  evidence is corruption; Git and filesystem failures are operational. A malformed
+  audit line currently reads the same as a failing disk.
+- [ ] **A declined promotion is logged as an observation, not recorded as a decision.**
+  gnosis writes a refusal to `audit.jsonl`, which is per-user and gitignored.
+  Gentleman records the decline itself as a canonical authorization, atomically. By
+  §10.7.4's own rule a decision to decline is a decision, so it arguably belongs in
+  the committed tier — which is a §9.5 question and not an implementation one.
+- [ ] **`revision_count` is nearly free and answers a question git cannot cheaply.**
+  `engram` increments a counter on upsert so an evolving record says how many times it
+  has changed. gnosis keeps full history, which is strictly more information and
+  strictly more expensive to query: "has this claim been churning?" currently requires
+  walking git. A derived count in the index would answer it in a query.
+- [ ] **`skillsaw` has no cross-repository skill-identity check, and should.**
+  `Gentleman-Skills` and `gentle-ai` declare a portability convention in prose —
+  unprefixed names are portable and keep their canonical names, `<tool>-*` names are
+  repo-specific — and it verifiably holds: `cognitive-doc-design` is byte-identical
+  across two repositories and `gentle-ai-branch-pr` has legitimately diverged. It
+  holds because one person maintains both. A check that same-named unprefixed skills
+  hash alike across a set of repositories is the mechanism this family could supply
+  back, and `identity.Hash` already does the hard part.
+- [ ] **`skillet`/`steve-skill-market` do not distinguish a shipped skill from a
+  repo-governing one.** `gentle-ai` keeps `internal/assets/skills/` (embedded, ships
+  to users) apart from `skills/` (repo-local, governs work on the tool). A shipped
+  skill is a published artefact under `speclint`'s rules; a repo-governing one is
+  closer to a `CONTRIBUTING.md`, and grading them against one rubric will misjudge
+  both.
+- [ ] **§10.6.4's bet is now contested by something that works.** `Gentleman-Skills`
+  admits community skills by seven-day review and reaction quorum — a
+  permission-and-quorum model, where §10.6.4 holds that a required rationale filters
+  more bad adjudications than a permission check. The asymmetry is blast radius: a bad
+  skill is uninstalled, a bad claim is cited. Worth a sentence in §10.6.4
+  acknowledging the case where counting is the cheaper instrument, so the position
+  reads as a choice rather than as the only option.
 - [ ] **§9.3 should treat any agent-nameable string as an execution surface.**
   `oh-my-agent` allowlists exactly three executable commands "so an agent that writes
   anything else into the state file gets it ignored, never run." gnosis already

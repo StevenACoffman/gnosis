@@ -2553,6 +2553,209 @@ it. That is the same fail-closed direction as `EffectUnset` and `VerdictUnchecke
 applied to a file format. It also runs both a skill and a CLI against **one shared
 marker contract**, which is skillet's thesis with a different noun.
 
+#### The Gentleman Programming Ecosystem — a Family Beside Ours
+
+**Local copies:** `gentle-ai`, `engram`, `gentle-wiki`, `Gentleman-Skills`.
+
+Four repositories from one author covering roughly the concerns this family covers:
+a Go CLI that gates work, a Go memory layer, a documentation corpus, and a skill
+catalogue. It is the only assembly in either survey that can be compared to ours as
+an assembly rather than as a component, and the comparison is worth more than any
+single mechanism in it.
+
+**The shape matches almost exactly.** Two Go binaries with `internal/` and `cmd/`,
+SQLite as the store, FTS5 as the search, `openspec/` for specification-driven
+development, one binary per concern, and a skill catalogue one layer up that drives
+the CLIs. `engram`'s own comparison document lists why it is not the popular
+TypeScript alternative, and every divergence it names is a choice gnosis made
+independently: Go single binary over Node plus Python plus a vector database; SQLite
+FTS5 over ChromaDB; one database file over two storage systems; and — the
+load-bearing one — **"Agent-curated summaries only"** over **"captures all tool
+calls then compresses,"** which it states as *"Agent decides what matters"* rather
+than auto-capture. That is a fifth independent derivation of the architecture
+`agent-purple` found four of.
+
+##### `AI_POLICY.md` — the Document This Family Does Not Have
+
+`gentle-ai` ships a contribution policy for AI-assisted work, and it is the single
+most directly liftable artefact in the survey. Four of its rules matter here.
+
+- **"Review is based on observable submission quality, not on whether text or code
+  appears to be AI-generated."** It refuses AI-detection as a review criterion
+  outright. That is the correct position and it is the one `aidetector` — set aside
+  in the `agent-purple` survey — got wrong.
+- **"They may reject work that the contributor cannot explain, verify, or defend."**
+  The gate is not on authorship but on defensibility. §10.6.4 argues that a required
+  rationale filters more bad adjudications than a permission check; this is the same
+  bet, stated as a review policy instead of a schema field.
+- **"AI tools must not receive human attribution, including `Co-Authored-By`,
+  `Reviewed-by`, `Tested-by`, `Signed-off-by`, approval, or equivalent credit. An
+  optional `Assisted-by` trailer may be accepted."** This is `gnosis.Actor`'s
+  `human:` / `agent:` / `check:` split, in git trailers, for the identical reason:
+  §10.6.4 counts distinct *human* actors, so an agent that could pass for a person
+  makes the count wrong in the direction that flatters the work. Two projects
+  reached the same three-way distinction from opposite ends — one from a review
+  policy, one from a type.
+- **The disclosure has three required fields**: the tool or model, the material
+  scope of the assistance, and **the verification the contributor performed.** The
+  third is the interesting one. It is not "an AI helped" but "here is what I
+  checked" — an audit row for a contribution, with the same shape as
+  `audit.Row`'s actor plus outcome plus detail.
+
+Recorded as a gap rather than a convergence: **this family has no AI-assistance
+policy at all**, in any of its repositories, while every one of them is built this
+way. §1.1 argues at length that every claim in a corpus is testimony and must name
+its witness; the repositories that argue it do not name theirs.
+
+##### Deterministic Agent Testing — Directly Applicable to `adh`
+
+`gentle-ai/docs/testing-agents-deterministically.md` solves a problem `adh` has and
+states it better than `adh` does: *"A model asserting 'I verified it, it passes' is
+prose, not proof."* The product invariant it needs to test is that **a real agent
+does real work and the deterministic CLI correctly decides whether that work is
+acceptable** — which cannot be tested with unit tests and cannot be tested against a
+live model, because a test that is non-deterministic, billed per token,
+network-dependent, and holding an API key *"gets disabled within a month."*
+
+The technique is to **keep the agent real and replace only its reasoning**: the real
+binary at a pinned version, the real shipped prompt, real Git, real filesystem, real
+TLS with a self-signed certificate — and a local server speaking the model protocol
+from a script. Their five-point generalisation is worth quoting because it is a
+method and not a trick:
+
+1. Keep the runtime real — same binary, version pin, shipped prompt, permissions.
+2. Replace only the reasoning.
+3. **Make the fixture adversarial.** Assert on the incoming request, not just the
+   outgoing response. Fail when evidence arrives out of order.
+4. Fake nothing else. Anything that can be deterministic should stay real.
+5. Keep the non-deterministic part out of the gate.
+
+Point three is the one that makes it a test rather than a playback, and their code
+shows it: the fixture refuses to dictate the next step if the agent asked to advance
+before producing commit evidence. *"The contract is checked in both directions."*
+
+Point five is a scoping principle for `skillsaw` as much as for `adh`: *"Whether a
+prompt reliably steers a live model is a product question, answered by usage, not by
+CI."* And the honest-limits section is the discipline this specification practices in
+prose and not in its suite — **"Not proved. That a live model, given the shipped
+prompt, produces the same tool calls the fixture scripts."**
+
+For gnosis the application is specific. The relay was designed so that gnosis never
+calls a model, which makes its own tests easy — and `cmd/relay_test.go` consequently
+hand-writes every reply. Nothing tests that an agent handed a real emitted prompt
+produces a reply `admit` will accept. That is the one place gnosis's determinism
+makes a gap rather than closing one.
+
+##### `review-authority-threat-model.md` — the Sentence gnosis Needs
+
+Ninety-eight lines, and the first paragraph is one gnosis should copy the posture of:
+
+> It does not claim to authenticate state against a malicious local actor with the
+> same user and filesystem access: without an external trust anchor, that actor can
+> rewrite the state, receipt, Git repository, or binary.
+
+And then, among the retained controls: **"Checksums only where useful for detecting
+accidental corruption; they are not authentication."**
+
+gnosis's tier-0 record is content-addressed so that *"a rewritten record lands at a
+different path, which makes append-only structural rather than conventional."* That
+is true and it is narrower than it sounds: it detects **accidental** corruption and a
+careless edit, and a local actor who recomputes the hash and renames the file defeats
+it entirely. §4.3.1 says tampering is *"visible rather than absorbed"* and that
+over-claims by exactly the amount Gentleman's sentence marks off. The threat model
+also names three controls gnosis lacks:
+
+- **A lock plus an expected revision**, so a stale writer is rejected rather than
+  merely queued. gnosis holds its lock across compute-and-write, which is sufficient
+  today; a served coordinator holding the lock across many commands would need the
+  revision.
+- **Corruption distinguished from operational failure** — *"Only malformed state,
+  checksum, graph, or receipt evidence is corruption; operational Git and filesystem
+  failures remain [operational]."* `bundle.AuditTrail` treats a malformed line as an
+  error and cannot say whether the disk failed or somebody edited the file.
+- **A declined candidate recorded as a first-class authorization.** gnosis records a
+  refused promotion in the audit trail; Gentleman records the *decline itself* as a
+  canonical authorization, atomically, without creating a review lineage. The
+  distinction is that a refusal in a log is an observation and a recorded decline is
+  a decision, which is §10.7.4's own line applied one level up.
+
+##### `engram` — Where It Agrees, and the One Place It Diverges
+
+Beyond the architecture convergence, three mechanisms:
+
+- **A review lifecycle that is deliberately local.** A memory carries a computed
+  `state` of `active` or `needs_review` plus a `review_after` date, and
+  *"`review_after` is intentionally not part of sync payloads."* Marking something
+  reviewed is local-only while the memory itself is shared. That is `checked.jsonl`
+  exactly — §4.3.1's one documented exception to §4.5 — reached independently, which
+  is the strongest evidence yet that the per-user/committed line falls where gnosis
+  put it.
+- **Provenance of why a record exists, with an opt-out for machine writes.**
+  `mem_save` takes `capture_prompt`, best-effort records the prompt that produced an
+  observation, and the guidance is that *"automated saves such as SDD artifacts
+  should pass `capture_prompt=false`."* gnosis stamps a quarantined document with the
+  cache key of the reply that produced it, which is the same idea with a stronger
+  handle: the key resolves to the exact prompt, model, and source version.
+- **The audit boundary is fail-soft and says so out loud.** A store that does not
+  implement `InsertAuditEntry` *"silently skips the audit with a log warning — no
+  panic, no 5xx"*, and the insert is deliberately synchronous because buffering
+  *"would complicate recovery, lose entries on process restart."* gnosis reached the
+  same synchronous conclusion, and its fail-soft path is **weaker**: the audit
+  failure lands in the outcome's message where no machine reads it, while engram's
+  lands in a log where an operator does.
+
+Where it diverges is the same axis `obsidian-second-brain` diverges on, and for the
+same reason. A topic upsert *"increments `revision_count` so evolving decisions stay
+in one memory"*; exact duplicates *"update metadata (`duplicate_count`,
+`last_seen_at`) instead of creating new rows"*; deletion is a soft `deleted_at` that
+search ignores. One record that counts its own revisions, rather than a version per
+revision. For one person's working memory that is right and cheaper. For a shared
+account it loses the ability to say what the claim used to be, which §9.6 will not
+give up. Worth noting all the same: **`revision_count` answers "has this been
+churning?" for free**, and gnosis can only answer it by walking git.
+
+##### The Skill Catalogue, and a Convention That Verifiably Held
+
+`Gentleman-Skills` splits `curated/` from `community/` and the split is an admission
+*procedure*, not a label. Curated skills are *"personally crafted and
+battle-tested"* by the owner. Community skills *"go through a democratic voting
+process"* — a seven-day review, GitHub reactions as votes, maintainers counting on
+day eight, plus automated structural validation.
+
+That is a permission-and-quorum model, and gnosis explicitly bet against it: §10.6.4
+holds that a required rationale filters more bad adjudications than a permission
+check ever will. Here is a live system that chose the other way. The bet is not
+symmetric and the difference is the cost of being wrong — a bad skill in a catalogue
+is uninstalled, and a bad claim in a corpus is cited. A vote counts *how many* people
+approve; a rationale records *why one* did. For a catalogue with many reviewers and
+low blast radius, counting is the cheaper instrument. Recorded because it is the
+first time in either survey that §10.6.4's position has been contested by something
+that works.
+
+The more useful finding is in `gentle-ai`'s own `AGENTS.md`, which is not project
+instructions but a **skills index**: a `Skill | Trigger | Path` table with *"load the
+relevant skill(s) BEFORE writing any code."* It declares a portability convention —
+*"`gentle-ai-*` skills are repo-specific workflow skills. Unprefixed skills are
+portable writing or work-unit skills and intentionally keep their canonical
+names"* — and the convention **verifiably held** when checked: `cognitive-doc-design`
+is unprefixed and is **byte-identical** across `gentle-ai` and `gentle-wiki`, while
+`branch-pr` is exposed as `gentle-ai-branch-pr` and has legitimately diverged.
+
+That is the promote-on-second-consumer moment, observed from outside. Two repositories
+hold one skill at identical bytes, by hand, with nothing enforcing it — and the
+convention that says which files ought to match is written in prose in a table.
+It holds today because one person maintains both. **A cross-repository check that
+same-named unprefixed skills hash alike is a `skillsaw` command that does not exist
+and should**, and it is the one mechanism in this ecosystem that this family could
+supply back.
+
+`gentle-ai` also splits skills by *whose* work they govern: `internal/assets/skills/`
+is embedded in the binary and ships to users, `skills/` is repo-local and governs
+work on the tool itself. Neither `skillet` nor `steve-skill-market` marks that
+difference, and it is a real one — a skill that ships is a published artefact under
+`speclint`'s rules, and a skill that governs the repository is closer to a
+`CONTRIBUTING.md`.
+
 #### Convergences Worth Recording
 
 - **`Acontext`** — "skill memory": agent memory as plain markdown skill files, and
@@ -2629,14 +2832,38 @@ Judged by README, layout, and targeted greps only. Each could repay a closer loo
 `hive`, `MMCTAgent`, `oh-my-openagent`, `gentle-ai`, `cascadeflow` — agent
 frameworks, orchestration platforms, and model-routing layers. gnosis calls no
 model and builds no agent; these solve a problem it does not have.
-`Gentleman-Skills`, `ai-agent-skills`, `thinking-skills`, and
-`agent-thinking-skills` are skill catalogues rather than components — useful as
-corpora to *grade* with `skillsaw`, which is a different relationship from lifting a
-mechanism. `agents.md` is the AGENTS.md standard's own website. `principles`
-generates agent networks from first-principles decomposition and is an experiment
-its author labels as such.
+Five repositories are skill catalogues — the collection *is* the product — and they
+are worth grading with `skillsaw` rather than mining for mechanism. Counted by hand,
+because a `find -name SKILL.md` is misleading here: `thinking-skills` (24, with a
+template and an authoring guide), `Gentleman-Skills` (24), `ai-agent-skills` (10,
+with a CI workflow that gates its own catalogue), `superpowers` (14, though it calls
+the skills the substrate of a methodology rather than the product), and `agent-sop`
+(5 `.sop.md` plus one skill for authoring them, in a different format entirely).
 
-`doceo` was grouped with the catalogues on a first pass and does not belong there.
+Two of those have something a catalogue owner should see. **`Gentleman-Skills` splits
+`curated/` from `community/`** — a trust tier inside one repository, which is §14.1's
+distinction already load-bearing in a live catalogue and something
+`steve-skill-market` does not currently make. **`ai-agent-skills` runs a
+`validate-skills.yml` workflow over its own contents**, which is what `skillsaw`
+exists to do; it is a real integration target rather than a hypothetical one.
+
+Three repositories were miscounted on a first pass and the corrections matter more
+than the count. `agent-thinking-skills` holds **two** skills, exactly as its README
+says — it was filed by its name rather than its contents. `gstack` is not a tooling
+opinion piece but a full stack with 54 top-level skill directories and 443 source
+files beside them. And the very large SKILL.md counts — `ECC` at 898, `ruflo` at 352,
+`oh-my-agent` at 94 — are **one skill tree multiplied by host**: the same skills
+installed into `.agents/skills`, `.claude/skills`, `.cursor/skills`, and
+`.kiro/skills`, plus test fixtures and benchmark runs. `trpc-agent-go`'s 74 all sit
+inside `examples/`. Those are harnesses that ship skills, and counting files would
+have made each of them look like the largest catalogue in the survey.
+
+`agents.md` is the AGENTS.md standard's own website. `principles` generates agent
+networks from first-principles decomposition and is an experiment its author labels
+as such.
+
+`doceo` and `systems-thinking` are single skills, one `SKILL.md` each. `doceo` was
+grouped with the catalogues on a first pass and does not belong there.
 It is a single skill — an AI tutor that answers in one screen: one plain-language
 answer, one diagram, one analogy, a self-quiz. What makes it relevant is the part
 that is not tutoring: **every lesson is saved to the user's notes, the next lesson
