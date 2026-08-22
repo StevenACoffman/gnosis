@@ -2756,6 +2756,148 @@ difference, and it is a real one — a skill that ships is a published artefact 
 `speclint`'s rules, and a skill that governs the repository is closer to a
 `CONTRIBUTING.md`.
 
+#### Two Reviewed Summaries, and What Survived Review
+
+**Local copies:** `~/Documents/agent-green/scientific-agents-summary.md` and
+`~/Documents/agent-green/FPF-valuable.md` — second-hand surveys of
+`scientific-agents` and of FPF, commissioned separately and evaluated here.
+
+Both are accurate: every citation resolves and every attributed concept is in the
+cited file. Neither is fabricated. They differ in what that accuracy bought, and
+the difference is worth recording because it is a fact about *surveying* rather
+than about either repository.
+
+##### `scientific-agents` — the value was in the reading, not the read
+
+The repository is 503 expert-persona briefs, each a terse bulleted checklist under
+fixed headings. The logician brief gives soundness one line: *"soundness links
+proof ⊢ to truth ⊨; completeness links truth to proof."* The summary's best
+section is three paragraphs elaborating that into an argument about `canonizer`.
+**The repository supplied vocabulary; the analysis was the reviewer's.** That is a
+legitimate thing to get from a survey and it means the value does not scale with
+reading more of it.
+
+Three items are worth acting on:
+
+- **Soundness over completeness, with a known-answer test per rule.** *"Developer
+  trust is highly sensitive to false alarms"* is §12's posture stated more
+  precisely than §12 states it, and "every rule must have a known-answer test
+  proving its soundness" is the planted-defect self-test built for the promote
+  gate, generalised to every rule. `canonizer` and `skillsaw` should have it.
+- **Object-language versus metalanguage.** Rules about code, versus rules about
+  rules. `skillet/ruleset/conflict` is a metalanguage check and nobody had named it
+  as one. It also clarifies §5.8: the subject vocabulary is metalanguage and the
+  claims expressed in it are object language, which is *why* a vocabulary admitted
+  before the corpus can adjudicate over it goes wrong — you would be fixing the
+  metalanguage before knowing what the object language needs to say.
+- **Competency questions.** Natural-language questions the corpus must answer,
+  frozen as tests, written before the schema. gnosis has dispatcher-level read
+  tests and nothing that asks whether the corpus still answers what it was built
+  to answer.
+
+And the sharpest line in the repository, which the summary did not pick up:
+
+> Separate formal result from interpretive claim; label when moving from
+> entailment to pragmatic recommendation.
+
+That is §11.0.0's *retrieval is not evidence* and the causal-rung item, in one
+sentence, from a different discipline.
+
+Three of its recommendations **contradict positions this specification argues**,
+and the summary does not notice:
+
+- **SSSOM confidence scores.** Logging a model-suggested alias "with a lower
+  confidence" is the scoring §10.3 and §17 refuse. The *justification* field
+  (human-curated versus lexical-similarity) is valuable and is `gnosis.Actor`
+  applied to vocabulary; the number is not.
+- **Tolerance-based gold-file testing** — *"cosine similarity > 0.95 rather than
+  exact string-matches, avoiding fragile build gates when models change."* Correct
+  for a system with a model in its test path. §18.3 requires a byte-identical
+  rebuild and §6.1 a byte-identical cache, and both are affordable **precisely
+  because** gnosis calls no model. Adopting tolerances would dissolve the
+  determinism argument to solve a problem this tool does not have.
+- **The Medallion mapping**, which is the one to reject outright. Bronze / Silver /
+  Gold orders tiers by **refinement for consumption**; gnosis orders them by
+  **trust and durability**. Tier 1 quarantine is not "cleaned data" — its defining
+  property is that it is *untrusted* — and Gold would span tier 2 (authoritative,
+  committed) and tier 3 (derived, gitignored), which sit at opposite ends of the
+  axis that matters. Renaming the tiers after Medallion's would make a reader think
+  tier 2 is an aggregation of tier 1 rather than a different trust state. That is
+  not a digression, it is a worse model.
+
+The rest is either already built under other names (OpenLineage: `archive_paths`,
+the extractor version on each record, the cache key stamped on a quarantined
+document — only the adjudicator ID is missing, and that is §10.6's warrant) or
+addressed to a different system (SHACL and OWL need an RDF model; DSM cycle
+detection conflates references with imports; `CITATION.cff` and ORCIDs solve
+research-software attribution).
+
+##### FPF — a more accurate survey, and therefore less actionable
+
+The FPF summary is the better of the two, and the evidence is that **three of its
+eight sections describe things gnosis already does**, one of them built the same
+week. A reviewer who reports the tool back to itself has read it.
+
+- §5's *unknowns propagate, never coerce to zero* is `quotecheck.Unchecked`,
+  `gate.VerdictUnchecked`, and `FreshnessUnknown`. The summary names the Go
+  identifiers.
+- §6's rebuild floor is `index.FloorBreached` and `rebuild_floor_fraction`, down to
+  preserving the old database and requiring an override. Its FPF citations are
+  misattributed — `E.2.DA` and `E.21` are about declared floors for a *scoped use*,
+  a bounded-result concept — though the prose correctly credits `haft`, which is
+  where this survey found it in the first place.
+- §8's edition pinning is two-thirds built: the cache key already carries source
+  identity, prompt, model, and model version. The **third axis is real and belongs
+  elsewhere**: a rubric or ruleset edition does not enter a gnosis prompt, so a
+  `standards/` change cannot stale a reply — but for `skillsaw` and `canonizer`,
+  where the rubric *is* the thing being applied, a cache keyed without it would
+  serve yesterday's grade under today's rules.
+
+Two more restate findings this survey already recorded: the causal rung, and
+findings-over-scores.
+
+**Two items are genuinely new, and one is very good.**
+
+**`F.18 NameCard`'s `Rejections` field.** A NameCard records the candidate set, the
+chosen name, *and the rejected candidates with the concrete reason each was
+rejected*. gnosis's ontology has `aliases` and nothing else: it records what
+matched and keeps no trace of what was considered and refused. **A rejected alias
+is exactly the knowledge that gets re-litigated every six months** — somebody
+proposes `runbook` as an alias for `Playbook`, someone who remembers why it was
+refused is not in the room, and the corpus has no way to say. It is the required-
+rationale discipline applied to vocabulary, and it is cheap: one list and one
+sentence per entry.
+
+**NSTD.1's blocked overread.** An ingestion record states what the ingestion does
+*not* authorize. gnosis records what a source supports and nowhere records what it
+was explicitly held not to support — which is the same asymmetry as the rejections
+gap, at the level of a source rather than a name.
+
+One conflict the summary does not flag: **§4's decay curves.** §14.3 uses an
+absolute `stale_after` date on OKF's determinism argument — a date *"keeps the
+staleness decision a plain date comparison with no reference to when the concept
+was read."* A decay curve reintroduces exactly the read-time dependence that
+argument rejects. What *is* worth taking from C.27 is a different field: **`Effort`
+— the resource cost of keeping a claim current.** Nothing in gnosis records what a
+claim costs to maintain, and a corpus that knew would be able to say which of its
+knowledge is expensive rather than merely old.
+
+§3's `E.17.0` conformance formalism is the one clear digression. It is heavy
+machinery, and what makes gnosis's retrieval inspectable is grep and content
+addressing rather than a participant-determined conformance relation.
+
+##### What Both Surveys Suggest About Surveying
+
+A second-hand survey is worth commissioning and is worth checking, and the two
+failure modes are different. The `scientific-agents` summary was *accurate about
+its source and wrong about this project* — it recommended three things the
+specification argues against, because it read the source closely and this codebase
+less so. The FPF summary was accurate about both and therefore mostly told us what
+we had. **Neither error is detectable without doing the comparison**, which is the
+argument for treating a commissioned survey as a claim to be checked rather than a
+finding to be filed — which is, unavoidably, the argument this entire project is
+about, arriving from the outside.
+
 #### Convergences Worth Recording
 
 - **`Acontext`** — "skill memory": agent memory as plain markdown skill files, and

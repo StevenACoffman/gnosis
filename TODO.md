@@ -394,6 +394,45 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Reviewed Summaries — `scientific-agents` and FPF (2026-08-22)
+
+Both summaries are in `manifesto.md` with what survived review. These are the items
+worth doing; the contested ones are recorded there rather than here, because a
+position argued against is not a task.
+
+- [ ] **The ontology records aliases and not rejections.** FPF's `F.18 NameCard`
+  carries the candidate set, the chosen name, **and the rejected candidates with the
+  reason each was rejected**. gnosis keeps only what matched. A rejected alias is
+  precisely the knowledge that gets re-litigated — somebody proposes `runbook` for
+  `Playbook`, the person who knows why it was refused is not in the room, and the
+  corpus cannot say. One list and one sentence per entry; it is the required-
+  rationale discipline applied to vocabulary. Best item from either summary.
+- [ ] **Nothing records what an ingestion does *not* authorize.** NSTD.1's blocked
+  overread. gnosis records what a source supports and keeps no trace of what it was
+  explicitly held not to support — the same asymmetry as the rejections gap, one
+  level up. Natural home is the fetch record or the quarantined document.
+- [ ] **A corpus-level competency-question suite.** Natural-language questions the
+  corpus must answer, frozen as tests. gnosis has dispatcher-level read tests and
+  nothing asking whether the corpus still answers what it was built to answer. The
+  proposed mechanism — asserting specific UUIDs — is wrong for gnosis, since
+  identifiers are assigned per corpus; assert on titles or on claim text.
+- [ ] **A known-answer soundness test per rule, in `canonizer` and `skillsaw`.** The
+  gate's planted-defect self-test generalised: every rule ships a case it must flag
+  and a case it must not. Trust is more sensitive to false alarms than to misses, so
+  soundness is the property to prove first.
+- [ ] **Name the object/metalanguage split in `skillet/ruleset/conflict`.** It is a
+  metalanguage check — rules about rules — and calling it that would keep a future
+  contributor from adding object-level checks to it.
+- [ ] **`skillsaw` and `canonizer` cache keys should carry the rubric edition.**
+  gnosis's relay key does not need it: a `standards/` change cannot stale a reply,
+  because the rubric never enters the prompt. Where the rubric *is* what is being
+  applied, a key without it serves yesterday's grade under today's rules.
+- [ ] **Record what a claim costs to keep current.** FPF's C.27 carries an `Effort`
+  field beside its validity window. gnosis knows when a claim goes stale and not
+  what re-checking it costs, so it cannot distinguish knowledge that is expensive
+  from knowledge that is merely old. Its sibling in that pattern — decay curves — is
+  rejected in the manifesto, and this field is separable from it.
+
 ## Field Survey — `agent-green` (2026-08-21)
 
 Findings from the governance/memory survey recorded in `manifesto.md`. Ordered by
