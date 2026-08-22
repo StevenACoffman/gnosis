@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/peterbourgon/ff/v4"
 
@@ -82,6 +83,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 	var (
 		fetcher bundle.Fetcher
 		result  Result
+		looked  []bundle.Check
 	)
 	for _, uri := range args {
 		candidates, ferr := fetcher.Fetch(ctx, uri)
@@ -93,7 +95,21 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 			if serr != nil {
 				return c.fail(root.ReasonFetchFailed, serr)
 			}
+			looked = append(looked, bundle.Check{
+				URI: source.URI, SourceSHA256: source.SourceSHA256,
+			})
 			result.add(&source)
+		}
+	}
+
+	// Every source that was read was looked at, whatever became of it. §9.2 says
+	// a no-op re-fetch "advances checked.jsonl", and the observation is just as
+	// true for one that archived or one that fell through to `referenced`: this
+	// user saw these bytes at this moment. Recording only the no-ops would leave
+	// a freshly fetched source reading as never-checked.
+	if !c.DryRun {
+		if err = bundle.RecordChecks(c.Bundle, time.Now().UTC(), looked); err != nil {
+			return c.fail(root.ReasonFetchFailed, err)
 		}
 	}
 	return c.report(&result)
@@ -112,6 +128,7 @@ func (c *Config) admit(cand *archive.Candidate, gates archive.Gates) (Source, er
 	out := archive.Decide(cand, gates)
 	source := Source{
 		URI:          out.Record.URI,
+		SourceSHA256: out.Record.SourceSHA256,
 		Disposition:  out.Record.Disposition,
 		ArchivePath:  out.Record.ArchivePath,
 		RejectReason: out.Record.RejectReason,

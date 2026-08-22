@@ -8,7 +8,13 @@ import (
 
 // Source is what became of one fetched source.
 type Source struct {
-	URI          string               `json:"uri"`
+	URI string `json:"uri"`
+
+	// SourceSHA256 is the fetched bytes' hash, carried so the caller can record
+	// that it looked at this *version* — a check against a URI alone would let an
+	// old observation vouch for new bytes.
+	SourceSHA256 string `json:"source_sha256"`
+
 	Disposition  archive.Disposition  `json:"disposition"`
 	ArchivePath  string               `json:"archive_path,omitempty"`
 	RecordPath   string               `json:"record_path"`
