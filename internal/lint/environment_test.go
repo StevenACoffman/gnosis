@@ -197,3 +197,60 @@ func TestAnEditThatDidNothingIsReported(t *testing.T) {
 		})
 	}
 }
+
+// TestOnlyTheVocabularyAndTheIndexBlock pins the rule Diagnose states, because a
+// wrong severity produces no failure anywhere — it produces a non-zero exit on a
+// corpus with nothing wrong with it, which nobody notices until somebody's CI
+// turns red for a reason they cannot act on.
+//
+// That is not hypothetical: `diagnoseStandards` carried SeverityError while its own
+// comment said "It blocks nothing", and three places agreed with the comment. This
+// test is what makes the fourth place agree out loud.
+func TestOnlyTheVocabularyAndTheIndexBlock(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		perturb   func(*lint.Environment)
+		wantBlock bool
+	}{
+		"no vocabulary":         {func(e *lint.Environment) { e.OntologyPresent = false }, true},
+		"unparsable vocabulary": {func(e *lint.Environment) { e.OntologyError = "bad key" }, true},
+		"no types":              {func(e *lint.Environment) { e.Types = 0 }, true},
+		"an index from a newer gnosis": {
+			func(e *lint.Environment) { e.IndexVersion = e.SchemaVersion + 1 }, true,
+		},
+		"an index missing schema objects": {
+			func(e *lint.Environment) { e.SchemaMissing = []string{"documents"} }, true,
+		},
+		// Everything below leaves the corpus judgeable against its own rules.
+		"unloadable standards": {
+			func(e *lint.Environment) { e.StandardsError = "unrecognised key" }, false,
+		},
+		"no entry point":    {func(e *lint.Environment) { e.IndexDocPresent = false }, false},
+		"state not ignored": {func(e *lint.Environment) { e.StateIgnored = false }, false},
+		"no index":          {func(e *lint.Environment) { e.IndexPresent = false }, false},
+		"a drifted index":   {func(e *lint.Environment) { e.IndexedRows = 0 }, false},
+		"a damaged audit trail": {
+			func(e *lint.Environment) { e.Audit = lint.AuditHealth{Malformed: []int{2}} }, false,
+		},
+		"a tuned dead threshold": {
+			func(e *lint.Environment) { e.TunedButUnread = []string{"in_degree_cut"} }, false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			env := healthy()
+			tc.perturb(&env)
+
+			var blocked bool
+			for _, d := range lint.Diagnose(&env) {
+				if d.Severity.Blocking() {
+					blocked = true
+				}
+			}
+			if blocked != tc.wantBlock {
+				t.Errorf("blocking = %v, want %v", blocked, tc.wantBlock)
+			}
+		})
+	}
+}

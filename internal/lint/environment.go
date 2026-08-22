@@ -70,6 +70,12 @@ type Environment struct {
 	// must say so.
 	StandardsError string `json:"standards_error,omitempty"`
 
+	// Audit is the write trail's own health. §15's argument for having it: every
+	// other bullet in that section is enforced by a check, and the trail that
+	// records the enforcement is written by the same process it records — so a
+	// silent write failure leaves a corpus that looks correct and cannot show it.
+	Audit AuditHealth `json:"audit"`
+
 	// TunedButUnread names thresholds this bundle has moved off the seed that no
 	// code branches on, so the edit had no effect. Gathered by the shell, which is
 	// where the knowledge lives: what reads a value is a fact about the whole
@@ -100,12 +106,19 @@ type Environment struct {
 // document is judged against nothing; an unusable standards file means the gates
 // fall back to the embedded seed, which is a defined and reasonable state — the
 // corpus is still checkable, just not against the thresholds somebody wrote.
+//
+// **The severity used to be SeverityError, which blocks, directly contradicting
+// the paragraph above.** Three places agreed it should not block — this comment,
+// Diagnose's contract, and the reasoning that a fallback to the seed is a defined
+// state — and only the constant disagreed, so the constant was the defect. Found
+// by reading, not by a failure: a wrong severity produces no test failure, it
+// produces a non-zero exit on a corpus with nothing wrong with it.
 func diagnoseStandards(env *Environment) []finding.Diagnostic {
 	if env.StandardsError == "" {
 		return nil
 	}
 	return []finding.Diagnostic{{
-		Severity: finding.SeverityError,
+		Severity: finding.SeverityWarning,
 		Category: "standards",
 		Path:     "standards/archive.toml",
 		Message: "the archive standards do not load, so the seed defaults are in " +
@@ -152,9 +165,17 @@ func diagnoseUnread(env *Environment) []finding.Diagnostic {
 // taken by pointer for its size, not so it can be modified: nothing here writes
 // to it.
 // Ensures: diagnostics are sorted, so two runs over one bundle are comparable.
-// Only two conditions block — an unusable vocabulary and an index written by a
-// newer gnosis — because those are the two where continuing would mean judging
-// the corpus against something other than its own rules.
+//
+// **A finding blocks only where continuing would mean judging the corpus against
+// something other than its own rules.** That is the rule; an earlier version of
+// this contract stated a count instead — "only two conditions block" — which was
+// true when written and silently false by the time three more error-severity cases
+// existed. A rule survives the next case; a count does not.
+//
+// Today it admits five: a missing vocabulary, an unparsable one, a vocabulary with
+// no types, an index from a newer gnosis, and an index missing schema objects. A
+// damaged audit trail is deliberately not among them — it makes the corpus's
+// history unrecountable and leaves the corpus itself perfectly checkable.
 func Diagnose(env *Environment) []finding.Diagnostic {
 	out := make([]finding.Diagnostic, 0)
 	out = append(out, diagnoseVocabulary(env)...)
@@ -162,6 +183,7 @@ func Diagnose(env *Environment) []finding.Diagnostic {
 	out = append(out, diagnoseIndex(env)...)
 	out = append(out, diagnoseStandards(env)...)
 	out = append(out, diagnoseUnread(env)...)
+	out = append(out, diagnoseAudit(env)...)
 	out = append(out, DiagnoseBudget(&env.Archive)...)
 	finding.Sort(out)
 	return out
