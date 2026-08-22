@@ -52,18 +52,63 @@ func (c *Coordinator) promote(_ context.Context, cmd *command.Promote) (gnosis.O
 	}
 
 	report := gate.Evaluate(candidate, corpus, limits)
+
+	// A preview asks what would happen and is not an attempt to write, so it is
+	// answered before authorisation is examined. Running the checks anyway told
+	// somebody who supplied no approver that their promotion "cannot be
+	// self-granted by an agent" — an accusation about an action they had not
+	// taken. Found by running the command rather than by a test, which is the
+	// third time that has been the case.
+	if !cmd.Eff.Writes() {
+		return preview(&report, cmd), nil
+	}
+
 	carried, refusal, mayWrite := authorise(&report, cmd)
 	if !mayWrite {
 		return c.refuse(&report, cmd, refusal), nil
 	}
 
-	if !cmd.Eff.Writes() {
-		return gnosis.OK(map[string]any{
-			"path": cmd.Path, "effect": cmd.Eff.String(),
-			"decision": report.Decide(), "approved": true, "report": report,
-		}), nil
-	}
 	return c.apply(op, cmd, candidate, &report, carried)
+}
+
+// preview answers "what would happen", without judging an authorisation nobody
+// offered.
+//
+// Requires: cmd.Eff does not write.
+// Ensures: never writes and never records an audit row — a preview is a read, and
+// a mutation log that also holds reads is a log somebody stops reading. The
+// outcome mirrors what an apply would decide, so a preview reporting ok is a
+// promise the write would succeed, which is the property §9.4 is about.
+//
+// For a needs_human candidate it names the requirements rather than reporting them
+// as unmet. The distinction is small and it is the difference between a tool that
+// tells you what is needed and one that tells you what you did wrong.
+func preview(report *gate.Report, cmd *command.Promote) gnosis.Outcome {
+	decision := report.Decide()
+	failed, unchecked := report.Withheld()
+	data := map[string]any{
+		"path": cmd.Path, "effect": cmd.Eff.String(), "decision": decision,
+		"failed": failed, "unchecked": unchecked, "report": report,
+	}
+
+	switch decision {
+	case gate.DecisionApproved:
+		data["approved"] = true
+		return gnosis.OK(data)
+	case gate.DecisionNeedsHuman:
+		data["approved"] = false
+		data["requires"] = []string{
+			"an approver who is a person, as --approver human:<id>",
+			"a rationale, as --rationale",
+			"typing the document's path when prompted",
+		}
+		return gnosis.Blocked(gnosis.ReasonNeedsHuman,
+			"every implemented signal passed; applying this would need a person to "+
+				"carry the signals that could not run", data)
+	default:
+		data["approved"] = false
+		return withheld(report, cmd)
+	}
 }
 
 // authorise applies §9.5's policy to a gate report.

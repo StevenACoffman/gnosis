@@ -384,3 +384,53 @@ func mustReadFile(t *testing.T, path string) []byte {
 	}
 	return data
 }
+
+// TestARefusedCandidateResistsEveryConfirmation is the assertion the whole design
+// rests on. The human path is defensible only because it opens for what could not
+// be checked and stays shut for what was checked and failed; if a signature could
+// carry a failed signal, this would be the `--yes` bypass §15 forbids with a
+// longer prompt.
+//
+// The candidate here duplicates a title already in the corpus, so `duplication`
+// fails while everything else passes — the closest a document gets to promotable
+// while still being refused.
+func TestARefusedCandidateResistsEveryConfirmation(t *testing.T) {
+	t.Parallel()
+	dir := admissibleBundle(t)
+
+	// Put a document with the same title in the corpus, so the candidate is a
+	// duplicate of something already there.
+	other := filepath.Join(dir, "c", "other.md")
+	if err := os.MkdirAll(filepath.Dir(other), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	existing := "---\ntype: Reference\ntitle: Cache Lifetime\n" +
+		"gnosis_id: 01932b7c-0000-7000-8000-000000000001\n---\nOther body.\n"
+	if err := os.WriteFile(other, []byte(existing), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	cmd := promoteCmd(command.EffectApply)
+	cmd.Confirmation = docPath // correctly typed
+	cmd.Rationale = "I am certain, and I have thought about it carefully"
+	cmd.Approver = "human:priya" // a real person
+
+	got := execute(t, dir, cmd)
+	if got.Status != gnosis.StatusBlocked {
+		t.Fatalf("status = %q, want blocked (%s)", got.Status, got.Message)
+	}
+	if _, err := os.Stat(filepath.Join(dir, docPath)); err == nil {
+		t.Fatal("a correctly confirmed human promoted a candidate that FAILED a signal")
+	}
+
+	data, _ := got.Data.(map[string]any)
+	failed, _ := data["failed"].([]gate.Signal)
+	if !slices.Contains(failed, gate.SignalDuplication) {
+		t.Errorf("failed = %v, want duplication among them", failed)
+	}
+	// The refusal must not read like the escalation. Telling somebody to confirm
+	// harder when no confirmation exists is worse than a bare refusal.
+	if strings.Contains(got.Message, "confirm by typing") {
+		t.Errorf("a refusal offered a confirmation that cannot work: %q", got.Message)
+	}
+}

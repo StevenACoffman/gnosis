@@ -25,6 +25,8 @@ import (
 	"github.com/StevenACoffman/gnosis/cmd/initcmd"
 	"github.com/StevenACoffman/gnosis/cmd/lintcmd"
 	"github.com/StevenACoffman/gnosis/cmd/logcmd"
+	"github.com/StevenACoffman/gnosis/cmd/promotecmd"
+	"github.com/StevenACoffman/gnosis/cmd/quarantinecmd"
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/cmd/searchcmd"
 	"github.com/StevenACoffman/gnosis/cmd/showcmd"
@@ -53,6 +55,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	fetchcmd.New(r)
 	ingestcmd.New(r)
 	admitcmd.New(r)
+	quarantinecmd.New(r)
+	promotecmd.New(r)
 	logcmd.New(r)
 	standardscmd.New(r)
 	// register new commands here
