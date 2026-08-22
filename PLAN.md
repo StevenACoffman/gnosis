@@ -524,6 +524,39 @@ Two of them were the same work, since joining freshness to a command is what giv
 
 ______________________________________________________________________
 
+### 4.3 What the Third Tier 1 Pass Turned Up
+
+The three items were one: the gate was permanently red, there was no way to drive
+it from a terminal, and there was no sanctioned way through it. A corpus that can
+ingest and never promote has a full inbox and an empty shelf.
+
+- **"Correct" was half an answer.** The gate refused everything and the package
+  comment said so and called that right. It *was* right and it was not sufficient,
+  and the difference took writing down the third option to see: a bound with a
+  recorded reason is neither the lie (pass a partial check) nor the bypass
+  (`--force`). The test of which one you have built is whether the corpus can
+  enumerate the debt afterwards.
+- **A comment claiming a package does not exist.** `security` returned a literal
+  saying §9.3's scan "is not built", months after `internal/scan` landed. Dead-wrong
+  comments are worse than missing ones, and this one hid a real gap: the scan ran
+  over fetched sources and never over the candidate document, which is the more
+  dangerous artifact.
+- **An honesty mechanism nobody called.** `scan.Stages()` existed so a caller could
+  report which stages ran, and had zero callers — the exact failure §6.5.1 was
+  written about one layer up, in the same week, without either being noticed from
+  the other.
+- **Implemented, proven, and still unchecked.** Adding a planted defect for
+  `security` broke an equivalence the self-test's own tests relied on. *Unproven* is
+  a fact about a signal; *unchecked* is a fact about one candidate. They coincided
+  only while every unchecked signal was an unbuilt one.
+- **Running it by hand found what tests did not, for the third time.** A preview
+  with no `--approver` told the caller their promotion "cannot be self-granted by an
+  agent" — an accusation about an action they had not taken — and wrote an audit row
+  for a read. Neither was reachable from the test suite as written, because both
+  tests supplied an approver.
+
+______________________________________________________________________
+
 ## 5. Per-Step Exit Criteria
 
 Every step, without exception:

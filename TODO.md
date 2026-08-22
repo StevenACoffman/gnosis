@@ -143,6 +143,23 @@ ______________________________________________________________________
 
 ## Noticed While Building Phase 2
 
+- [ ] **§9.3 stages 2 and 3 are still unbuilt, and now cost a signature.** Injection
+  and exfiltration patterns need a pattern corpus with its own test set; secrets need
+  a `betterleaks` dependency. Until they land, every promotion in every corpus routes
+  through §9.5.1's human path, which is correct and is also friction on the ordinary
+  case. These are the highest-value remaining Phase 2 items precisely because their
+  absence is now measurable — the audit trail counts it.
+- [ ] **Nothing reports the accumulated debt.** `audit.Row.Signals` records which
+  checks each promotion was carried over, and no command reads it. The obvious verb
+  is `gnosis debt` or a `log --carried` flag: *these 34 documents were admitted with
+  no conflict check*. Without a reader the field is a promise rather than a
+  mechanism, which is the same trap §6.5.1 is about.
+- [ ] **A `refused` candidate has no route to a fix.** `promote` reports which
+  signal failed and the author must re-run the whole relay to correct it. There is no
+  `gnosis quarantine --edit` and arguably should not be — editing quarantined content
+  by hand is how unvetted text acquires a human's authority without review. Worth a
+  decision either way rather than an absence.
+
 - [ ] **Freshness is per document, not per claim.** `show` reports the oldest check
   across every source the document cites, so one unverified source marks the whole
   page. That is the right *conservative* answer and the wrong *useful* one: a reader
@@ -241,14 +258,16 @@ ______________________________________________________________________
   literal `HedgingMax: 3` in `bundle.gateInputs`. That is exactly the hardcoded
   threshold §6.5 forbids, and it has no rationale attached. `MinPassageWords` is
   fine — it comes from `quotecheck`, so the gate and the guard cannot disagree.
-- [ ] **The gate has no human-approval path.** §9.5 requires that promotion of a
-  document whose scan produced findings, or which contradicts an accepted one, take
-  a human with phrase confirmation and no `--yes`. Both conditions need the
-  `security` and `conflict` signals, so this waits on them — but the `Approver`
-  field is already on the command, so nothing structural blocks it.
-- [ ] **No `gnosis promote` or `gnosis quarantine` verb.** The coordinator handler
-  and the store both work and are reachable only from Go. A reader cannot see what
-  is waiting in tier 1.
+- [x] **The gate has no human-approval path.** Built, and generalised past what
+  this entry asked for: the path opens for any signal that *could not run*, not only
+  for a scan finding or a conflict. Three requirements, each closing a route back to
+  a bypass — a `human:` approver, the document's path typed as the phrase, and a
+  rationale. §9.5.1. The audit row records which signals were carried, which is the
+  field the whole argument rests on.
+- [x] **No `gnosis promote` or `gnosis quarantine` verb.** Both exist. `quarantine`
+  reports each waiting document's gate decision rather than only its path, because a
+  list of paths says what is stuck and not why. `promote` previews by default. The
+  ingest cycle now completes end to end for the first time.
 - [x] **`gnosis_claims` archive paths are checked by lint.** *The `archive-path`
   check, which covers the whole corpus rather than only newly admitted documents —
   a better placement than the Quarantine hook this entry proposed.* Original: The gate
@@ -519,11 +538,11 @@ how cheap they are relative to what they buy.
   §5 says at length what a document is and nowhere what does not belong. A corpus
   restating what the code already says drifts invisibly, because both halves stay
   internally consistent.
-- [ ] **The promote gate can deadlock with no cap and no recorded reason.** Two
-  signals are unimplementable, so nothing promotes. That is correct and it is also a
-  trap. `oh-my-agent` caps reinforcement at five "so a permanently red gate can't
-  trap you." The honest form is a bound with a recorded reason, not a bypass — and
-  the decision belongs to §9.5.
+- [x] **The promote gate can deadlock with no cap and no recorded reason.** Resolved
+  as the entry framed it: a bound with a recorded reason. `gate.Decision` separates
+  *could not check* from *checked and failed*, and only the first is carryable. The
+  reason is recorded in the audit row's new `signals` field, so the debt is
+  enumerable rather than merely permitted.
 - [x] **The link graph is untyped and nothing said what that means.** *Fixed:
   §5.5.1.2 states that an empty `rel` asserts nothing, that arrangement is not
   causality, and why typing the vocabulary waits on §5.8. §20's trail entry already

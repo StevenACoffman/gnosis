@@ -2036,9 +2036,25 @@ the corpus is a durable prompt injection carrying the team's own authority. This
 stage is not optional and runs before any model sees the content.
 
 Ordered, all deterministic. **Stage 1 is built; stages 2 through 4 are not**, and
-`internal/scan`'s `Stages()` reports which ran so that a clean result is never read
+`internal/scan`'s `Coverage` reports which ran so that a clean result is never read
 as "the scan passed". A caller that cannot distinguish "no hidden characters" from
 "§9.3 satisfied" will eventually claim the second on the strength of the first.
+
+That reporting is consumed rather than merely available, which was not true of its
+first form: a `Stages()` function returned the implemented stage list and nothing
+ever called it — an honesty mechanism declared and read by nobody, the same failure
+§6.5.1 describes one layer up. `Coverage` feeds the promote gate's `security`
+signal, which reports `unchecked` when a stage did not run, which is what routes a
+candidate to §9.5.1's human path.
+
+**Stage 4 is a special case worth stating.** `archive.Gates` already enforces
+`per_file_cap` and `embedded_payload_cap` when a fetched source is admitted, which
+is this stage's bound in the place this section asks for it. What that does not
+cover is a *candidate document*: the archive gate bounds sources arriving from
+upstream, and a document a model wrote is neither fetched nor archived. So the
+bound exists for one input and not the other, and `Coverage` reports the stage as
+missing because one context-free function cannot report both truthfully.
+Inventing a second bound to close the gap is what §6.5 exists to prevent.
 
 1. **Hidden characters** — `qvr/internal/security/unicode.go` is the liftable
    reference: zero-width (`0x200B`, `0x200C`, `0x200D`, `0x2060`, `0xFEFF`), bidi
@@ -2058,7 +2074,16 @@ as "the scan passed". A caller that cannot distinguish "no hidden characters" fr
 Findings gate the ingest, land in the audit trail, and export as SARIF for any
 code-scanning pipeline that wants them.
 
-The gate runs at **admission to tier 0**, not at lint time: hidden characters in a
+The scan runs **twice, over two different artifacts**, and conflating them was a
+real gap rather than a hypothetical one. At admission to tier 0 it scans the
+*fetched source*. At the promote gate it scans the *candidate document* — the whole
+file including frontmatter, since a `subject` or a source URI is machine-read and a
+zero-width character hides in a key exactly as well as in prose. The candidate is
+the more dangerous of the two: it is the artifact filed into the corpus for an
+agent to obey, and a model can reproduce an injected instruction out of source text
+that was itself clean.
+
+The tier-0 half runs at **admission**, not at lint time: hidden characters in a
 fetched source must never reach disk, which is what "before any model sees the
 content" means when the content is being archived. A source that fails falls through
 to `referenced` (§4.3) — the URI and hash are still recorded, and nothing quotable
@@ -2166,6 +2191,64 @@ Promotion of a concept whose scan produced findings, or which contradicts an
 accepted concept, requires a human — `clu`'s approval checkpoints in the workflow
 graph, with the phrase-confirmation discipline `adh` uses for irreversible
 actions. No `--yes`, no environment variable, no self-granted approval.
+
+#### 9.5.1 What a Gate Does When It Cannot Check
+
+Seven signals, and two of them read subsystems that do not exist yet: `conflict`
+needs §10's adjudication, and `security` can run one of §9.3's four scan stages.
+A signal that did not run reports `unchecked`, which is not a pass — "nobody
+looked" is not the claim "this is fine".
+
+Requiring every signal to pass therefore meant **nothing could ever be promoted**.
+An earlier draft of this section said so and called it correct. It was correct and
+it was half an answer: a permanently red gate with no sanctioned way through it is
+a trap, and the trap's shape is familiar — `oh-my-agent` caps its reinforcement
+loop at five iterations "so a permanently red gate can't trap you". The honest form
+is **a bound with a recorded reason, not a bypass.**
+
+So the gate reaches one of four decisions:
+
+| Decision | Condition | Who may promote |
+| -------- | --------- | --------------- |
+| `approved` | the control held and every signal passed | anybody; no confirmation |
+| `needs_human` | nothing failed and at least one signal could not run | a person, with a phrase and a rationale |
+| `refused` | at least one signal failed | **nobody** |
+| `unavailable` | the planted-defect control did not hold | nobody |
+
+**The load-bearing row is `refused`.** A failed evidence check is not a judgement
+call: there is no confirmation phrase that makes a fabricated quotation acceptable
+and no person senior enough to make one true. **The human path opens for what could
+not be checked and stays shut for what was checked and failed.** That sentence is
+the whole difference between an escalation and the `--yes` this specification
+forbids two sections later, and it is the property most worth testing.
+
+`refused` outranks `needs_human` when both apply. Offering somebody a signature
+over a document with a known defect in it is worse than refusing it twice.
+
+Carrying an unchecked signal takes three things, each closing a different route
+back to a bypass:
+
+- **A person.** `human:` and not `agent:`. An agent authorising its own promotion
+  makes the path decorative, and an agent is what produced the candidate.
+- **The phrase.** Typing the document's path. Not "yes" — a confirmation
+  suppliable from muscle memory confirms nothing, and naming the file is what
+  makes somebody look at which one it is. There is deliberately **no flag** that
+  supplies it: a `--confirm=<path>` lives in shell history, in scripts, and in CI.
+- **A rationale.** §10.6.4's argument applies unchanged: a required rationale
+  filters more bad adjudications than a permission check does, because the
+  reviewer has to write it where colleagues will read it.
+
+**The audit row records which signals were carried, and that is what makes this a
+debt register rather than a bypass.** A trail saying only "a human approved it"
+cannot answer the question that matters when §10 lands: *which claims in this
+corpus were admitted with no conflict check?* A trail naming the signals can, and
+every such document is then one query from re-examination. Without that field the
+argument in this subsection collapses and the design is a `--force` with a longer
+prompt.
+
+A machine caller is never prompted. `--jsonl` returns `blocked` with the
+requirement in the envelope, because a prompt on a pipe hangs — which is a failure
+mode that presents as the tool having crashed.
 
 ### 9.6 Corrections Accrete Without Cooperation
 
