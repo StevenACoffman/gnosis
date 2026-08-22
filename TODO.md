@@ -143,6 +143,21 @@ ______________________________________________________________________
 
 ## Noticed While Building Phase 2
 
+- [ ] **§9.3 stages two through four are unbuilt.** Injection and exfiltration
+  patterns, secrets via `betterleaks`, and the oversize bound. Each needs its own
+  decision — a pattern corpus with a test set, a dependency, a `standards/` value —
+  and `scan.Stages()` exists so a report can say which stages produced a clean
+  result rather than implying all four did.
+- [ ] **Nothing renders a scan's full finding set.** `archive` reduces it to one
+  `RejectReason`, which is right for a disposition and loses the detail: a source
+  carrying three classes reports one. A `doctor` or `fetch --explain` view wants
+  `scan.Hidden`'s findings with their offsets.
+- [ ] **`archive.Gates.ScanText` fails open on nil.** Documented and tested as
+  deliberate, because the alternative makes every caller carry a stub. It means the
+  wiring is a property one test asserts rather than one the type guarantees, and if
+  a second shell ever builds Gates that test is what stands between it and no scan.
+- [ ] **`rebuild_floor_fraction` lodges in `archive.toml`.** It is not an admission
+  gate. Move it when `standards/promote.toml` exists and there is somewhere better.
 - [ ] **No `--resume` and no crash-resumable queue.** §9.2 wants the ingest queue
   SQLite-backed so a killed process resumes rather than restarting. Prompts are
   currently emitted in one pass and a crash halfway through leaves some written and
@@ -156,7 +171,9 @@ ______________________________________________________________________
 - [x] **`admit` verifies the key names an emitted prompt.** *Fixed in Step 2.8 by
   the `PromptMeta` sidecar: a key with no meta is refused before the reply is
   cached.*
-- [ ] **An audit append that fails does not fail the write, and the gap is
+- [x] **An audit gap is now visible in three places.** *`audit_failed` in Data, the
+  envelope message, and a Warn writer the commands point at stderr. Still not a
+  status: the write happened.* Original:
   silent.** `Coordinator.record` is best-effort by design — reporting the failure
   as the operation's would tell a caller to retry something that succeeded — and
   the note lands in the outcome's message where a machine will not see it. A trail
@@ -184,11 +201,14 @@ ______________________________________________________________________
 - [ ] **No `gnosis promote` or `gnosis quarantine` verb.** The coordinator handler
   and the store both work and are reachable only from Go. A reader cannot see what
   is waiting in tier 1.
-- [ ] **`gnosis_claims` archive paths are unvalidated at write time.** The gate
+- [x] **`gnosis_claims` archive paths are checked by lint.** *The `archive-path`
+  check, which covers the whole corpus rather than only newly admitted documents —
+  a better placement than the Quarantine hook this entry proposed.* Original: The gate
   reads `archive_paths` from frontmatter and checks they exist in tier 0, which
   catches the case at promotion. Nothing checks them when a document is
   *quarantined*, so an author learns about a typo one step later than they could.
-- [ ] **`StoreEvidence` never overwrites, and nothing yet reports when it should
+- [x] **`StoreEvidence` reports a path holding the wrong bytes.** *ECONFLICT naming
+  the path, and the existing bytes survive to be looked at.* Original:
   have.** A record path is the hash of its content, so differing bytes at an
   existing path is corruption or tampering rather than an update. The writer
   correctly declines to replace it — and currently says nothing, reporting the
@@ -222,7 +242,9 @@ ______________________________________________________________________
   produced a tier-0 file; §4.3.1 has `.gnosis/fetch.jsonl` as a greppable rollup
   rebuilt by `index rebuild`. Neither exists, so tier 0 is currently writable and
   unqueryable — every question about it means walking `evidence/fetch/`.
-- [ ] **The fetch adapters do no hidden-character scan.** §4.4 requires archived
+- [x] **The fetch adapters run §9.3's hidden-character scan.** *`internal/scan`,
+  wired through `archive.Gates.ScanText`. Stage one of four; `scan.Stages()` reports
+  which ran, so a clean scan is not read as "§9.3 passed".* Original: §4.4 requires archived
   text be subject to §9.3's scan, and §9.3 is unbuilt. Currently an SVG — or any
   source — can carry invisible text into the archive.
 - [ ] **`go-git/v6` is an alpha in the evidence path.** Decided in §20.6 with the
@@ -346,8 +368,10 @@ ______________________________________________________________________
 Findings from the governance/memory survey recorded in `manifesto.md`. Ordered by
 how cheap they are relative to what they buy.
 
-- [ ] **`index rebuild` has no sanity guard on the document count.** *Specified in
-  §4.5 and listed as the next item in PLAN §4.1; not implemented.* `haft` hard-
+- [x] **`index rebuild` refuses a collapse.** *§4.5, `index.FloorBreached`, and
+  `rebuild_floor_fraction` in `archive.toml`. The previously indexed count is
+  `len(indexed)`, already loaded to compute drift, so the plan's meta row was
+  unnecessary. `--force` overrides; `--check` is exempt because it writes nothing.* `haft` hard-
   rejects a refresh whose derived unit count falls below 50% of the last verified
   one. A gnosis rebuild that finds three documents where there were five hundred is
   a corrupted bundle or a bad `--bundle`, and it currently writes that index without

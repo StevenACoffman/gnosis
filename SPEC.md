@@ -1909,7 +1909,10 @@ Ingested text is text an agent will obey. A poisoned upstream page filed into
 the corpus is a durable prompt injection carrying the team's own authority. This
 stage is not optional and runs before any model sees the content.
 
-Ordered, all deterministic:
+Ordered, all deterministic. **Stage 1 is built; stages 2 through 4 are not**, and
+`internal/scan`'s `Stages()` reports which ran so that a clean result is never read
+as "the scan passed". A caller that cannot distinguish "no hidden characters" from
+"§9.3 satisfied" will eventually claim the second on the strength of the first.
 
 1. **Hidden characters** — `qvr/internal/security/unicode.go` is the liftable
    reference: zero-width (`0x200B`, `0x200C`, `0x200D`, `0x2060`, `0xFEFF`), bidi
@@ -1928,6 +1931,12 @@ Ordered, all deterministic:
 
 Findings gate the ingest, land in the audit trail, and export as SARIF for any
 code-scanning pipeline that wants them.
+
+The gate runs at **admission to tier 0**, not at lint time: hidden characters in a
+fetched source must never reach disk, which is what "before any model sees the
+content" means when the content is being archived. A source that fails falls through
+to `referenced` (§4.3) — the URI and hash are still recorded, and nothing quotable
+was kept, which is the same shape every other admission refusal takes.
 
 ### 9.4 Segment, Then Validate
 

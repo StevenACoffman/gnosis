@@ -470,18 +470,14 @@ not. **Phase 3 is blocked** on `skillet/ruleset/conflict`. Neither blocks Phase 
 Each is specified now and none is large. They are listed together because they came
 from one source and would otherwise be scattered across four phases.
 
-- **The rebuild floor** (§4.5, new). `index rebuild` refuses when the document count
-  falls below a declared share of the last verified count, naming both numbers.
-  Costs one integer beside the schema version, and prevents the one destruction the
-  regenerable-cache argument does not cover: a wrong `--bundle` writing an index that
-  describes nothing over the only artifact that showed what was there. **Do this
-  next** — it is the cheapest item in either survey and it protects the corpus from
-  the tool.
+- **The rebuild floor** (§4.5). **Done.** It cost less than budgeted: the previously
+  indexed count is `len(indexed)`, which `indexcmd` already loads to compute drift,
+  so the planned meta row was unnecessary.
 - **`standards/promote.toml`** (§9.5). Already outstanding; the rebuild floor and the
   hedging limit both belong in it, so it stops being one literal in Go.
-- **Corruption versus operational failure** (§15, new). `AuditTrail` and the tier-0
-  readers should say which they hit. A malformed line and a failing disk currently
-  read alike.
+- **Corruption versus operational failure** (§15). Still open for `AuditTrail`.
+  `StoreEvidence` now draws the line for the case that matters most — differing
+  bytes at a content-addressed path is ECONFLICT rather than a quiet no-op.
 - **Freshness at the point of reading** (§14.3). `show` renders no staleness. The
   index knows; the person reading the claim does not.
 - **A relay test with a scripted model** (§18). `cmd/relay_test.go` hand-writes every
