@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/command"
@@ -51,26 +52,68 @@ func (c *Coordinator) promote(_ context.Context, cmd *command.Promote) (gnosis.O
 	}
 
 	report := gate.Evaluate(candidate, corpus, limits)
-	if !report.Approved() {
-		outcome := withheld(&report, cmd)
-		// A refusal is recorded too. "We declined to promote this eleven times" is
-		// a fact about the corpus that a successful-writes-only trail would not
-		// hold, and it is the fact most worth having when somebody asks why a
-		// document never landed.
-		c.record(&audit.Row{
-			At: c.now(), Op: audit.OpPromote, Actor: string(cmd.Approver),
-			Paths: []string{cmd.Path}, Outcome: string(outcome.Status),
-			Detail: outcome.Message,
-		})
-		return outcome, nil
+	carried, refusal, mayWrite := authorise(&report, cmd)
+	if !mayWrite {
+		return c.refuse(&report, cmd, refusal), nil
 	}
+
 	if !cmd.Eff.Writes() {
 		return gnosis.OK(map[string]any{
 			"path": cmd.Path, "effect": cmd.Eff.String(),
-			"approved": true, "report": report,
+			"decision": report.Decide(), "approved": true, "report": report,
 		}), nil
 	}
-	return c.apply(op, cmd, candidate, &report)
+	return c.apply(op, cmd, candidate, &report, carried)
+}
+
+// authorise applies §9.5's policy to a gate report.
+//
+// Requires: report is the gate's answer for cmd's candidate.
+// Ensures: pure. mayWrite is true only when the promotion may proceed; carried
+// names the unrun signals a person is taking responsibility for, and is empty for
+// a promotion the gate approved on its own. refusal is meaningful only when
+// mayWrite is false.
+//
+// **The human path opens for what could not be checked and stays shut for what was
+// checked and failed.** That sentence is the policy and this function is the only
+// place it is enforced. A `refused` candidate has no route through here at any
+// actor, with any phrase, carrying any rationale — there is no confirmation that
+// makes a fabricated quotation acceptable, and providing one would make this the
+// `--yes` bypass §15 forbids rather than the escalation §9.5 requires.
+func authorise(report *gate.Report, cmd *command.Promote) (
+	carried []string, refusal gnosis.Outcome, mayWrite bool,
+) {
+	switch report.Decide() {
+	case gate.DecisionApproved:
+		return nil, gnosis.Outcome{}, true
+	case gate.DecisionNeedsHuman:
+		if why := authorisedBy(cmd); why != "" {
+			return nil, needsHuman(report, cmd, why), false
+		}
+		return unrunSignals(report), gnosis.Outcome{}, true
+	case gate.DecisionRefused, gate.DecisionUnavailable:
+		return nil, withheld(report, cmd), false
+	default:
+		// An unrecognised decision authorises nothing. A member added to the
+		// enumeration without a branch here refuses rather than falling through.
+		return nil, withheld(report, cmd), false
+	}
+}
+
+// refuse records a withheld promotion and returns the outcome.
+//
+// A refusal is recorded too. "We declined to promote this eleven times" is a fact
+// about the corpus that a successful-writes-only trail would not hold, and it is
+// the fact most worth having when somebody asks why a document never landed.
+func (c *Coordinator) refuse(
+	report *gate.Report, cmd *command.Promote, outcome gnosis.Outcome,
+) gnosis.Outcome {
+	c.record(&audit.Row{
+		At: c.now(), Op: audit.OpPromote, Actor: string(cmd.Approver),
+		Paths: []string{cmd.Path}, Outcome: string(outcome.Status),
+		Detail: outcome.Message, Signals: unrunSignals(report),
+	})
+	return outcome
 }
 
 // apply writes the approved bytes and clears the draft.
@@ -80,6 +123,7 @@ func (c *Coordinator) promote(_ context.Context, cmd *command.Promote) (gnosis.O
 // draft — visible, and harmless to re-promote. The reverse would lose the content.
 func (c *Coordinator) apply(
 	op string, cmd *command.Promote, candidate *gate.Candidate, report *gate.Report,
+	carried []string,
 ) (gnosis.Outcome, error) {
 	full := filepath.Join(c.Dir, filepath.FromSlash(cmd.Path))
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
@@ -93,19 +137,46 @@ func (c *Coordinator) apply(
 	if err := Discard(c.Dir, cmd.Path); err != nil {
 		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
 	}
+	detail := "promoted from quarantine"
+	if len(carried) > 0 {
+		// The debt, written where it can be found. When §10 lands, every document
+		// admitted without a conflict check is one query away.
+		detail = "promoted from quarantine over unrun signals (" +
+			strings.Join(carried, ", ") + "): " + cmd.Rationale
+	}
 	c.record(&audit.Row{
 		At: c.now(), Op: audit.OpPromote, Actor: string(cmd.Approver),
 		Paths:      []string{cmd.Path},
 		HashBefore: hashOrEmpty(candidate.Before),
 		HashAfter:  hashOrEmpty(candidate.After),
 		Outcome:    string(gnosis.StatusOK),
-		Detail:     "promoted from quarantine",
+		Detail:     detail,
+		Signals:    carried,
 	})
 	return gnosis.OK(map[string]any{
 		"path": cmd.Path, "effect": cmd.Eff.String(),
-		"approved": true, "wrote": true,
+		"approved": true, "wrote": true, "carried": carried,
 		"approver": string(cmd.Approver), "report": report,
 	}), nil
+}
+
+// needsHuman renders the escalation: what the gate could not check, and what a
+// person must supply to carry it anyway.
+//
+// Distinct from withheld because the two say opposite things about the document.
+// A withheld promotion has something wrong with it. This one may have nothing
+// wrong with it at all — the gate simply cannot say, and the message must not send
+// an author hunting for a defect that is not there.
+func needsHuman(report *gate.Report, cmd *command.Promote, why string) gnosis.Outcome {
+	_, unchecked := report.Withheld()
+	return gnosis.Blocked(gnosis.ReasonNeedsHuman,
+		"every implemented signal passed; a person must carry the signals that "+
+			"could not run — "+why,
+		map[string]any{
+			"path": cmd.Path, "effect": cmd.Eff.String(),
+			"decision": gate.DecisionNeedsHuman, "approved": false,
+			"unchecked": unchecked, "report": report,
+		})
 }
 
 // withheld renders a refusal, distinguishing what failed from what could not run.

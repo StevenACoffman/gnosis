@@ -30,6 +30,18 @@ type Promote struct {
 	// Rationale is why. Required when RequiresRationale is set.
 	Rationale string
 
+	// Confirmation is the phrase a person typed to authorise a promotion the gate
+	// would not approve on its own (§9.5). It must equal Path, not "yes": a
+	// confirmation a reader can supply from muscle memory confirms nothing, and
+	// naming the document is what makes them look at which one it is.
+	//
+	// It is a field on the command rather than a coordinator argument for the
+	// reason every other gating field here is one — a write carries its own
+	// authorisation, so no caller can acquire it after the fact (§4.6.2). Whether
+	// it is *required* depends on the gate report, which only the coordinator can
+	// compute; whether it is *present* is this type's business.
+	Confirmation string
+
 	// RequiresRationale is set by the caller that knows which review tier applies
 	// (§10.6.4). This package cannot know the tier — that is a property of the
 	// document and the corpus — but it can refuse a command that says a rationale

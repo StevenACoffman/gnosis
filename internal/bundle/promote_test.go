@@ -3,10 +3,12 @@ package bundle_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
+	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gate"
@@ -85,10 +87,12 @@ func promoteCmd(eff command.Effect) *command.Promote {
 	return &command.Promote{Path: docPath, Eff: eff, Approver: "human:priya"}
 }
 
-// TestAdmissibleCandidateIsStillWithheld is the honest state of this build and is
-// asserted so it is not mistaken for a defect. Every signal that can run passes;
-// `security` and `conflict` cannot run, and unchecked withholds approval.
-func TestAdmissibleCandidateIsStillWithheld(t *testing.T) {
+// TestAdmissibleCandidateAsksForAHuman is the honest state of this build. Every
+// signal that can run passes; `conflict` cannot run at all and `security` ran one
+// §9.3 stage of four. That withholds *automatic* approval and no longer withholds
+// promotion outright — the difference between the two is the whole of §9.5's human
+// path, and an earlier version of this test asserted the deadlock as correct.
+func TestAdmissibleCandidateAsksForAHuman(t *testing.T) {
 	t.Parallel()
 	dir := admissibleBundle(t)
 
@@ -96,14 +100,21 @@ func TestAdmissibleCandidateIsStillWithheld(t *testing.T) {
 	if got.Status != gnosis.StatusBlocked {
 		t.Fatalf("status = %q (%s), want blocked", got.Status, got.Message)
 	}
-	if got.Reason != gnosis.ReasonGateUnavailable {
-		t.Errorf("reason = %q, want the unbuilt-signal reason", got.Reason)
+	if got.Reason != gnosis.ReasonNeedsHuman {
+		t.Errorf("reason = %q, want needs_human", got.Reason)
 	}
 
 	data, _ := got.Data.(map[string]any)
-	failed, _ := data["failed"].([]gate.Signal)
-	if len(failed) != 0 {
-		t.Errorf("an admissible candidate failed signals: %v", failed)
+	unchecked, _ := data["unchecked"].([]gate.Signal)
+	if len(unchecked) == 0 {
+		t.Error("the escalation does not name what could not be checked")
+	}
+	// The message must say what to supply. An escalation a caller cannot act on
+	// is a deadlock with better wording.
+	for _, want := range []string{"confirm", docPath, "why"} {
+		if !strings.Contains(got.Message, want) {
+			t.Errorf("the message omits %q: %s", want, got.Message)
+		}
 	}
 	// Nothing was written, and the draft is still there to retry.
 	if _, err := os.Stat(filepath.Join(dir, docPath)); err == nil {
@@ -111,6 +122,113 @@ func TestAdmissibleCandidateIsStillWithheld(t *testing.T) {
 	}
 	if _, err := bundle.ReadQuarantined(dir, docPath); err != nil {
 		t.Errorf("a withheld promotion discarded the draft: %v", err)
+	}
+}
+
+// TestAHumanCanCarryTheUnrunSignals is the first promotion that succeeds. Until
+// the decision existed, no candidate could reach the corpus at all.
+func TestAHumanCanCarryTheUnrunSignals(t *testing.T) {
+	t.Parallel()
+	dir := admissibleBundle(t)
+
+	cmd := promoteCmd(command.EffectApply)
+	cmd.Confirmation = docPath
+	cmd.Rationale = "reviewed the source by hand; §10 is unbuilt and this cites one page"
+
+	got := execute(t, dir, cmd)
+	if got.Status != gnosis.StatusOK {
+		t.Fatalf("status = %q (%s), want ok", got.Status, got.Message)
+	}
+	if _, err := os.Stat(filepath.Join(dir, docPath)); err != nil {
+		t.Errorf("the document was not written: %v", err)
+	}
+	if _, err := bundle.ReadQuarantined(dir, docPath); err == nil {
+		t.Error("the draft survived a successful promotion")
+	}
+}
+
+// TestTheDebtIsRecorded is what separates this design from a `--force`. A trail
+// saying only "a human approved it" cannot answer the question that matters when
+// §10 lands: which claims were admitted with no conflict check. One naming the
+// signals can, and every such document is then one query away.
+func TestTheDebtIsRecorded(t *testing.T) {
+	t.Parallel()
+	dir := admissibleBundle(t)
+
+	cmd := promoteCmd(command.EffectApply)
+	cmd.Confirmation = docPath
+	cmd.Rationale = "checked by hand"
+	if got := execute(t, dir, cmd); got.Status != gnosis.StatusOK {
+		t.Fatalf("promotion did not succeed: %s", got.Message)
+	}
+
+	rows, err := bundle.AuditTrail(dir)
+	if err != nil {
+		t.Fatalf("read the trail: %v", err)
+	}
+	var found bool
+	for i := range rows {
+		row := &rows[i]
+		if row.Op != audit.OpPromote || row.Outcome != string(gnosis.StatusOK) {
+			continue
+		}
+		found = true
+		if len(row.Signals) == 0 {
+			t.Error("the row does not name the signals the promotion was carried over")
+		}
+		if !slices.Contains(row.Signals, string(gate.SignalConflict)) {
+			t.Errorf("Signals = %v, want conflict among them", row.Signals)
+		}
+		if !strings.Contains(row.Detail, cmd.Rationale) {
+			t.Errorf("the row does not carry the rationale: %q", row.Detail)
+		}
+	}
+	if !found {
+		t.Error("no successful promotion row in the trail")
+	}
+}
+
+// TestWhatAHumanMayNotDo. Each case is a way the escalation could be turned back
+// into the bypass §15 forbids, and the refusal must name what is missing rather
+// than reporting a generic block.
+func TestWhatAHumanMayNotDo(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		edit func(*command.Promote)
+		says string
+	}{
+		"an agent granting its own promotion": {
+			func(c *command.Promote) { c.Approver = "agent:claude" }, "must be a person",
+		},
+		"confirming with anything but the path": {
+			func(c *command.Promote) { c.Confirmation = "yes" }, "typing the document's path",
+		},
+		"confirming nothing at all": {
+			func(c *command.Promote) { c.Confirmation = "" }, "typing the document's path",
+		},
+		"carrying no reason": {
+			func(c *command.Promote) { c.Rationale = "" }, "state why",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := admissibleBundle(t)
+			cmd := promoteCmd(command.EffectApply)
+			cmd.Confirmation, cmd.Rationale = docPath, "checked by hand"
+			tc.edit(cmd)
+
+			got := execute(t, dir, cmd)
+			if got.Status != gnosis.StatusBlocked {
+				t.Fatalf("status = %q, want blocked (%s)", got.Status, got.Message)
+			}
+			if !strings.Contains(got.Message, tc.says) {
+				t.Errorf("the refusal omits %q: %s", tc.says, got.Message)
+			}
+			if _, err := os.Stat(filepath.Join(dir, docPath)); err == nil {
+				t.Error("the document was written anyway")
+			}
+		})
 	}
 }
 

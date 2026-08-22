@@ -233,7 +233,7 @@ func TestAnAuditFailureDoesNotFailTheWrite(t *testing.T) {
 	}
 
 	// The operation still reports what it actually did.
-	if got.Status != gnosis.StatusBlocked || got.Reason != gnosis.ReasonGateUnavailable {
+	if got.Status != gnosis.StatusBlocked || got.Reason != gnosis.ReasonNeedsHuman {
 		t.Errorf("the outcome changed: status %q reason %q", got.Status, got.Reason)
 	}
 

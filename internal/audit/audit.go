@@ -89,6 +89,19 @@ type Row struct {
 	// the corpus that no successful-writes-only log would hold.
 	Outcome string `json:"outcome,omitempty"`
 
+	// Signals are the gate signals that could not run when this row was written.
+	//
+	// It is the debt register (§9.5). A promotion carried by a person over an
+	// unrun check is defensible only if the corpus can later find every claim
+	// admitted that way — otherwise "a human approved it" is indistinguishable
+	// from a bypass, and the unrun check quietly becomes a check that never runs.
+	// When the subsystem behind a signal lands, this field is the query that says
+	// what to re-examine.
+	//
+	// Recorded on refusals too, where it answers the other question: a document
+	// that never landed may have been blocked by a check nobody has built.
+	Signals []string `json:"signals,omitempty"`
+
 	// Detail is one sentence for a person reading the trail directly.
 	Detail string `json:"detail,omitempty"`
 }
