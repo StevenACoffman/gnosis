@@ -228,10 +228,15 @@ func hedging(c *Candidate, limits Limits) Result {
 // conflict would refuse a document contradicting an accepted one.
 //
 // It cannot run: §10's adjudication — findings, severities, and the record of what
-// was accepted — is Phase 3, so there is nothing to query. Reporting Unchecked
-// blocks promotion, which is the honest outcome: this build cannot tell whether
-// the candidate contradicts the corpus, and saying so is different from saying it
-// does not.
+// was accepted — is Phase 3, so there is nothing to query. Reporting Unchecked is
+// the honest outcome: this build cannot tell whether the candidate contradicts the
+// corpus, and saying so is different from saying it does not.
+//
+// What Unchecked costs has changed. It used to mean nothing could be promoted at
+// all; it now means a promotion carries a person's name and a rationale, and the
+// audit row records that this signal did not run. When §10 lands, every claim
+// admitted on that basis can be found and re-examined, which is the property that
+// makes an unrun check a debt rather than a hole.
 func conflict() Result {
 	return Result{
 		Signal:  SignalConflict,
@@ -240,16 +245,59 @@ func conflict() Result {
 	}
 }
 
-// security would refuse a document whose admission scan produced findings.
+// security refuses a document whose admission scan produced findings.
 //
-// It cannot run: §9.3's scan — hidden characters, injected instructions, secret
-// patterns — is unbuilt. As with conflict, Unchecked blocks. This is the signal
-// where a silent pass would be worst, because the content being gated is
-// specifically content that arrived from outside.
-func security() Result {
-	return Result{
-		Signal:  SignalSecurity,
-		Verdict: VerdictUnchecked,
-		Detail:  "§9.3 admission scan is not built; candidate content was not scanned",
+// It scans the **candidate**, not the sources it was built from, and that is the
+// gap this signal closes. `archive.Gates.ScanText` already scans a fetched source
+// on the way into tier 0, so upstream text is covered. Nothing scanned the
+// document a model then wrote *out* of that text — which is the more dangerous
+// artifact, because it is the one filed into the corpus for an agent to obey, and
+// a model can reproduce an injected instruction out of source that was itself
+// clean.
+//
+// Three outcomes, and the third is the one that earns its keep:
+//
+//   - findings present → Fail. Hidden characters in a document about to be
+//     committed are not a judgement call.
+//   - clean and every §9.3 stage ran → Pass.
+//   - clean and some stage did not run → Unchecked. "No hidden characters" and
+//     "§9.3 passed" are different claims, and only the first is available while
+//     injection patterns and secret scanning are unbuilt. Unchecked routes the
+//     candidate to DecisionNeedsHuman, so it can still be promoted — by a named
+//     person, on the record, with the unrun stages in the audit row.
+//
+// A prior version of this returned a literal saying the scan "is not built". That
+// stopped being true when `internal/scan` landed, and a comment asserting the
+// absence of a package that exists is worse than no comment.
+func security(c *Candidate) Result {
+	res := Result{Signal: SignalSecurity}
+
+	switch {
+	case len(c.Scan.Findings) > 0:
+		res.Verdict = VerdictFail
+		res.Detail = strconv.Itoa(len(c.Scan.Findings)) +
+			" admission scan finding(s): " + strings.Join(c.Scan.Findings, "; ")
+	case len(c.Scan.StagesMissing) > 0:
+		res.Verdict = VerdictUnchecked
+		res.Detail = "no findings from " + stagesOrNone(c.Scan.StagesRun) +
+			", but §9.3 stages not run: " + strings.Join(c.Scan.StagesMissing, ", ")
+	case len(c.Scan.StagesRun) == 0:
+		// Neither run nor missing: nobody populated the field. Reading that as a
+		// clean scan is precisely the mistake this signal exists to prevent.
+		res.Verdict = VerdictUnchecked
+		res.Detail = "the candidate was not scanned"
+	default:
+		res.Verdict = VerdictPass
+		res.Detail = "§9.3 scan clean across " + strings.Join(c.Scan.StagesRun, ", ")
 	}
+	return res
+}
+
+// stagesOrNone renders a stage list, naming the empty case rather than producing
+// a sentence with a hole in it.
+func stagesOrNone(stages []string) string {
+	if len(stages) == 0 {
+		return "no stages"
+	}
+	return strings.Join(stages, ", ")
 }

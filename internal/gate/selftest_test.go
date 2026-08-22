@@ -20,17 +20,14 @@ func TestControlHolds(t *testing.T) {
 	}
 }
 
-// TestUnprovenSignalsAreNamed. A self-test that quietly skipped the two signals
-// with no implementation would report "held" over a battery that never exercised
-// two of seven checks — the same silence VerdictUnchecked exists to break.
+// TestUnprovenSignalsAreNamed. A self-test that quietly skipped a signal with no
+// implementation would report "held" over a battery that never exercised it — the
+// same silence VerdictUnchecked exists to break.
 func TestUnprovenSignalsAreNamed(t *testing.T) {
 	t.Parallel()
 	got := gate.SelfTest()
-	if len(got.Unproven) != 2 {
-		t.Fatalf("Unproven = %v, want the two unbuilt signals", got.Unproven)
-	}
-	if got.Unproven[0] != gate.SignalConflict || got.Unproven[1] != gate.SignalSecurity {
-		t.Errorf("Unproven = %v, want [conflict security]", got.Unproven)
+	if len(got.Unproven) != 1 || got.Unproven[0] != gate.SignalConflict {
+		t.Errorf("Unproven = %v, want only [conflict]", got.Unproven)
 	}
 }
 
@@ -38,6 +35,14 @@ func TestUnprovenSignalsAreNamed(t *testing.T) {
 // rather than restating a list: a signal implemented later without a planted
 // defect must show up as unproven, and this fails if the two sets ever disagree
 // with what the gate actually evaluates.
+//
+// It asserts the forward direction only, and the reverse used to hold. "Unchecked"
+// and "unproven" coincided while every unchecked signal was an unbuilt one, and
+// the security signal separated them: it is implemented, it has a planted defect
+// it rejects, and it still reports Unchecked for a candidate whose scan did not
+// run every §9.3 stage. Unproven is a fact about the *signal*; unchecked is a fact
+// about *this candidate*. Asserting the old equivalence would now forbid exactly
+// the state §9.3 is in.
 func TestEveryImplementedSignalHasAControl(t *testing.T) {
 	t.Parallel()
 	control := gate.SelfTest()
@@ -53,8 +58,22 @@ func TestEveryImplementedSignalHasAControl(t *testing.T) {
 		if res.Verdict != gate.VerdictUnchecked && unproven[res.Signal] {
 			t.Errorf("%s returned %v but has no planted defect", res.Signal, res.Verdict)
 		}
-		if res.Verdict == gate.VerdictUnchecked && !unproven[res.Signal] {
-			t.Errorf("%s is unchecked but claims to have a control", res.Signal)
+	}
+}
+
+// TestAnUnprovenSignalNeverPasses. The forward assertion above is only worth
+// something if an unproven signal cannot quietly approve: a check nobody has shown
+// can fail must not be able to authorise a write.
+func TestAnUnprovenSignalNeverPasses(t *testing.T) {
+	t.Parallel()
+	unproven := map[gate.Signal]bool{}
+	for _, s := range gate.SelfTest().Unproven {
+		unproven[s] = true
+	}
+	report := evaluate(admissiblePtr())
+	for _, res := range report.Results {
+		if unproven[res.Signal] && res.Verdict == gate.VerdictPass {
+			t.Errorf("%s passed with no planted defect proving it can fail", res.Signal)
 		}
 	}
 }

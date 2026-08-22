@@ -162,14 +162,40 @@ func TestEmptyNotNil(t *testing.T) {
 	}
 }
 
-// TestStagesReportsWhatRan, not what SPEC 9.3 specifies. A caller reporting a
+// TestCoverageReportsWhatRan, not what SPEC 9.3 specifies. A caller reporting a
 // clean scan must be able to say which stages produced it, because "no hidden
 // characters" and "9.3 passed" are different claims and only one is available.
-func TestStagesReportsWhatRan(t *testing.T) {
+func TestCoverageReportsWhatRan(t *testing.T) {
 	t.Parallel()
-	got := scan.Stages()
-	if len(got) != 1 || got[0] != "hidden-characters" {
-		t.Errorf("Stages = %v, want only the implemented stage", got)
+	got := scan.TextCoverage()
+	if len(got.Ran) != 1 || got.Ran[0] != scan.StageHidden {
+		t.Errorf("Ran = %v, want only the implemented stage", got.Ran)
+	}
+	if len(got.Missing) != 3 {
+		t.Errorf("Missing = %v, want the three unbuilt stages", got.Missing)
+	}
+}
+
+// TestAnIncompleteScanSaysSo. Complete is what the promote gate branches on, so a
+// partial scan reading as complete would let a candidate through on one stage of
+// four.
+func TestAnIncompleteScanSaysSo(t *testing.T) {
+	t.Parallel()
+	if scan.TextCoverage().Complete() {
+		t.Error("a scan running one stage of four reported itself complete")
+	}
+	full := scan.Coverage{Ran: []string{scan.StageHidden}}
+	if !full.Complete() {
+		t.Error("a scan with nothing missing did not report complete")
+	}
+}
+
+// TestTheZeroCoverageIsNotComplete. Same discipline as every other zero value
+// here: a value nobody populated must not assert that everything was checked.
+func TestTheZeroCoverageIsNotComplete(t *testing.T) {
+	t.Parallel()
+	if (scan.Coverage{}).Complete() {
+		t.Error("the zero Coverage reports a complete scan")
 	}
 }
 

@@ -51,12 +51,40 @@ type Candidate struct {
 	// does not re-read the source.
 	After []byte
 
+	// Scan is what §9.3's admission scan found in After, and which of its stages
+	// ran. Supplied by the shell for the same reason Doc is parsed there:
+	// `internal/scan` is a sibling adapter.
+	//
+	// The zero value reports no findings and no stages, which the security signal
+	// reads as Unchecked rather than clean — a candidate nobody scanned must not
+	// pass the signal that exists to notice that.
+	Scan Scan
+
 	// Doc is After, parsed by the caller.
 	//
 	// The parse belongs to the caller because `internal/okf` is a sibling adapter
 	// and adapters do not import each other (PLAN §0.1). The cost is this struct;
 	// the benefit is that every signal here is testable from a literal.
 	Doc Document
+}
+
+// Scan is the §9.3 admission scan's result for a candidate's bytes.
+//
+// It is a value rather than a call into `internal/scan` because adapters do not
+// import each other, and the shape is deliberately narrower than that package's:
+// this signal needs to know that something was found and what stages looked, not
+// the codepoint of every occurrence. A caller wanting the detail has the scan
+// package.
+type Scan struct {
+	// Findings is one rendered description per finding, already in a form a
+	// person can read. Empty means the stages that ran found nothing, which is
+	// not the same as clean — see Coverage.
+	Findings []string
+
+	// StagesRun and StagesMissing are §9.3's coverage. A scan with anything
+	// missing cannot support a pass, however clean it came back.
+	StagesRun     []string
+	StagesMissing []string
 }
 
 // Document is the parsed view of After that the signals examine.

@@ -68,6 +68,12 @@ func controls() []control {
 			control: hedgingFixture(false),
 			run:     func(f *fixture) Verdict { return hedging(&f.candidate, f.limits).Verdict },
 		},
+		{
+			signal:  SignalSecurity,
+			defect:  securityFixture(true),
+			control: securityFixture(false),
+			run:     func(f *fixture) Verdict { return security(&f.candidate).Verdict },
+		},
 	}
 }
 
@@ -133,6 +139,28 @@ func hedgingFixture(hedged bool) fixture {
 //
 // A vocabulary too short to build the fixture returns nothing, and the control
 // then fails rather than silently exercising a body with no hedging in it.
+// securityFixture pairs a scan that found something with one that did not.
+//
+// Both fixtures declare a *complete* scan, which is the fiddly part and the reason
+// this comment exists. The control must pass, and a scan with stages missing
+// returns Unchecked — so a control built from the real TextCoverage would fail the
+// battery, and the battery's failure would be about coverage rather than about
+// whether the signal discriminates. What is asserted here is the discrimination:
+// findings are rejected, no findings are accepted. That §9.3 is only a quarter
+// built is a true and separate fact, reported by Coverage and by Unproven.
+func securityFixture(dirty bool) fixture {
+	f := fixture{
+		candidate: Candidate{
+			Path: "c/x.md",
+			Scan: Scan{StagesRun: []string{"hidden-characters"}},
+		},
+	}
+	if dirty {
+		f.candidate.Scan.Findings = []string{"zero-width U+200B at offset 12"}
+	}
+	return f
+}
+
 func hedgeTerms() []string {
 	terms := skilllens.SofteningTerms()
 	if len(terms) < 2 {

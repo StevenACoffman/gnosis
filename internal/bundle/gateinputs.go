@@ -33,7 +33,9 @@ const sourcesKey = "sources"
 // error would tell a caller the tool broke, and what actually happened is that
 // their document is malformed.
 func (c *Coordinator) candidate(rel string, before, after []byte) *gate.Candidate {
-	cand := &gate.Candidate{Path: rel, Before: before, After: after}
+	cand := &gate.Candidate{
+		Path: rel, Before: before, After: after, Scan: scanCandidate(after),
+	}
 
 	doc, err := okf.Parse(after)
 	if err != nil {

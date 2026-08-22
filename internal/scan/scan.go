@@ -14,8 +14,14 @@
 // package cannot make on its own — a pattern corpus with its own test set, a
 // `betterleaks` dependency, a bound in `standards/` — and shipping them together
 // would produce one change nobody could review. A caller must not read a clean
-// scan as "§9.3 passed"; it means "no hidden characters", and `Stages` says which
+// scan as "§9.3 passed"; it means "no hidden characters", and `Coverage` says which
 // stages ran so that a report can be honest about it.
+//
+// The earlier form of this was a `Stages()` returning the one implemented name,
+// and nothing ever called it — an honesty mechanism declared and read by nobody,
+// which is the same failure `standards.Unread` was built to report one layer up.
+// Coverage is consumed: the promote gate's `security` signal reports Unchecked
+// when stages are missing, which is what routes a candidate to a human.
 //
 // # Why these constants are allowed to block
 //
@@ -135,11 +141,3 @@ func classify(r rune) Class {
 // can be looked up rather than only recognised. Four digits minimum, more when the
 // codepoint needs them: U+200B and U+E0001 are both correct.
 func codepoint(r rune) string { return fmt.Sprintf("U+%04X", r) }
-
-// Stages names the §9.3 stages this build actually runs.
-//
-// Requires: nothing.
-// Ensures: the stages implemented, not the stages specified. A caller reporting a
-// clean scan MUST say which stages produced it — "no hidden characters" and "§9.3
-// passed" are different claims, and only one of them is currently available.
-func Stages() []string { return []string{"hidden-characters"} }
