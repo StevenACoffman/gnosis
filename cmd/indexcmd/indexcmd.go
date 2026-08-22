@@ -176,7 +176,7 @@ func (c *Config) write(
 	// Best-effort, like every other audit row: the rebuild happened, and reporting
 	// a bookkeeping failure as the operation's would tell a caller to retry
 	// something that succeeded.
-	if aErr := bundle.Audit(c.Bundle, &audit.Row{
+	if aErr := bundle.AuditVerified(c.Bundle, &audit.Row{
 		At: time.Now().UTC(), Op: audit.OpRebuild, Actor: "check:index-rebuild",
 		Paths:   []string{".gnosis/index.db"},
 		Outcome: string(root.StatusOK),
@@ -184,6 +184,12 @@ func (c *Config) write(
 			strconv.Itoa(result.Sources) + " sources",
 	}); aErr != nil {
 		_, _ = fmt.Fprintf(c.Stderr, "warning: the rebuild was not audited: %v\n", aErr)
+		if bundle.AuditLost(aErr) {
+			// The append reported success and the row is not on disk, which no
+			// other signal reveals. Best-effort covers a *known* gap; it must not
+			// cover a trail that lied about writing (§15).
+			return root.ExitError(root.CodeError)
+		}
 	}
 	return nil
 }

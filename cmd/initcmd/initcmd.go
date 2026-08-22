@@ -162,7 +162,7 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	// The actor is a check because the tool caused the write, per §5.5's reasoning
 	// for `findings.opened_by`. Best-effort, and the warning goes to stderr where a
 	// person running the command will see it.
-	if aErr := bundle.Audit(c.Bundle, &audit.Row{
+	if aErr := bundle.AuditVerified(c.Bundle, &audit.Row{
 		At: time.Now().UTC(), Op: audit.OpInit, Actor: "check:init",
 		Paths:   result.Created,
 		Outcome: string(root.StatusOK),
@@ -170,6 +170,12 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 			strconv.Itoa(len(result.Existing)) + " already present",
 	}); aErr != nil {
 		_, _ = fmt.Fprintf(c.Stderr, "warning: the init was not audited: %v\n", aErr)
+		if bundle.AuditLost(aErr) {
+			// The append reported success and the row is not on disk, which no
+			// other signal reveals. Best-effort covers a *known* gap; it must not
+			// cover a trail that lied about writing (§15).
+			return root.ExitError(root.CodeError)
+		}
 	}
 	return c.report(result)
 }

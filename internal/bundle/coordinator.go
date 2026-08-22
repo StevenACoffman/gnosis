@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -46,6 +47,23 @@ type Coordinator struct {
 	// happened and reporting it as the operation's error would tell a caller to
 	// retry something that succeeded.
 	auditErr error
+
+	// auditUnread holds a failure to read back a row the append reported writing.
+	//
+	// It is a second field rather than a reuse of auditErr because the two events
+	// call for opposite handling, and collapsing them would force one policy on
+	// both. §15 and Audit's own doc comment appear to contradict each other —
+	// "returns an error rather than an Outcome" against "a failure here does not
+	// fail the write it describes" — and they do not, because they are about
+	// different events:
+	//
+	//   - The append returned an error. We *know* the record failed; nothing is
+	//     hidden, and the loud fail-soft above is right. §15's "fail-soft would
+	//     reproduce the failure" is about a *silent* fail-soft, which this is not.
+	//   - The append returned success and the row is not there. The trail is
+	//     lying, this is the only place that can be noticed, and it is exactly the
+	//     observed failure §15 cites. Fail-soft here really would reproduce it.
+	auditUnread error
 }
 
 // Execute runs one command against the bundle.
@@ -82,7 +100,11 @@ func (c *Coordinator) Execute(ctx context.Context, cmd command.Command) (gnosis.
 	defer lock.Release()
 
 	outcome, err := c.dispatch(ctx, cmd)
-	return c.withAuditNote(outcome), err
+
+	// The unread-row failure joins the returned error rather than the outcome. A
+	// caller must not be able to read this as success, and the outcome is still
+	// populated so a caller that logs both can say what the corpus now holds.
+	return c.withAuditNote(outcome), errors.Join(err, c.auditUnread)
 }
 
 // withAuditNote reports an audit-append failure without failing the operation.
