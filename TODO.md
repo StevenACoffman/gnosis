@@ -42,7 +42,10 @@ ______________________________________________________________________
   the guidelines name as a red flag: a general mechanism with `if isRule … else if isClaim` inside it. **Phase 3 is not blocked.** gnosis writes its own predicates
   when Phase 3 arrives, and the promotion question reopens honestly if a third
   consumer ever wants the same comparison.
-- [ ] **Claim segmentation implemented in Go. Blocks Phase 2.** SPEC §9.4 commits
+- [x] **Claim segmentation implemented in Go.** *Built in Step 2.1; `internal/segment`.
+  `Claim` carries both an anchor and a substituted text, because §5.5.1 wants the
+  passage locatable and §9.4 wants it standing alone, and those differ whenever a
+  subject is recovered.* Original entry: SPEC §9.4 commits
   to deterministic segmentation with `claim-segmenter-kit`'s guarantee stated
   verbatim: **"Every emitted claim stands on its own, or the cut is not made."** The
   reference implementation is Swift, so nothing is importable — the algorithm and
