@@ -10,6 +10,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/command"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 )
 
 // fixedClock is why Coordinator.Now is a field. An audit row's whole value is the
@@ -174,5 +175,59 @@ func TestTheTrailIsPerUserState(t *testing.T) {
 	}
 	if len(outside) > 0 {
 		t.Errorf("the trail is outside .gnosis/ and would be committed: %v", outside)
+	}
+}
+
+// TestAnAuditFailureDoesNotFailTheWrite, and is reported in every place a
+// different reader looks. A trail with silent holes cannot answer the question a
+// trail exists for, and the previous version put the note only in a message field
+// that no machine reads.
+func TestAnAuditFailureDoesNotFailTheWrite(t *testing.T) {
+	t.Parallel()
+	dir := admissibleBundle(t)
+
+	// Make the append fail without making anything else fail: a directory where
+	// the trail file belongs. Opening it for write returns an error; every other
+	// path under .gnosis/ keeps working.
+	if err := os.MkdirAll(filepath.Join(dir, ".gnosis", "audit.jsonl"), 0o750); err != nil {
+		t.Fatalf("wedge the trail: %v", err)
+	}
+
+	var warn strings.Builder
+	c := bundle.Coordinator{Dir: dir, Now: fixedClock(), Warn: &warn}
+	got, err := c.Execute(t.Context(), promoteCmd(command.EffectApply))
+	if err != nil {
+		t.Fatalf("an audit failure failed the operation: %v", err)
+	}
+
+	// The operation still reports what it actually did.
+	if got.Status != gnosis.StatusBlocked || got.Reason != gnosis.ReasonGateUnavailable {
+		t.Errorf("the outcome changed: status %q reason %q", got.Status, got.Reason)
+	}
+
+	data, _ := got.Data.(map[string]any)
+	if data["audit_failed"] == nil {
+		t.Error("Data carries no audit_failed, so an agent cannot see the gap")
+	}
+	if !strings.Contains(got.Message, "audit row was not written") {
+		t.Errorf("the message does not mention it: %q", got.Message)
+	}
+	if !strings.Contains(warn.String(), "audit row was not written") {
+		t.Errorf("nothing reached the warning writer: %q", warn.String())
+	}
+}
+
+// TestANilWarnIsFine, so a library caller need not supply one and the discard is
+// not a special case at every call site.
+func TestANilWarnIsFine(t *testing.T) {
+	t.Parallel()
+	dir := admissibleBundle(t)
+	if err := os.MkdirAll(filepath.Join(dir, ".gnosis", "audit.jsonl"), 0o750); err != nil {
+		t.Fatalf("wedge the trail: %v", err)
+	}
+
+	c := bundle.Coordinator{Dir: dir, Now: fixedClock()}
+	if _, err := c.Execute(t.Context(), promoteCmd(command.EffectApply)); err != nil {
+		t.Fatalf("a nil Warn broke the run: %v", err)
 	}
 }

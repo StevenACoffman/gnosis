@@ -103,7 +103,10 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 		return c.fail(root.ReasonNoBundle, err)
 	}
 
-	coordinator := bundle.Coordinator{Dir: c.Bundle}
+	// Warn goes to stderr rather than nowhere: an audit row that could not be
+	// written is also reported in the envelope, and a person running this in a
+	// terminal reads neither the JSON nor a field.
+	coordinator := bundle.Coordinator{Dir: c.Bundle, Warn: c.Stderr}
 	outcome, err := coordinator.Execute(ctx, &command.Admit{
 		Key:       c.Key,
 		Reply:     string(reply),

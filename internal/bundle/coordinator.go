@@ -2,6 +2,8 @@ package bundle
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/command"
@@ -23,6 +25,13 @@ import (
 type Coordinator struct {
 	// Dir is the bundle root.
 	Dir string
+
+	// Warn receives a line about anything that went wrong beside the operation
+	// rather than in it — an audit row that could not be written, so far. A nil
+	// Warn discards, which is right for a library caller and wrong for a command:
+	// `cmd` supplies its own stderr, because a note that exists only in a JSON
+	// field is a note nobody running the tool in a terminal will see.
+	Warn io.Writer
 
 	// Now is the clock the audit trail stamps rows with. A nil Now uses
 	// time.Now, so a caller that does not care need not supply one.
@@ -76,22 +85,35 @@ func (c *Coordinator) Execute(ctx context.Context, cmd command.Command) (gnosis.
 	return c.withAuditNote(outcome), err
 }
 
-// withAuditNote appends any audit-append failure to the outcome's message.
+// withAuditNote reports an audit-append failure without failing the operation.
 //
-// It does not change the status. The operation did what it reported; what failed
-// is the record of it, and a caller that treated a missing audit row as a failed
-// write would undo work that succeeded. Saying so in the message is the honest
-// middle: visible to a person, and not something a machine branches on as an
-// operation failure.
+// The status does not change. The operation did what it reported; what failed is
+// the *record* of it, and a caller that treated a missing audit row as a failed
+// write would undo work that succeeded.
+//
+// **But a swallowed error has to be swallowed loudly, and once was not enough.**
+// The previous version appended a sentence to Message, which no machine reads and
+// which a caller rendering only Data never shows. A trail with silent holes cannot
+// answer the question a trail exists for, so the failure now lands in three places
+// with different readers: `audit_failed` in Data for an agent branching on it, the
+// message for a person reading the envelope, and Warn for whoever is watching the
+// terminal. None of them is a status, because the write happened.
 func (c *Coordinator) withAuditNote(outcome gnosis.Outcome) gnosis.Outcome {
 	if c.auditErr == nil {
 		return outcome
 	}
 	note := "the operation completed but its audit row was not written: " + c.auditErr.Error()
+
+	if data, ok := outcome.Data.(map[string]any); ok {
+		data["audit_failed"] = c.auditErr.Error()
+	}
 	if outcome.Message == "" {
 		outcome.Message = note
 	} else {
 		outcome.Message += "; " + note
+	}
+	if c.Warn != nil {
+		_, _ = fmt.Fprintf(c.Warn, "warning: %s\n", note)
 	}
 	return outcome
 }
