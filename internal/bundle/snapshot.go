@@ -1,9 +1,11 @@
 package bundle
 
 import (
+	"errors"
 	"io/fs"
 	"strings"
 
+	"github.com/StevenACoffman/gnosis/internal/archive"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/lint"
@@ -38,8 +40,14 @@ func Snapshot(fsys fs.FS, idx IndexState) (*lint.Snapshot, error) {
 		return nil, &errs.Error{Op: op, Err: err}
 	}
 
+	archived, err := archivedPaths(fsys)
+	if err != nil {
+		return nil, err
+	}
+
 	return &lint.Snapshot{
 		Documents:     documents(docs),
+		ArchivedText:  archived,
 		Links:         links(docs),
 		Resolutions:   gnosis.Reconcile(Observed(docs), idx.Rows),
 		SchemaVersion: gnosis.SchemaVersion,
@@ -57,9 +65,54 @@ func documents(docs []Document) []lint.Document {
 		out = append(out, lint.Document{
 			ID: d.ID, Path: d.Path, Type: d.Type, Title: d.Title,
 			Body: d.Body, SchemaVersion: d.SchemaVersion,
+			Claims: claimRefs(d.Claims),
 		})
 	}
 	return out
+}
+
+// claimRefs projects a document's claims into the check-facing shape.
+func claimRefs(claims []DocClaim) []lint.Claim {
+	if len(claims) == 0 {
+		return nil
+	}
+	out := make([]lint.Claim, 0, len(claims))
+	for i := range claims {
+		out = append(out, lint.Claim{
+			ID: claims[i].ID, ArchivePaths: claims[i].ArchivePaths,
+		})
+	}
+	return out
+}
+
+// archivedPaths is the set of archived text files present, for the archive-path
+// check to resolve claim addresses against.
+//
+// Walked through the same fs.FS as the documents, so a check never touches a disk
+// and a caller testing with an fstest.MapFS gets the same answers as one reading a
+// bundle. An absent archive is an empty set rather than an error: a corpus that has
+// fetched nothing has no dangling paths, only claims that will report as dangling
+// the moment they name one.
+func archivedPaths(fsys fs.FS) (map[string]bool, error) {
+	const op = "bundle.archivedPaths"
+
+	out := map[string]bool{}
+	err := fs.WalkDir(fsys, archive.TextDir, func(name string, d fs.DirEntry, err error) error {
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return fs.SkipAll
+		case err != nil:
+			return err
+		case d.IsDir():
+			return nil
+		}
+		out[name] = true
+		return nil
+	})
+	if err != nil {
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+	return out, nil
 }
 
 // links extracts every link from every body and resolves each against the

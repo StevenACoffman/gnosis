@@ -48,6 +48,10 @@ type Snapshot struct {
 	// Documents declaring an older one are reported by the schema-version check.
 	SchemaVersion int
 
+	// ArchivedText is the set of paths under evidence/text/ that exist, so the
+	// archive-path check can resolve a claim's addresses without touching a disk.
+	ArchivedText map[string]bool
+
 	// HasIndex reports whether the bundle has a derived index at all. A bundle
 	// freshly cloned has none, and in that state every document differs from the
 	// index trivially — which is why the index-relative checks are skipped
@@ -66,6 +70,17 @@ type Document struct {
 	Title         string
 	Body          string
 	SchemaVersion *int
+
+	// Claims are the document's declared claims and the evidence they name.
+	// Empty for a document that declares none, which most Phase 2 documents do.
+	Claims []Claim
+}
+
+// Claim is the subset of a claim the checks examine: its identity, and where it
+// says its evidence lives.
+type Claim struct {
+	ID           string
+	ArchivePaths []string
 }
 
 // Link is one link found in a body.
@@ -119,6 +134,7 @@ func Checks() []Check {
 		schemaVersionCheck(),
 		placeholderCheck(),
 		emptySectionCheck(),
+		archivePathCheck(),
 	}
 	sort.Slice(checks, func(i, j int) bool { return checks[i].Name < checks[j].Name })
 	return checks

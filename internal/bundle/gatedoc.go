@@ -49,6 +49,31 @@ func claimsOf(doc *okf.Document) []gate.Claim {
 	return out
 }
 
+// docClaims reads a document's claims down to what a check needs.
+//
+// Separate from claimsOf, which builds the gate's richer shape from the same
+// frontmatter. They read one format and answer different questions: the gate needs
+// quotations and enforcement to judge evidence, and a check needs only which claim
+// named which file. Sharing a type would give a check the fields to start judging.
+func docClaims(doc *okf.Document) []DocClaim {
+	raw, ok := doc.Fields[claimsKey].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]DocClaim, 0, len(raw))
+	for i, entry := range raw {
+		m, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, DocClaim{
+			ID:           firstString(m, "id", "anchor", strconv.Itoa(i)),
+			ArchivePaths: stringsOf(m, "archive_paths"),
+		})
+	}
+	return out
+}
+
 // sourcesOf reads a document's OKF sources list.
 //
 // A source is a scope descriptor when it says so. OKF §5.1 permits a resource a

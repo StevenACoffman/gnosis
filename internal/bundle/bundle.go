@@ -50,6 +50,21 @@ type Document struct {
 	Body          string
 	SchemaVersion *int
 	Invalid       error
+
+	// Claims are the document's declared claims and where they say their
+	// evidence lives (§5.5.1). Empty for a document declaring none.
+	Claims []DocClaim
+}
+
+// DocClaim is a claim's identity and its evidence addresses, as the document
+// states them.
+//
+// It is deliberately narrower than gate.Claim: the checks that read this need to
+// know which claim named which archived file and nothing else, and a wider type
+// would invite a check to start judging evidence, which is the gate's job.
+type DocClaim struct {
+	ID           string
+	ArchivePaths []string
 }
 
 // isReserved reports whether name is one of the filenames OKF §3.1 gives a
@@ -157,6 +172,8 @@ func read(fsys fs.FS, path string) Document {
 	if v, ok := parsed.Int(versionKey); ok {
 		doc.SchemaVersion = &v
 	}
+
+	doc.Claims = docClaims(parsed)
 
 	if rawID, ok := parsed.Text(idKey); ok {
 		if id, idErr := gnosis.ParseID(rawID); idErr == nil {
