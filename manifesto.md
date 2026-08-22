@@ -2797,6 +2797,28 @@ difference, and it is a real one — a skill that ships is a published artefact 
   relevant to `steve-skill-market` as an interchange question rather than a
   competitor.
 
+#### What This Survey Changed in the Specification
+
+Recorded because a survey that changes nothing is a reading list, and the difference
+should be visible without a diff.
+
+| Finding | Where it landed |
+| --- | --- |
+| Content-addressing detects accidents, not tampering | §4.3.1 rewritten; tamper-resistance against a same-user actor is now an explicit non-goal |
+| Reliance is the operative test, not decision-versus-observation | §10.7.4 states reliance first and keeps committed/cached as its recognition rule |
+| Retrieval is not evidence | New §11.0.0, placed ahead of everything about findability |
+| An untyped link asserts nothing; order is not causality | New §5.5.1.2 |
+| A rebuild can destroy the only record of what was there | New rule in §4.5: refuse below a declared floor, name both numbers |
+| Corruption and operational failure are different | Added to §15 |
+| Anything an agent can name is an execution surface | Added to §15 |
+| `skillet/auditlog` is the wrong shape for a mutation row | §15 corrected, with the reason kept |
+| Quorum admission works where blast radius is low | §10.6.4 now states its bet as a bet, and names when it would be wrong |
+
+Six further items are implementation rather than specification and are in `TODO.md`:
+the rebuild floor itself, freshness rendered where a claim is read, a relay test with
+a scripted model, `standards/promote.toml`, a cross-repository skill-identity check
+for `skillsaw`, and an `AI_POLICY.md` for this repository.
+
 #### Read Shallowly — Warranting Deeper Exploration
 
 Judged by README, layout, and targeted greps only. Each could repay a closer look:

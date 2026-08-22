@@ -230,6 +230,12 @@ ______________________________________________________________________
   user.** The URI is `<remote>#<path>` for the reason in §20.6. A reader looking
   at a record has no way to learn which revision it came from short of searching
   the repository for the blob, and `show` does not offer to.
+- [ ] **The git-adapter test fixture is fragile under concurrent load.** `originRepo`
+  shells out to `git init/add/commit`, and two `go test ./...` runs at once produced
+  `fatal: failed to write commit object` and a 120-second timeout. Passes reliably
+  when run alone, including under `-race`. A test that fails under load is a test
+  that will fail in CI on a busy runner, and the honest reading is that the fixture
+  is doing real filesystem and subprocess work in a `t.Parallel()` test.
 - [ ] **The git adapter is not exercised against a remote.** Its tests clone a
   local repository built by `git` itself, which covers the walk, the URI rewrite,
   and the cleanup — and not authentication, shallow-clone negotiation, or a
@@ -337,7 +343,8 @@ ______________________________________________________________________
 Findings from the governance/memory survey recorded in `manifesto.md`. Ordered by
 how cheap they are relative to what they buy.
 
-- [ ] **`index rebuild` has no sanity guard on the document count.** `haft` hard-
+- [ ] **`index rebuild` has no sanity guard on the document count.** *Specified in
+  §4.5 and listed as the next item in PLAN §4.1; not implemented.* `haft` hard-
   rejects a refresh whose derived unit count falls below 50% of the last verified
   one. A gnosis rebuild that finds three documents where there were five hundred is
   a corrupted bundle or a bad `--bundle`, and it currently writes that index without
@@ -361,7 +368,11 @@ how cheap they are relative to what they buy.
   trap. `oh-my-agent` caps reinforcement at five "so a permanently red gate can't
   trap you." The honest form is a bound with a recorded reason, not a bypass — and
   the decision belongs to §9.5.
-- [ ] **The link graph is untyped, and §20's trails assume it is not.** FPF is
+- [x] **The link graph is untyped and nothing said what that means.** *Fixed:
+  §5.5.1.2 states that an empty `rel` asserts nothing, that arrangement is not
+  causality, and why typing the vocabulary waits on §5.8. §20's trail entry already
+  required prose stating why the order is what it is, which was better than the
+  finding credited.* Remaining work — populating `rel` — is Phase 3. Original: FPF is
   relation-first: order is layout until a claim says it is a path. `systems-thinking`
   names Factor Listing as an anti-pattern for the same reason. gnosis cannot
   distinguish "cites", "supersedes", "causes", and "is filed near". Typing the graph
@@ -383,12 +394,17 @@ how cheap they are relative to what they buy.
   has pass/fail/unchecked and no way to say "this landed and here is what we noticed."
   Whether §9.5 wants one is a genuine question, not an obvious yes: the whole point
   of `unchecked` blocking is that a gate which can be talked past is decorative.
-- [ ] **"Retrieval is not evidence" should be stated where a reader will hit it.**
+- [x] **"Retrieval is not evidence" is now stated where a reader hits it.** *Added
+  as §11.0.0, ahead of everything about making things findable, and it names the one
+  relation that does make something evidence.* Original:
   FPF: "a publication carrier does not become its subject, and a readable view does
   not become evidence, assurance, permission, decision, architecture, or work
   without the corresponding exact relation and test." §11 and §17 both imply it;
   neither says it.
-- [ ] **§10.7.4's rule has a sharper formulation.** `haft`: records become durable
+- [x] **§10.7.4's rule has a sharper formulation, and now uses it.** *Reliance is
+  the operative test — does later work have to rely on this? — with
+  committed/observed kept as how to recognise it, plus the audit row as the case that
+  needed the sharper rule to settle.* Original: `haft`: records become durable
   when later work must **rely** on them — handoff, replay, authority, automation,
   evidence. "Decisions are committed, observations are cached" agrees everywhere it
   has been applied; reliance is the version that decides the next case without a
@@ -402,7 +418,10 @@ how cheap they are relative to what they buy.
   specification currently argues against a position nobody in it is named as holding.
 - [x] **The Gentleman Programming ecosystem examined as an ecosystem.** *Recorded in
   `manifesto.md`; the items below are what it produced.*
-- [ ] **§4.3.1 over-claims what content-addressing detects.** It says a rewritten
+- [x] **§4.3.1 over-claimed what content-addressing detects.** *Fixed: §4.3.1 now
+  says a careless edit is visible, states tamper-resistance against a same-user local
+  actor as an explicit non-goal, and names git-on-a-remote as the control that does
+  provide it.* Original finding: It says a rewritten
   record makes tampering "visible rather than absorbed." True for a careless edit and
   false for a local actor who recomputes the hash and renames the file.
   `gentle-ai/docs/review-authority-threat-model.md` has the sentence to adopt:
@@ -411,7 +430,8 @@ how cheap they are relative to what they buy.
   tamper-resistance is claimed against a same-user local actor without an external
   trust anchor. gnosis should state the same non-goal rather than let a reader infer
   a stronger one.
-- [ ] **No AI-assistance policy in any repository of this family.** Every one of them
+- [ ] **No AI-assistance policy in any repository of this family.** *Listed in PLAN
+  §4.1; it is a repository file rather than a spec change, so it stays open here.* Every one of them
   is built this way and none says so, while §1.1 argues that a claim must name its
   witness. `gentle-ai/AI_POLICY.md` is the model, and three of its rules are directly
   adoptable: review on observable quality rather than on whether output looks
@@ -426,6 +446,7 @@ how cheap they are relative to what they buy.
   it received. Their own honest-limits note bounds the claim: it does not prove a live
   model produces the same calls, and that belongs to usage rather than to CI.
 - [ ] **`bundle.AuditTrail` cannot distinguish corruption from operational failure.**
+  *Rule added to §15; the code does not implement it yet.*
   Gentleman's threat model draws the line: only malformed state, checksum, or receipt
   evidence is corruption; Git and filesystem failures are operational. A malformed
   audit line currently reads the same as a failing disk.
@@ -453,14 +474,20 @@ how cheap they are relative to what they buy.
   skill is a published artefact under `speclint`'s rules; a repo-governing one is
   closer to a `CONTRIBUTING.md`, and grading them against one rubric will misjudge
   both.
-- [ ] **§10.6.4's bet is now contested by something that works.** `Gentleman-Skills`
+- [x] **§10.6.4's bet acknowledges the case against it.** *Added: quorum works where
+  reviewers are many and reversals cheap, gnosis has the opposite profile, and the
+  condition under which the rationale requirement should be revisited is named.*
+  Original: `Gentleman-Skills`
   admits community skills by seven-day review and reaction quorum — a
   permission-and-quorum model, where §10.6.4 holds that a required rationale filters
   more bad adjudications than a permission check. The asymmetry is blast radius: a bad
   skill is uninstalled, a bad claim is cited. Worth a sentence in §10.6.4
   acknowledging the case where counting is the cheaper instrument, so the position
   reads as a choice rather than as the only option.
-- [ ] **§9.3 should treat any agent-nameable string as an execution surface.**
+- [x] **§9.3's execution-surface rule is stated.** *Added to §15: any string a reply
+  supplies which later selects a file, a command, or a check is validated against a
+  closed set, and where it selects a command the set is an allowlist with refusal as
+  the default.* Original:
   `oh-my-agent` allowlists exactly three executable commands "so an agent that writes
   anything else into the state file gets it ignored, never run." gnosis already
   refuses traversal on a quarantined path; the general rule is the one to write down.

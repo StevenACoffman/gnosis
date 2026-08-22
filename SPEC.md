@@ -278,7 +278,20 @@ That is tolerable wherever a check can catch it. It is not tolerable here, becau
 the `referenced` disposition archives nothing (§4.3) — so for exactly the fetches
 whose integrity cannot be re-derived from any other artifact, the ledger is the
 only record. One file per record makes append-only **structural**: a rewritten
-record lands at a different path, so tampering is visible rather than absorbed.
+record lands at a different path, so a careless edit is visible rather than
+absorbed.
+
+**And that is the whole of the claim, which is narrower than content-addressing
+sounds.** The hash detects *accidental* corruption and an edit made without
+recomputing it. It is not authentication. A local actor with the same user and
+filesystem access can rewrite a record, recompute its hash, rename the file, and
+leave nothing to notice — and can equally rewrite the archive, the git history, or
+the binary that checks them. Without an external trust anchor no arrangement of
+hashes changes that, so this specification claims tamper-*evidence* against mistakes
+and states tamper-*resistance* against a same-user actor as an explicit non-goal.
+Saying so matters more than it might seem: a reader who believed the stronger claim
+would stop looking for the control that actually provides it, which is git history
+on a remote nobody local can rewrite.
 
 **The record carries no timestamp, and that is the load-bearing part.**
 Content-addressing over the source bytes rather than the fetch event means tier 0
@@ -335,6 +348,20 @@ line well: the graph is gitignored, what gets committed is the wiring. `gnosis`
 follows it — `gnosis index rebuild` MUST reproduce `index.db` byte-identically
 from the bundle plus tier 0, and CI MUST verify that (§18.3). Anything that
 exists only in SQLite is a bug.
+
+**A rebuild that loses most of the corpus MUST refuse rather than succeed.** Being
+regenerable makes the index safe to destroy and therefore easy to destroy by
+accident: a wrong `--bundle`, a partial clone, a working tree with `c/` unstaged, a
+walk that silently stopped. In each case the rebuild does exactly what it was asked
+and writes an index describing almost nothing — over the only artifact that would
+have shown what was there a moment ago. So a rebuild whose document count falls
+below a share of the last verified count declared in `standards/` is a **refusal
+with the two numbers named**, not a warning, and `--force` is what a caller uses
+when the corpus really did shrink.
+
+This is the one place the regenerable-cache argument turns around. Everywhere else
+it means the index is cheap to lose; here it means nothing else will notice that it
+was. The check costs one integer stored beside the schema version.
 
 ### 4.6 Concurrency: One Writer per User, Git Between Users
 
@@ -969,6 +996,36 @@ Three properties keep this from becoming a migration treadmill:
   exactly the ones left behind — the derived applicability of §12, applied to the
   one case where "nothing is versioned yet" and "everything is out of date" look
   identical.
+
+#### 5.5.1.2 An Untyped Link Asserts Nothing, and Order Is Not Causality
+
+`links` carries a `rel` column and Phase 1 populates it with nothing. That is the
+correct starting state — an untyped link cannot lie about a relationship it does not
+name — but the consequence has to be written down, because an empty column is exactly
+the kind of thing a later reader fills in with an assumption.
+
+**An empty `rel` means the corpus does not know what the connection is.** It does not
+mean "relates to", "supports", or "see also". A document citing a source it disputes,
+a document superseding another, a document listing another for contrast, and a
+document that merely mentions another all produce the same row. Any check, any view,
+and any prompt that treats an untyped link as endorsement is reading a claim that was
+never made.
+
+**Nor does arrangement carry a claim.** The order links appear in a body, the order
+rows come back from a query, and the shape of the resulting graph are all *layout*.
+They are not a causal, temporal, or dependency order, and they become one only when
+something states it. This is why §20's deferred trail is a document whose prose says
+why the order is what it is rather than an ordered table: the prose is the claim, and
+without it the list is a list. The rule generalises — **causality is carried as a
+claim, never inferred from arrangement** — and it is the reason `gnosis graph` reports
+structure and never explanation.
+
+Typing the vocabulary is Phase 3 work and is blocked on the same problem as §5.8's
+subjects: a relation vocabulary admitted before the corpus can adjudicate over it is
+a vocabulary that will be used inconsistently and then relied on. Until then the
+column stays empty and this section is what an empty column means. Recorded in the
+manifesto's `agent-green` survey, where three unrelated projects reached the same
+conclusion from three directions.
 
 #### 5.5.2 Position Conventions
 
@@ -2389,6 +2446,19 @@ of deciding well. If those work, routing is unnecessary; if they fail, routing
 will not rescue them, because a roster records who was *permitted* to be wrong
 rather than whether the decision was sound.
 
+**This is a bet, and the opposite bet works elsewhere.** A live skill catalogue in
+the surveyed field admits community contributions by quorum — a fixed review window,
+reactions as votes, a count on the closing day — and it functions. The difference is
+blast radius. A bad skill is uninstalled by whoever notices; a bad claim is cited,
+and the citation outlives the noticing. Where the population of reviewers is large
+and the cost of a wrong admission is low, counting is the cheaper instrument and
+asking each voter for a written reason would simply reduce the number of voters.
+gnosis has the opposite profile — few reviewers, claims that get built on — so it
+buys depth rather than breadth. Stating the trade keeps this a choice rather than an
+assumption, and it names the condition under which the choice would be wrong: if a
+corpus ever has many reviewers and cheap reversals, the rationale requirement is
+worth revisiting.
+
 #### 10.6.3 Four Properties the Tiers Must Have
 
 - **A single-curator corpus is a supported configuration, not a degenerate one.**
@@ -2613,6 +2683,24 @@ first is committed, the second is cached. That line — **decisions are committe
 observations are cached** — is the general rule, and the challenge is its clearest
 instance.
 
+**The operative form of the rule is reliance, and the committed/cached line is how
+to recognise it.** The question that decides a new case is not *is this a decision*
+but **does later work have to rely on this?** — for handoff, replay, authority,
+automation, or evidence. The two agree everywhere this specification has already
+applied them, and reliance settles the cases where "decision" is genuinely arguable.
+A fetch record looks like an observation and is committed, because a quotation
+relies on it; `checked.jsonl` also looks like an observation and is not, because
+nothing relies on when somebody last looked. An audit row records a real decision
+and is still cached, because it is *this machine's* account and no later work
+depends on it — the decision it describes is already committed elsewhere, in the
+document that landed.
+
+So: ask what breaks if this is missing on a fresh clone. If the answer is "a claim
+can no longer be checked", it is committed. If the answer is "somebody re-does a
+cheap thing", it is cached. The formulation is borrowed from `haft`, an independent
+implementation of the same problem, and is recorded in the manifesto's `agent-green`
+survey.
+
 #### 10.7.5 What This Does Not Add
 
 Challenge is a route into the existing finding lifecycle, not a parallel one. It
@@ -2622,6 +2710,30 @@ additions are one frontmatter family, two cached columns (`challenge_class`,
 `opened_by`), and one check.
 
 ## 11. Search
+
+### 11.0.0 Retrieval Is Not Evidence
+
+Stated first because everything below is about making things findable, and
+findability is the property most often mistaken for a stronger one.
+
+A search hit is not evidence that a claim is true. A document existing in the corpus
+is not the corpus having checked it. A link resolving is not the target supporting
+the source. A ranked list is not an argument, and its order is not a claim about
+importance — it is a bm25 score with a title weight, and §6.2.1 already says the
+selector it feeds is biased in a named direction.
+
+The general form, borrowed from the First Principles Framework and worth the whole
+sentence: *a publication carrier does not become its subject, and a readable view
+does not become evidence, assurance, permission, decision, architecture, or work
+without the corresponding exact relation and test.*
+
+gnosis has exactly one relation that makes something evidence, and it is §9.4's:
+a quotation appearing in archived text under `textnorm.Fold`, at or above
+`MinPassageWords`. Everything else a read path returns is navigation. This matters
+because an agent consuming `--jsonl` cannot tell the difference unless the envelope
+does, and the envelope does not — a `search` result and an adjudicated claim arrive
+in the same shape. Until §17.3's evidence rendering exists, the burden is on the
+reader, and this section is where they are told so.
 
 ### 11.0 Against Enabling Semantic Search
 
@@ -3074,9 +3186,23 @@ ______________________________________________________________________
 - **Secret redaction before disk**, via a maintained ruleset (§7.2).
 - **Human approval for irreversible or contested actions**, with phrase
   confirmation, no `--yes` bypass, no environment-variable override.
-- **Audit every write.** `skillet/auditlog`, one row per mutation: operation,
+- **Audit every write.** One row per mutation in `.gnosis/audit.jsonl`: operation,
   actor, paths, content hashes before and after, standards hash, finding ids.
-  `clu` records every write and can answer who did what when; so must this.
+  `clu` records every write and can answer who did what when; so must this. An
+  earlier draft named `skillet/auditlog` for this and that package is the wrong
+  shape — it reads `results.tsv`, nine columns describing an optimization
+  experiment. gnosis writes its own; the two share a word and nothing else.
+- **Corruption and operational failure are different, and a reader must be told
+  which.** Only malformed state, a checksum mismatch, or unreadable evidence is
+  corruption. A failed read, a full disk, and a git subprocess that died are
+  operational. Collapsing them sends somebody hunting for tampering when a volume
+  unmounted, and — worse in the other direction — lets a genuinely corrupt record
+  read as a transient failure worth retrying.
+- **Anything an agent can name is an execution surface.** A quarantined path
+  arrives from a model's reply (§9.4) and is refused if it escapes the bundle; the
+  general rule is that any string a reply supplies which later selects a file, a
+  command, or a check must be validated against a closed set rather than used.
+  Where a command is selected, the set is an allowlist and the default is refusal.
 - **Atomic commits.** One operation, one commit, via `atomicfile` plus go-git.
   `beadwork`'s intent-replay-on-conflict model is the reference if concurrent
   writers appear; not built until they do.
