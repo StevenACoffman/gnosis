@@ -56,11 +56,45 @@ type Environment struct {
 	Documents   int `json:"documents"`
 	IndexedRows int `json:"indexed_rows"`
 
+	// Archive is what tier 0 currently costs, against its declared budget.
+	Archive ArchiveSize `json:"archive"`
+
+	// StandardsError is non-empty when standards/archive.toml exists and does not
+	// load. The text is the loader's own diagnostic, which already names the key.
+	//
+	// It is here for the same reason OntologyError is, and the reason is worth
+	// stating because the first implementation got it wrong: `inspectArchive`
+	// swallowed the error and reported a zero size, so a corpus with a malformed
+	// standards file produced a silent clean bill of health from the one command
+	// whose entire job is to report a broken apparatus. A check that cannot run
+	// must say so.
+	StandardsError string `json:"standards_error,omitempty"`
+
 	// SchemaMissing and SchemaUnexpected are the difference between the schema
 	// the database has and the schema the migrations describe. Empty when the
 	// index is absent, since there is nothing to compare.
 	SchemaMissing    []string `json:"schema_missing,omitempty"`
 	SchemaUnexpected []string `json:"schema_unexpected,omitempty"`
+}
+
+// diagnoseStandards reports a standards file that exists and cannot be read.
+//
+// It blocks nothing, unlike a broken vocabulary. An unusable ontology means every
+// document is judged against nothing; an unusable standards file means the gates
+// fall back to the embedded seed, which is a defined and reasonable state — the
+// corpus is still checkable, just not against the thresholds somebody wrote.
+func diagnoseStandards(env *Environment) []finding.Diagnostic {
+	if env.StandardsError == "" {
+		return nil
+	}
+	return []finding.Diagnostic{{
+		Severity: finding.SeverityError,
+		Category: "standards",
+		Path:     "standards/archive.toml",
+		Message: "the archive standards do not load, so the seed defaults are in " +
+			"force and the budget is unreported: " + env.StandardsError,
+		Action: finding.ActionGuided,
+	}}
 }
 
 // Diagnose reports what is wrong with the apparatus.
@@ -77,6 +111,8 @@ func Diagnose(env *Environment) []finding.Diagnostic {
 	out = append(out, diagnoseVocabulary(env)...)
 	out = append(out, diagnoseBundleFiles(env)...)
 	out = append(out, diagnoseIndex(env)...)
+	out = append(out, diagnoseStandards(env)...)
+	out = append(out, DiagnoseBudget(&env.Archive)...)
 	finding.Sort(out)
 	return out
 }

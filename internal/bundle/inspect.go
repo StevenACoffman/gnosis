@@ -29,6 +29,7 @@ func Inspect(ctx context.Context, dir string) (lint.Environment, error) {
 	env := lint.Environment{Bundle: dir, SchemaVersion: index.SchemaVersion()}
 
 	env.OntologyPresent, env.OntologyError, env.Types = inspectOntology(dir)
+	env.Archive, env.StandardsError = inspectArchive(dir)
 	env.IndexDocPresent = exists(filepath.Join(dir, "index.md"))
 	env.StateIgnored = stateIgnored(dir)
 
@@ -112,6 +113,27 @@ func inspectIndex(
 }
 
 // exists reports whether a path is present.
+// inspectArchive measures tier 0 against its declared budget, and reports why it
+// could not.
+//
+// A failure does not stop the other checks — `doctor` describes the whole
+// apparatus and one broken part must not hide the rest — but it is **returned
+// rather than swallowed**. The first version dropped it and returned a zero size,
+// which reads as "no budget declared" and produced a clean bill of health for a
+// corpus whose standards file does not parse. That is the one output this command
+// must never produce.
+func inspectArchive(dir string) (lint.ArchiveSize, string) {
+	std, err := LoadArchiveStandards(dir)
+	if err != nil {
+		return lint.ArchiveSize{}, err.Error()
+	}
+	size, err := MeasureArchive(dir, std.CorpusBudget.Value, std.CorpusWarnFraction.Value)
+	if err != nil {
+		return lint.ArchiveSize{}, err.Error()
+	}
+	return size, ""
+}
+
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
