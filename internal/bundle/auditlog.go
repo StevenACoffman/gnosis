@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/audit"
@@ -61,9 +62,11 @@ func Audit(bundleDir string, row *audit.Row) error {
 // AuditTrail reads the bundle's write trail, oldest first.
 //
 // Requires: nothing; a bundle with no trail is not an error.
-// Ensures: rows in the order they were written. A malformed line is an error
-// rather than a skip: a trail that quietly drops what it cannot read is a trail
-// that cannot be counted, and counting is most of what one is for.
+// Ensures: rows in the order they were written. A malformed line is **corruption**
+// and is reported as such, distinct from a failure to read the file: a trail that
+// quietly drops what it cannot read is a trail that cannot be counted, and counting
+// is most of what one is for — but a reader also has to know whether to look at the
+// disk or at the file.
 func AuditTrail(bundleDir string) ([]audit.Row, error) {
 	const op = "bundle.AuditTrail"
 
@@ -78,13 +81,16 @@ func AuditTrail(bundleDir string) ([]audit.Row, error) {
 
 	out := []audit.Row{}
 	scanner := bufio.NewScanner(f)
+	line := 0
 	for scanner.Scan() {
+		line++
 		if len(scanner.Bytes()) == 0 {
 			continue
 		}
 		var row audit.Row
 		if uErr := json.Unmarshal(scanner.Bytes(), &row); uErr != nil {
-			return nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: uErr}
+			return nil, corrupt(op, auditFile, "line "+strconv.Itoa(line)+
+				" is not a JSON object: "+uErr.Error())
 		}
 		out = append(out, row)
 	}

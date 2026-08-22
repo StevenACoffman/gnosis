@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,13 +73,16 @@ func LoadChecks(bundleDir string) (map[string]Check, error) {
 
 	out := map[string]Check{}
 	scanner := bufio.NewScanner(f)
+	line := 0
 	for scanner.Scan() {
+		line++
 		if strings.TrimSpace(scanner.Text()) == "" {
 			continue
 		}
 		var c Check
 		if uErr := json.Unmarshal(scanner.Bytes(), &c); uErr != nil {
-			return nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: uErr}
+			return nil, corrupt(op, checkedFile, "line "+strconv.Itoa(line)+
+				" is not a JSON object: "+uErr.Error())
 		}
 		out[c.key()] = c
 	}

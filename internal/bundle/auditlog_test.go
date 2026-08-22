@@ -86,8 +86,40 @@ func TestAMalformedLineIsAnError(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	if _, err = bundle.AuditTrail(dir); err == nil {
-		t.Error("a corrupt trail read cleanly")
+	_, err = bundle.AuditTrail(dir)
+	if err == nil {
+		t.Fatal("a corrupt trail read cleanly")
+	}
+	// §15 separates corruption from an operational failure because they call for
+	// opposite responses: one is a retry, the other is somebody opening the file.
+	if !strings.Contains(err.Error(), "corruption") {
+		t.Errorf("the error does not say this is corruption: %v", err)
+	}
+	// And it names the line, because a trail with one bad row in ten thousand is
+	// not usefully described as "a trail that will not parse".
+	if !strings.Contains(err.Error(), "line 2") {
+		t.Errorf("the error does not locate it: %v", err)
+	}
+}
+
+// TestAnUnreadableTrailIsNotCorruption. A failed read is operational — a
+// permission, a mount, a full disk — and reporting it as corruption would send
+// somebody looking for tampering in a file that is intact.
+func TestAnUnreadableTrailIsNotCorruption(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// A directory where the trail belongs: opening it for read fails without
+	// anything being malformed.
+	if err := os.MkdirAll(filepath.Join(dir, ".gnosis", "audit.jsonl"), 0o750); err != nil {
+		t.Fatalf("wedge: %v", err)
+	}
+
+	_, err := bundle.AuditTrail(dir)
+	if err == nil {
+		t.Skip("this platform reads a directory as an empty file")
+	}
+	if strings.Contains(err.Error(), "corruption") {
+		t.Errorf("an unreadable file was reported as corruption: %v", err)
 	}
 }
 
