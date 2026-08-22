@@ -18,6 +18,7 @@ package lint
 
 import (
 	"sort"
+	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/finding"
@@ -52,6 +53,17 @@ type Snapshot struct {
 	// archive-path check can resolve a claim's addresses without touching a disk.
 	ArchivedText map[string]bool
 
+	// SourceChecks is when this user last verified each source version, keyed as
+	// Document.SourceKeys are. Per-user by §4.3.1, which is why it is gathered
+	// rather than derived: two colleagues at one commit hold different values and
+	// are both right.
+	SourceChecks map[string]time.Time
+
+	// StalenessDays is the declared window after which an unverified source is
+	// reported, from standards/. Zero disables the window, which is the state of a
+	// corpus whose standards did not load.
+	StalenessDays int
+
 	// HasIndex reports whether the bundle has a derived index at all. A bundle
 	// freshly cloned has none, and in that state every document differs from the
 	// index trivially — which is why the index-relative checks are skipped
@@ -74,6 +86,17 @@ type Document struct {
 	// Claims are the document's declared claims and the evidence they name.
 	// Empty for a document that declares none, which most Phase 2 documents do.
 	Claims []Claim
+
+	// StaleAfter is the date the author asked for this to be revisited by, or the
+	// zero time when they declared none. An absolute date rather than a duration,
+	// on OKF's determinism argument (§14.3): a date keeps the staleness decision a
+	// plain comparison with no reference to when the document was read.
+	StaleAfter time.Time
+
+	// SourceKeys identify the source versions this document rests on, in the same
+	// form checked.jsonl keys them. Empty for a document citing nothing, whose
+	// freshness is not_applicable rather than unknown.
+	SourceKeys []string
 }
 
 // Claim is the subset of a claim the checks examine: its identity, and where it
@@ -123,7 +146,12 @@ type Skip struct {
 // Ensures: every returned check has a non-empty Name, an Applies, and a Run.
 // The slice is freshly built per call, so a caller cannot mutate the registry
 // another caller will see.
-func Checks() []Check {
+// Checks returns the registry as of a moment.
+//
+// The clock is a parameter because one check needs it and a check that read the
+// clock itself could not be tested for the boundary cases that matter — a document
+// expiring today, and one expiring tomorrow.
+func Checks(now time.Time) []Check {
 	checks := []Check{
 		conformanceCheck(),
 		identityCheck(),
@@ -135,6 +163,7 @@ func Checks() []Check {
 		placeholderCheck(),
 		emptySectionCheck(),
 		archivePathCheck(),
+		staleCheck(now),
 	}
 	sort.Slice(checks, func(i, j int) bool { return checks[i].Name < checks[j].Name })
 	return checks

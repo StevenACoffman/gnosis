@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/peterbourgon/ff/v4"
 
@@ -64,7 +65,11 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	if err != nil {
 		return c.fail(root.ReasonIndexDrift, err)
 	}
-	snap, err := bundle.Snapshot(os.DirFS(c.Bundle), idx)
+	fresh, err := bundle.LoadFreshness(c.Bundle)
+	if err != nil {
+		return c.fail(root.ReasonNoBundle, err)
+	}
+	snap, err := bundle.Snapshot(os.DirFS(c.Bundle), idx, fresh)
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
 	}
@@ -83,7 +88,7 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 
 // selectChecks narrows the registry to --check when given.
 func (c *Config) selectChecks() ([]lint.Check, error) {
-	all := lint.Checks()
+	all := lint.Checks(time.Now().UTC())
 	if c.Check == "" {
 		return all, nil
 	}

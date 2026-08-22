@@ -27,7 +27,7 @@ func TestSchemaVersionSeparatesUnversionedFromOlder(t *testing.T) {
 		},
 	}
 
-	got := lint.Run(snap, lint.Checks()).Diagnostics
+	got := lint.Run(snap, lint.Checks(testNow())).Diagnostics
 	byPath := map[string]string{}
 	for _, d := range got {
 		if d.Category == "schema-version" {
@@ -61,7 +61,7 @@ func TestSchemaVersionSkipsUntilTheCorpusStartsVersioning(t *testing.T) {
 		Documents:     []lint.Document{{Path: "c/a.md"}, {Path: "c/b.md"}},
 	}
 
-	report := lint.Run(snap, lint.Checks())
+	report := lint.Run(snap, lint.Checks(testNow()))
 	for _, d := range report.Diagnostics {
 		if d.Category == "schema-version" {
 			t.Errorf("reported against a corpus with no version: %+v", d)
@@ -86,7 +86,7 @@ func TestPlaceholderIsAnError(t *testing.T) {
 		{Path: "c/a.md", Body: "The retry budget is {{VALUE}} and see {{VALUE}} again."},
 	}}
 
-	got := lint.Run(snap, lint.Checks()).Diagnostics
+	got := lint.Run(snap, lint.Checks(testNow())).Diagnostics
 	var found int
 	for _, d := range got {
 		if d.Category == "placeholder" {
@@ -113,7 +113,7 @@ func TestPlaceholderDoesNotFireOnDocumentedSyntax(t *testing.T) {
 		{Path: "c/a.md", Body: "Go templates use {{.Name}} and Jinja uses {{ name }}."},
 	}}
 
-	for _, d := range lint.Run(snap, lint.Checks()).Diagnostics {
+	for _, d := range lint.Run(snap, lint.Checks(testNow())).Diagnostics {
 		if d.Category == "placeholder" {
 			t.Errorf("fired on documented template syntax: %+v", d)
 		}
@@ -137,7 +137,7 @@ func TestEmptySectionNesting(t *testing.T) {
 	snap := &lint.Snapshot{Documents: []lint.Document{{Path: "c/a.md", Body: body}}}
 
 	var empty []string
-	for _, d := range lint.Run(snap, lint.Checks()).Diagnostics {
+	for _, d := range lint.Run(snap, lint.Checks(testNow())).Diagnostics {
 		if d.Category == "empty-section" {
 			empty = append(empty, d.Message)
 		}
@@ -166,7 +166,7 @@ func TestHashtagIsNotAHeading(t *testing.T) {
 		{Path: "c/a.md", Body: "## Real heading\n#nothashtag\n"},
 	}}
 
-	for _, d := range lint.Run(snap, lint.Checks()).Diagnostics {
+	for _, d := range lint.Run(snap, lint.Checks(testNow())).Diagnostics {
 		if d.Category == "empty-section" {
 			t.Errorf("treated a hashtag as a heading: %+v", d)
 		}

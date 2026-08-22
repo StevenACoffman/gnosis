@@ -24,7 +24,7 @@ func withClaims(claims []lint.Claim, present ...string) *lint.Snapshot {
 // failure names this check rather than whatever else the registry reported.
 func only(t *testing.T, snap *lint.Snapshot) lint.Report {
 	t.Helper()
-	for _, c := range lint.Checks() {
+	for _, c := range lint.Checks(testNow()) {
 		if c.Name == "archive-path" {
 			return lint.Run(snap, []lint.Check{c})
 		}

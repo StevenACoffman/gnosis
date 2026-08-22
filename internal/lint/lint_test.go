@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/lint"
@@ -35,7 +36,7 @@ func TestLinkChecksAreSkippedBeforeTheCorpusHasLinks(t *testing.T) {
 	snap := &lint.Snapshot{
 		Documents: []lint.Document{{ID: idA, Path: "c/a.md", Type: "Reference"}},
 	}
-	report := lint.Run(snap, lint.Checks())
+	report := lint.Run(snap, lint.Checks(testNow()))
 
 	skipped := map[string]string{}
 	for _, s := range report.Skipped {
@@ -62,7 +63,7 @@ func TestLinkChecksAreSkippedBeforeTheCorpusHasLinks(t *testing.T) {
 // silently declines is indistinguishable from one that found nothing.
 func TestSkipsAreAlwaysReported(t *testing.T) {
 	t.Parallel()
-	report := lint.Run(&lint.Snapshot{}, lint.Checks())
+	report := lint.Run(&lint.Snapshot{}, lint.Checks(testNow()))
 	if len(report.Skipped) == 0 {
 		t.Fatal("an empty corpus skipped no checks; expected the link and log checks")
 	}
@@ -81,7 +82,7 @@ func TestBrokenLinkIsNeverAnError(t *testing.T) {
 	snap := linkedCorpus()
 	snap.Links = append(snap.Links, lint.Link{FromID: idA, Href: "/c/missing.md"})
 
-	report := lint.Run(snap, lint.Checks())
+	report := lint.Run(snap, lint.Checks(testNow()))
 
 	var found bool
 	for _, d := range report.Diagnostics {
@@ -106,7 +107,7 @@ func TestExternalLinksAreNotBroken(t *testing.T) {
 	snap.Links = append(snap.Links,
 		lint.Link{FromID: idA, Href: "https://example.org", External: true})
 
-	for _, d := range lint.Run(snap, lint.Checks()).Diagnostics {
+	for _, d := range lint.Run(snap, lint.Checks(testNow())).Diagnostics {
 		if d.Category == "broken-link" {
 			t.Errorf("external link reported as broken: %+v", d)
 		}
@@ -136,7 +137,7 @@ func TestDuplicateIdentityIsTheOnlyBlockingIdentityFinding(t *testing.T) {
 			snap := &lint.Snapshot{HasIndex: true, Resolutions: []gnosis.Resolution{{
 				Kind: kind, ID: idA, Paths: []string{"c/a.md", "c/copy.md"}, Other: idB,
 			}}}
-			report := lint.Run(snap, lint.Checks())
+			report := lint.Run(snap, lint.Checks(testNow()))
 			if len(report.Diagnostics) != 1 {
 				t.Fatalf(
 					"got %d diagnostics, want 1: %+v",
@@ -169,7 +170,7 @@ func TestDuplicateMessageNamesEveryPath(t *testing.T) {
 		Kind: gnosis.KindDuplicate, ID: idA,
 		Paths: []string{"c/first.md", "c/second.md"},
 	}}}
-	msg := lint.Run(snap, lint.Checks()).Diagnostics[0].Message
+	msg := lint.Run(snap, lint.Checks(testNow())).Diagnostics[0].Message
 	for _, want := range []string{"c/first.md", "c/second.md", "no winner"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("message %q does not mention %q", msg, want)
@@ -181,7 +182,7 @@ func TestLogFormat(t *testing.T) {
 	t.Parallel()
 	t.Run("absent log is not a finding", func(t *testing.T) {
 		t.Parallel()
-		report := lint.Run(&lint.Snapshot{HasLog: false}, lint.Checks())
+		report := lint.Run(&lint.Snapshot{HasLog: false}, lint.Checks(testNow()))
 		for _, d := range report.Diagnostics {
 			if d.Category == "log-format" {
 				t.Errorf("absent log produced %+v", d)
@@ -193,7 +194,7 @@ func TestLogFormat(t *testing.T) {
 		snap := &lint.Snapshot{HasLog: true, LogLines: []string{
 			"# Update Log", "## 2026-08-19", "* did a thing", "## August 19th", "* another",
 		}}
-		report := lint.Run(snap, lint.Checks())
+		report := lint.Run(snap, lint.Checks(testNow()))
 		if len(report.Diagnostics) != 1 {
 			t.Fatalf("got %d diagnostics, want 1: %+v", len(report.Diagnostics), report.Diagnostics)
 		}
@@ -214,9 +215,9 @@ func TestRunIsDeterministic(t *testing.T) {
 		{Kind: gnosis.KindIndex, ID: idA, Paths: []string{"c/a.md"}},
 	}
 
-	first := lint.Run(snap, lint.Checks())
+	first := lint.Run(snap, lint.Checks(testNow()))
 	for range 20 {
-		if got := lint.Run(snap, lint.Checks()); !reflect.DeepEqual(got, first) {
+		if got := lint.Run(snap, lint.Checks(testNow())); !reflect.DeepEqual(got, first) {
 			t.Fatalf("output varies between runs:\n got %+v\nfirst %+v", got, first)
 		}
 	}
@@ -237,7 +238,7 @@ func TestIndexRelativeFindingsNeedAnIndex(t *testing.T) {
 
 	t.Run("without an index", func(t *testing.T) {
 		t.Parallel()
-		report := lint.Run(&lint.Snapshot{Resolutions: resolutions}, lint.Checks())
+		report := lint.Run(&lint.Snapshot{Resolutions: resolutions}, lint.Checks(testNow()))
 		if len(report.Diagnostics) != 1 {
 			t.Fatalf("got %d diagnostics, want only the duplicate: %+v",
 				len(report.Diagnostics), report.Diagnostics)
@@ -253,7 +254,7 @@ func TestIndexRelativeFindingsNeedAnIndex(t *testing.T) {
 	t.Run("with an index", func(t *testing.T) {
 		t.Parallel()
 		snap := &lint.Snapshot{HasIndex: true, Resolutions: resolutions}
-		report := lint.Run(snap, lint.Checks())
+		report := lint.Run(snap, lint.Checks(testNow()))
 		if len(report.Diagnostics) != 2 {
 			t.Fatalf("got %d diagnostics, want 2: %+v",
 				len(report.Diagnostics), report.Diagnostics)
@@ -272,4 +273,11 @@ func skipped(report lint.Report, check string) bool {
 		}
 	}
 	return false
+}
+
+// testNow is a fixed clock for the registry, so a check that reads one is pinned
+// rather than asserted against a range. The date is arbitrary and chosen only to
+// be far from any fixture's boundary.
+func testNow() time.Time {
+	return time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
 }
