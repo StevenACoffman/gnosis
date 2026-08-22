@@ -11,6 +11,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/ontology"
+	"github.com/StevenACoffman/gnosis/internal/standards"
 	"github.com/StevenACoffman/skillet/errs"
 )
 
@@ -30,6 +31,7 @@ func Inspect(ctx context.Context, dir string) (lint.Environment, error) {
 
 	env.OntologyPresent, env.OntologyError, env.Types = inspectOntology(dir)
 	env.Archive, env.StandardsError = inspectArchive(dir)
+	env.TunedButUnread, env.MispinnedStandards = inspectStandardsReach(dir)
 	env.IndexDocPresent = exists(filepath.Join(dir, "index.md"))
 	env.StateIgnored = stateIgnored(dir)
 
@@ -122,6 +124,32 @@ func inspectIndex(
 // which reads as "no budget declared" and produced a clean bill of health for a
 // corpus whose standards file does not parse. That is the one output this command
 // must never produce.
+// inspectStandardsReach reports edits to the standards files that changed nothing:
+// values tuned off the seed that no code branches on, and values pinned to
+// something this binary does not implement.
+//
+// A file that does not load reports neither. inspectArchive already turns that
+// into its own finding, and guessing at the reach of values that failed to parse
+// would bury it under two more.
+func inspectStandardsReach(dir string) (tuned, mispinned []string) {
+	arch, archErr := LoadArchiveStandards(dir)
+	prom, promErr := LoadPromoteStandards(dir)
+	if archErr != nil || promErr != nil {
+		return nil, nil
+	}
+	// The pinned values are compared here rather than in `standards` because the
+	// constants they pin live with the code that stamps them onto a record, and an
+	// adapter that imported another adapter to reach them would be the coupling the
+	// layering exists to prevent.
+	if arch.HTMLExtractor.Value != ExtractorName {
+		mispinned = append(mispinned, "html_extractor")
+	}
+	if arch.HTMLExtractorVersion.Value != ExtractorVersion {
+		mispinned = append(mispinned, "html_extractor_version")
+	}
+	return standards.Tuned(arch, prom), mispinned
+}
+
 func inspectArchive(dir string) (lint.ArchiveSize, string) {
 	std, err := LoadArchiveStandards(dir)
 	if err != nil {

@@ -70,6 +70,23 @@ type Environment struct {
 	// must say so.
 	StandardsError string `json:"standards_error,omitempty"`
 
+	// TunedButUnread names thresholds this bundle has moved off the seed that no
+	// code branches on, so the edit had no effect. Gathered by the shell, which is
+	// where the knowledge lives: what reads a value is a fact about the whole
+	// program, and this package cannot import standards in any case.
+	//
+	// It is deliberately not "every unread value". That version reported a finding
+	// on every freshly initialised bundle, naming something its owner could neither
+	// build nor delete, and a warning true of every corpus is one readers learn to
+	// skip.
+	TunedButUnread []string `json:"tuned_but_unread,omitempty"`
+
+	// MispinnedStandards names values the file pins to something other than what
+	// this binary stamps. An extracted record carries the binary's constant, so a
+	// file claiming a different extractor version describes provenance no record
+	// in the corpus actually has.
+	MispinnedStandards []string `json:"mispinned_standards,omitempty"`
+
 	// SchemaMissing and SchemaUnexpected are the difference between the schema
 	// the database has and the schema the migrations describe. Empty when the
 	// index is absent, since there is nothing to compare.
@@ -97,6 +114,38 @@ func diagnoseStandards(env *Environment) []finding.Diagnostic {
 	}}
 }
 
+// diagnoseUnread reports an edit to the standards files that did nothing.
+//
+// Warnings rather than errors, and never automatic. The corpus is entirely
+// checkable in both cases; what is wrong is that somebody changed a number and
+// got no behaviour for it, and whether to revert the edit or build the reader is
+// a judgement no tool should make.
+func diagnoseUnread(env *Environment) []finding.Diagnostic {
+	out := make([]finding.Diagnostic, 0, 2)
+	if len(env.TunedButUnread) > 0 {
+		out = append(out, finding.Diagnostic{
+			Severity: finding.SeverityWarning,
+			Category: "standards",
+			Path:     "standards/",
+			Message: "tuned away from the default and read by nothing, so the edit " +
+				"has no effect: " + strings.Join(env.TunedButUnread, ", "),
+			Action: finding.ActionHuman,
+		})
+	}
+	if len(env.MispinnedStandards) > 0 {
+		out = append(out, finding.Diagnostic{
+			Severity: finding.SeverityWarning,
+			Category: "standards",
+			Path:     "standards/",
+			Message: "pinned to something this gnosis does not implement, so records " +
+				"carry provenance the file contradicts: " +
+				strings.Join(env.MispinnedStandards, ", "),
+			Action: finding.ActionHuman,
+		})
+	}
+	return out
+}
+
 // Diagnose reports what is wrong with the apparatus.
 //
 // Requires: env is non-nil and was gathered from one bundle at one moment. It is
@@ -112,6 +161,7 @@ func Diagnose(env *Environment) []finding.Diagnostic {
 	out = append(out, diagnoseBundleFiles(env)...)
 	out = append(out, diagnoseIndex(env)...)
 	out = append(out, diagnoseStandards(env)...)
+	out = append(out, diagnoseUnread(env)...)
 	out = append(out, DiagnoseBudget(&env.Archive)...)
 	finding.Sort(out)
 	return out

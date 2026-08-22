@@ -160,3 +160,40 @@ func TestOnlyOneVocabularyFinding(t *testing.T) {
 		t.Errorf("got %d vocabulary findings for one cause, want 1", n)
 	}
 }
+
+// TestAnEditThatDidNothingIsReported. Both findings say the same thing in two
+// registers — you changed a number and got no behaviour — and neither blocks,
+// because the corpus remains entirely checkable either way.
+func TestAnEditThatDidNothingIsReported(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		perturb func(*lint.Environment)
+		want    string
+	}{
+		"a tuned value nothing reads": {
+			func(e *lint.Environment) { e.TunedButUnread = []string{"in_degree_cut"} },
+			"has no effect: in_degree_cut",
+		},
+		"a value pinned to another version": {
+			func(e *lint.Environment) { e.MispinnedStandards = []string{"html_extractor_version"} },
+			"provenance the file contradicts: html_extractor_version",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			env := healthy()
+			tc.perturb(&env)
+			got := lint.Diagnose(&env)
+			if len(got) != 1 {
+				t.Fatalf("got %d finding(s), want 1: %+v", len(got), got)
+			}
+			if got[0].Severity.Blocking() {
+				t.Error("an ineffective edit blocked; the corpus is still checkable")
+			}
+			if !strings.Contains(got[0].Message, tc.want) {
+				t.Errorf("message %q omits %q", got[0].Message, tc.want)
+			}
+		})
+	}
+}
