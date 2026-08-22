@@ -143,6 +143,12 @@ ______________________________________________________________________
 
 ## Noticed While Building Phase 2
 
+- [ ] **`AuditTrail` still has no production caller.** `Trail` and `Whole()` exist so
+  a reader can tell a partial trail from a whole one, and the only readers are tests
+  and `doctor`'s row count. `gnosis log --audit` or the `gnosis debt` verb already
+  filed above is where it lands. Recorded because a careful API with no consumer is
+  the same trap §6.5.1 is about, one layer up.
+
 - [ ] **§9.3 stages 2 and 3 are still unbuilt, and now cost a signature.** Injection
   and exfiltration patterns need a pattern corpus with its own test set; secrets need
   a `betterleaks` dependency. Until they land, every promotion in every corpus routes
@@ -204,11 +210,6 @@ ______________________________________________________________________
   file falls back to the embedded seed, so a seed improvement reaches every
   existing bundle, which scaffolding would prevent. Worth revisiting if the values
   become something people are expected to tune per corpus.
-- [ ] **§9.3 stages two through four are unbuilt.** Injection and exfiltration
-  patterns, secrets via `betterleaks`, and the oversize bound. Each needs its own
-  decision — a pattern corpus with a test set, a dependency, a `standards/` value —
-  and `scan.Stages()` exists so a report can say which stages produced a clean
-  result rather than implying all four did.
 - [ ] **Nothing renders a scan's full finding set.** `archive` reduces it to one
   `RejectReason`, which is right for a disposition and loses the detail: a source
   carrying three classes reports one. A `doctor` or `fetch --explain` view wants
@@ -316,7 +317,7 @@ ______________________________________________________________________
   rebuilt by `index rebuild`. Neither exists, so tier 0 is currently writable and
   unqueryable — every question about it means walking `evidence/fetch/`.
 - [x] **The fetch adapters run §9.3's hidden-character scan.** *`internal/scan`,
-  wired through `archive.Gates.ScanText`. Stage one of four; `scan.Stages()` reports
+  wired through `archive.Gates.ScanText`. Stage one of four; `scan.Coverage` reports
   which ran, so a clean scan is not read as "§9.3 passed".* Original: §4.4 requires archived
   text be subject to §9.3's scan, and §9.3 is unbuilt. Currently an SVG — or any
   source — can carry invisible text into the archive.
@@ -455,21 +456,31 @@ evidence that settles §11.
   `gnosis search --jsonl`. No judge, no model, no threshold — a finding surface, not a
   gate (§17). Cases authored when a real query disappoints, never invented up front.
   Phase 4, with the reranker whose admission evidence it is.
-- [ ] **A mutation does not verify that its audit row was written.** §15 now requires
-  it. `Execute` writes the row, re-reads the tail, and returns an error rather than an
-  `Outcome` when the row cannot be read back. The failure this is for is observed:
-  a surveyed project's ledger-append step failed silently for five consecutive nights
-  while every other stage succeeded. Cheap, and it belongs with the write path rather
-  than after it.
-- [ ] **`bundle.AuditTrail` skips malformed lines instead of counting them.** A
-  truncated or hand-edited trail currently reads as a shorter one, which is the
-  direction that flatters. Return the parsed rows *plus* the count and line numbers
-  that failed, and carry both in `--jsonl`. Pairs with the corruption-versus-operational
-  item already open above — this is the case where the distinction has a caller.
-- [ ] **`gnosis doctor` should report the trail's own health.** Malformed-line count,
-  and the newest row's timestamp against the newest commit touching the bundle. A
-  trail whose last row predates the last write is the observable form of the silent
-  failure above, and it is one comparison.
+- [x] **A mutation does not verify that its audit row was written.** `AuditVerified`
+  appends and re-reads the tail; the unverified append is unexported so the compiler
+  enforces it. Two things the entry did not anticipate. §15 and `Audit`'s own comment
+  looked contradictory and are about *different events* — a failed append is a known
+  gap and stays fail-soft, a successful append with nothing on disk is the trail lying
+  and fails hard — so the coordinator carries two fields. And "a mutation" is four
+  mutations: `init` and `index rebuild` append outside the coordinator, so verifying
+  only in `Execute` would have satisfied §15 for half its subjects.
+- [x] **`bundle.AuditTrail` skips malformed lines instead of counting them.**
+  *The premise was already stale when written: it had stopped skipping and started
+  erroring on the first bad line, returning no rows at all — worse than either
+  option, and my doing.* Now returns a `Trail` carrying the rows and the failed line
+  numbers, with `Whole()` as the only place the damage becomes an error. A value and
+  a method rather than a value and an error, because Go's convention is that a
+  non-nil error makes the value untrustworthy and this requirement is that the rows
+  stay usable. `LoadChecks` keeps fail-whole: a partial trail is an incomplete
+  answer about history, a partial check record is a wrong answer about the corpus.
+- [x] **`gnosis doctor` should report the trail's own health.** Malformed-line count,
+  named by line, as a warning — a damaged trail leaves the corpus checkable and makes
+  its history unrecountable, so blocking would fail `doctor` on a corpus with nothing
+  wrong with it. **The timestamp comparison is not built and §15 is corrected.**
+  Running it showed a commit newer than the last row is the *ordinary* state: people
+  edit markdown by hand and commit, and git commits are not gnosis's writes. The
+  check would have fired on the normal workflow. The failure it was inferring is now
+  caught directly at the append.
 - [ ] **Upstream drift resolves to three states, and `quotecheck` already computes
   the discriminator.** §14.3.2 specifies `drift-benign` / `drift-unsupported` /
   `drift-unchecked` — re-run the recorded passages against the *new* bytes. Today both
