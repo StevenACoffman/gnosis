@@ -28,7 +28,7 @@ const conceptPrefix = "/" + conceptDir + "/"
 // zero value states that the bundle has no index.
 // Ensures: a bundle with no concepts yields a valid empty Snapshot rather than an
 // error, because every command must work against a freshly initialised bundle.
-func Snapshot(fsys fs.FS, idx IndexState) (*lint.Snapshot, error) {
+func Snapshot(fsys fs.FS, idx IndexState, fresh FreshnessState) (*lint.Snapshot, error) {
 	const op = "bundle.Snapshot"
 
 	docs, err := Load(fsys)
@@ -48,6 +48,8 @@ func Snapshot(fsys fs.FS, idx IndexState) (*lint.Snapshot, error) {
 	return &lint.Snapshot{
 		Documents:     documents(docs),
 		ArchivedText:  archived,
+		SourceChecks:  fresh.Checks,
+		StalenessDays: fresh.StalenessDays,
 		Links:         links(docs),
 		Resolutions:   gnosis.Reconcile(Observed(docs), idx.Rows),
 		SchemaVersion: gnosis.SchemaVersion,
@@ -65,7 +67,8 @@ func documents(docs []Document) []lint.Document {
 		out = append(out, lint.Document{
 			ID: d.ID, Path: d.Path, Type: d.Type, Title: d.Title,
 			Body: d.Body, SchemaVersion: d.SchemaVersion,
-			Claims: claimRefs(d.Claims),
+			Claims:     claimRefs(d.Claims),
+			StaleAfter: d.StaleAfter, SourceKeys: d.SourceKeys,
 		})
 	}
 	return out

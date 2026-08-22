@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
@@ -54,6 +55,14 @@ type Document struct {
 	// Claims are the document's declared claims and where they say their
 	// evidence lives (§5.5.1). Empty for a document declaring none.
 	Claims []DocClaim
+
+	// StaleAfter is the OKF date the author asked for this to be revisited by,
+	// or the zero time when they declared none.
+	StaleAfter time.Time
+
+	// SourceKeys identify the source versions this document rests on, keyed as
+	// checked.jsonl keys them.
+	SourceKeys []string
 }
 
 // DocClaim is a claim's identity and its evidence addresses, as the document
@@ -174,6 +183,8 @@ func read(fsys fs.FS, path string) Document {
 	}
 
 	doc.Claims = docClaims(parsed)
+	doc.StaleAfter = staleAfter(parsed)
+	doc.SourceKeys = sourceKeys(doc.Claims)
 
 	if rawID, ok := parsed.Text(idKey); ok {
 		if id, idErr := gnosis.ParseID(rawID); idErr == nil {
