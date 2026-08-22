@@ -45,6 +45,23 @@ type Gates struct {
 	// EmbeddedPayloadCap is the largest data URI tolerated inside an archived
 	// file, in bytes.
 	EmbeddedPayloadCap int64
+
+	// ScanText reports why text may not be admitted, or "" when it may. It is
+	// §9.3's admission scan, supplied rather than imported: `internal/scan` is a
+	// sibling adapter and adapters do not import each other (PLAN §0.1), so this
+	// package states what it needs and the shell joins them — the same shape the
+	// gates themselves take.
+	//
+	// It is a function rather than data because what it decides is not a
+	// threshold. A codepoint either is or is not U+202E, and there is no value
+	// this struct could carry that would let a caller express that.
+	//
+	// **A nil ScanText means no scan, which fails open**, and that is the one
+	// fail-open default in this package. It is here because the alternative — a
+	// zero Gates that refuses everything — would make every test and every caller
+	// that legitimately does not scan carry a stub. The shell always supplies one
+	// and a test asserts the wiring rather than trusting it.
+	ScanText func(string) RejectReason
 }
 
 // Candidate is one fetched source as the caller found it.
@@ -170,9 +187,13 @@ func admits(ext string, data []byte, g Gates) RejectReason {
 		return ReasonEmbeddedPayload
 	case ext == ".svg":
 		return sanitizeSVG(data)
-	default:
-		return ""
 	}
+	// Last, and only over text: §9.3 runs before any model sees the content, and
+	// scanning bytes that failed the text test would be scanning noise.
+	if g.ScanText != nil {
+		return g.ScanText(string(data))
+	}
+	return ""
 }
 
 // allowed reports whether ext is on the allowlist.

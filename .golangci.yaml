@@ -364,6 +364,7 @@ linters:
             - "**/internal/relay/**"
             - "**/internal/audit/**"
             - "**/internal/okflog/**"
+            - "**/internal/scan/**"
             - "**/internal/lint/**"
             - "**/internal/web/**"
           deny:
@@ -385,6 +386,8 @@ linters:
               desc: "adapters import internal/gnosis only, never each other; the shell gathers a gate.Corpus and hands it over — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/relay"
               desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/internal/scan"
+              desc: "adapters import internal/gnosis only, never each other; archive.Gates carries the scanner the shell supplies — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/lint"
               desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/bundle"

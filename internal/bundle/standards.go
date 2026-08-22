@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
+	"github.com/StevenACoffman/gnosis/internal/scan"
 	"github.com/StevenACoffman/gnosis/internal/standards"
 	"github.com/StevenACoffman/skillet/errs"
 )
@@ -49,5 +50,19 @@ func ArchiveGates(a *standards.Archive) archive.Gates {
 		Allowlist:          a.Allowlist.Value,
 		PerFileCap:         a.PerFileCap.Value,
 		EmbeddedPayloadCap: a.EmbeddedPayloadCap.Value,
+		ScanText:           scanText,
 	}
+}
+
+// scanText is §9.3's admission scan, as the archive's policy needs it.
+//
+// It reports only the first class found. The archive's disposition is one reason
+// and a source rejected for hidden characters is rejected whichever kind it
+// carries; the full finding set belongs in a report, and a TODO records that
+// nothing renders one yet.
+func scanText(text string) archive.RejectReason {
+	if len(scan.Hidden(text)) == 0 {
+		return archive.ReasonNone
+	}
+	return archive.ReasonHiddenCharacters
 }

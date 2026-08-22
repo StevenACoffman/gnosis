@@ -48,6 +48,12 @@ const (
 	// allowlist admitted.
 	ReasonEmbeddedPayload RejectReason = "embedded-payload"
 
+	// ReasonHiddenCharacters: text carrying characters no reviewer can see
+	// (§9.3). Ingested text is text an agent will obey, and instructions written
+	// in zero-width or bidi-override characters are invisible in every editor a
+	// reviewer might open the document in.
+	ReasonHiddenCharacters RejectReason = "hidden-characters"
+
 	// The SVG rejections of §4.4. Sanitization is a refusal and never a rewrite,
 	// so what is committed is what was fetched.
 	ReasonSVGScript        RejectReason = "svg-script"
