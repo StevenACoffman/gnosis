@@ -165,3 +165,54 @@ func TestCheckIsNotBlocked(t *testing.T) {
 		t.Error("--check was blocked by the rebuild floor")
 	}
 }
+
+// TestARebuildIsAudited. §15 audits every mutation, and a rebuild is one: it
+// replaces the derived tables wholesale.
+func TestARebuildIsAudited(t *testing.T) {
+	t.Parallel()
+	dir := corpusOf(t)
+
+	body, err := os.ReadFile(filepath.Join(dir, ".gnosis", "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("no audit trail after a rebuild: %v", err)
+	}
+	trail := string(body)
+
+	if !strings.Contains(trail, `"op":"rebuild"`) {
+		t.Errorf("the trail omits the rebuild:\n%s", trail)
+	}
+	// The actor is a check rather than a person: the tool caused the write, and
+	// §5.5 holds that a check name is as much an answer to "who says so" as an
+	// actor is.
+	if !strings.Contains(trail, `"actor":"check:index-rebuild"`) {
+		t.Errorf("the trail omits the actor:\n%s", trail)
+	}
+	if !strings.Contains(trail, strconv.Itoa(corpusSize)+" documents") {
+		t.Errorf("the rebuild row does not say what it indexed:\n%s", trail)
+	}
+}
+
+// TestARepeatedInitIsStillAudited. "Somebody ran init here and it was already
+// initialised" is a fact about this machine, and a trail holding only successful
+// creations would make a repeated init look like it never happened.
+func TestARepeatedInitIsStillAudited(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	for range 2 {
+		if _, err := run(t, "--bundle", dir, "init"); err != nil {
+			t.Fatalf("init: %v", err)
+		}
+	}
+
+	body, err := os.ReadFile(filepath.Join(dir, ".gnosis", "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("read trail: %v", err)
+	}
+	if n := strings.Count(string(body), `"op":"init"`); n != 2 {
+		t.Errorf("got %d init rows after two inits:\n%s", n, body)
+	}
+	if !strings.Contains(string(body), "already present") {
+		t.Errorf("the second row does not say nothing was created:\n%s", body)
+	}
+}

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/peterbourgon/ff/v4"
 
 	"github.com/StevenACoffman/gnosis/cmd/root"
+	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/index"
 )
@@ -163,6 +165,26 @@ func (c *Config) write(
 	result.Sources = len(sources)
 	result.Wrote = true
 	result.Drifted = 0
+
+	// §15 audits every mutation, and a rebuild is one: it replaces the derived
+	// tables wholesale. The actor is a check rather than a person because the tool
+	// caused it — `gnosis.KindCheck` exists for exactly this, and §5.5 gives the
+	// reason where `findings.opened_by` names one: "a check name is as much an
+	// answer as an actor is". Attributing it to whoever typed the command would be
+	// less true, and the trail is per-user anyway, so the file is the person.
+	//
+	// Best-effort, like every other audit row: the rebuild happened, and reporting
+	// a bookkeeping failure as the operation's would tell a caller to retry
+	// something that succeeded.
+	if aErr := bundle.Audit(c.Bundle, &audit.Row{
+		At: time.Now().UTC(), Op: audit.OpRebuild, Actor: "check:index-rebuild",
+		Paths:   []string{".gnosis/index.db"},
+		Outcome: string(root.StatusOK),
+		Detail: strconv.Itoa(result.Documents) + " documents, " +
+			strconv.Itoa(result.Sources) + " sources",
+	}); aErr != nil {
+		_, _ = fmt.Fprintf(c.Stderr, "warning: the rebuild was not audited: %v\n", aErr)
+	}
 	return nil
 }
 

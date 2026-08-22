@@ -9,10 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"time"
 
 	"github.com/peterbourgon/ff/v4"
 
 	"github.com/StevenACoffman/gnosis/cmd/root"
+	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/ontology"
 )
@@ -150,6 +153,24 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 
 	sort.Strings(result.Created)
 	sort.Strings(result.Existing)
+
+	// §15 audits every mutation. An init that created nothing still gets a row:
+	// "somebody ran init here and it was already initialised" is a fact about this
+	// machine, and a trail with only the successful creations would make a repeated
+	// init look like it never happened.
+	//
+	// The actor is a check because the tool caused the write, per §5.5's reasoning
+	// for `findings.opened_by`. Best-effort, and the warning goes to stderr where a
+	// person running the command will see it.
+	if aErr := bundle.Audit(c.Bundle, &audit.Row{
+		At: time.Now().UTC(), Op: audit.OpInit, Actor: "check:init",
+		Paths:   result.Created,
+		Outcome: string(root.StatusOK),
+		Detail: strconv.Itoa(len(result.Created)) + " created, " +
+			strconv.Itoa(len(result.Existing)) + " already present",
+	}); aErr != nil {
+		_, _ = fmt.Fprintf(c.Stderr, "warning: the init was not audited: %v\n", aErr)
+	}
 	return c.report(result)
 }
 
