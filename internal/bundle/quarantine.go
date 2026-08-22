@@ -128,6 +128,16 @@ func Discard(bundleDir, rel string) error {
 	return nil
 }
 
+// quarantineTargetPath is where a quarantined document would land if promoted.
+//
+// Separate from quarantinePath, which resolves the draft's location inside tier 1.
+// Two functions rather than one because confusing them would read the draft when
+// the corpus copy was meant, which is how a revision would be mistaken for a
+// creation.
+func quarantineTargetPath(bundleDir, rel string) string {
+	return filepath.Join(bundleDir, filepath.FromSlash(rel))
+}
+
 // quarantinePath resolves a bundle-relative path inside tier 1, refusing anything
 // that would escape it.
 //
