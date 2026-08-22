@@ -29,6 +29,7 @@ type Type struct {
 	ExpectsSubject bool           `toml:"expects_subject"`
 	Template       string         `toml:"template"`
 	Aliases        []string       `toml:"aliases"`
+	Rejected       []Rejection    `toml:"rejected"`
 	Deprecated     *Deprecation   `toml:"deprecated"`
 }
 
@@ -38,8 +39,25 @@ type Subject struct {
 	Dimension          Dimension         `toml:"dimension"`
 	Desc               string            `toml:"desc"`
 	Aliases            []string          `toml:"aliases"`
+	Rejected           []Rejection       `toml:"rejected"`
 	RequiresCapability bool              `toml:"requires_capability"`
 	Deprecated         *Deprecation      `toml:"deprecated"`
+}
+
+// Rejection is a surface phrase that was proposed as an alias and declined.
+//
+// §5.8.2 requires the reason, and the requirement is the point rather than the
+// record: an `aliases` list keeps the conclusion and throws away the reasoning, so
+// the phrase gets proposed again by somebody who was not in the room when it was
+// refused. It is worse here than in most places because §5.8.2.1 makes an alias
+// exclusive — admitting one wrongly forecloses a key another group needed.
+type Rejection struct {
+	// Alias is the phrase that was proposed.
+	Alias string `toml:"alias"`
+
+	// Reason is why it was declined, in one sentence. Required: a rejection with
+	// no reason records that somebody said no and not what they knew.
+	Reason string `toml:"reason"`
 }
 
 // Deprecation announces a key's retirement before enforcing it. While Error is
@@ -164,6 +182,9 @@ func (o *Ontology) indexTypes(op string) error {
 			return dup(op, "type", t.Key.String())
 		}
 		seen[t.Key] = true
+		if err := checkRejections(op, "type", t.Key.String(), t.Aliases, t.Rejected); err != nil {
+			return err
+		}
 		for _, s := range append([]string{t.Key.String()}, t.Aliases...) {
 			folded := gnosis.Surface(s).Fold()
 			if err := claim(o.typeByAlias, folded, t.Key, op, "type"); err != nil {
@@ -192,6 +213,10 @@ func (o *Ontology) indexSubjects(op string) error {
 				Message: fmt.Sprintf("%s: subject %q has unknown dimension %q",
 					op, sub.Key, sub.Dimension),
 			}
+		}
+		if err := checkRejections(op, "subject", sub.Key.String(),
+			sub.Aliases, sub.Rejected); err != nil {
+			return err
 		}
 		for _, s := range append([]string{sub.Key.String()}, sub.Aliases...) {
 			folded := gnosis.Surface(s).Fold()

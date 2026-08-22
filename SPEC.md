@@ -85,6 +85,35 @@ The consequence worth stating plainly, because it constrains everything downstre
 admits an unquoted assertion, and no disqualification of a source retroactively
 invalidates a claim whose quote still validates.
 
+#### 1.1.1 The Other Posture Is the Field's Default, and It Works
+
+This section long argued against an opponent it declined to name, which made the
+position look easier to hold than it is. Surveying the field supplied the names.
+
+Four working systems write durable knowledge with **no gate on the write path**.
+One rewrites a page when a new source contradicts it — *"claims revised, stale
+facts replaced"* — and resolves contradictions automatically. One distils an
+agent's session into skill files with an unverified model pass. One saves every
+lesson it teaches and revises itself from feedback. One merges related facts into
+consolidated beliefs on a background loop and raises a **proof count** as sources
+corroborate, which is source reliability inheriting to claims exactly as the rule
+above forbids.
+
+None of these is careless and each is used. What separates them from this
+specification is not rigour but **audience and reversibility**. Three serve one
+person's recall, where rewriting is right: you want the current answer, not the
+history of your own wrongness, and the cost of a bad memory is that one person is
+briefly confused. A shared corpus inverts both. A rewritten claim cannot be
+distinguished from a fabricated one, the reader was not present for the revision,
+and the cost of a bad claim is that somebody builds on it.
+
+So the honest statement of this section's position is not that unverified
+accretion is wrong. It is that **unverified accretion is correct for a memory and
+wrong for a record**, that gnosis is the second, and that the gates below are the
+price of the difference rather than evidence of superior care. A reader running a
+personal vault should take the other design; this one is more expensive and the
+expense buys something they do not need.
+
 ______________________________________________________________________
 
 ## 2. Non-Goals
@@ -1297,6 +1326,33 @@ Where two groups mean genuinely *different* things by one phrase, an alias is th
 wrong tool. That is a bounded-context problem, and the answer is two subject keys
 with distinct descriptions, not one key pretending to cover both.
 
+**A vocabulary entry MUST also record the aliases it refused, and why.** An
+`aliases` list says what resolves; a `rejected` list says what was proposed,
+considered, and declined, with one sentence of reason each:
+
+```toml
+[[subjects]]
+key     = "retry.max_attempts"
+aliases = ["retry budget", "retry cap"]
+
+  [[subjects.rejected]]
+  alias  = "retry policy"
+  reason = "covers backoff and jitter too; a claim bounding one is not bounding the others"
+```
+
+This is the required-rationale discipline of §6.2 applied to vocabulary, and it
+exists for the same reason. A refused alias is exactly the knowledge that gets
+re-litigated: somebody proposes `retry policy` again in six months, the person who
+knows it was refused for covering three distinct constraints is not in the room, and
+the corpus has no way to say. Recording only what matched keeps the *conclusion* and
+throws away the *reasoning*, which is the failure mode this whole specification is
+organised against — and it is worse here than elsewhere, because §5.8.2.1 makes an
+alias exclusive, so admitting one wrongly forecloses a key that another group needed.
+
+Rejections are also what make §5.8.4's evolution honest. A vocabulary that only ever
+grows records every decision to admit and none to decline, so its history reads as
+though nothing was ever hard.
+
 ##### 5.8.2.1 One Surface Phrase Resolves to One Key, and This Is Enforced
 
 A phrase claimed by two keys is an **error**, and `ontology.toml` does not load.
@@ -1736,6 +1792,24 @@ parses both:
 `status` and `reason` are both closed vocabularies, and the reason for having
 both is worth stating: `status` says what kind of outcome this is, `reason` says
 which one, and an agent branches on a token rather than matching prose.
+
+**One verdict, two renderings — never two verdicts.** The human output and the
+JSONL envelope differ in presentation and in nothing else: the same run over the
+same corpus reaches the same findings, the same status, and the same exit code
+whichever form is asked for. This is stated because it is the sort of thing a
+reasonable person proposes relaxing. A surveyed system carries "disposition traits"
+that shape how strictly it interprets, and reading it invites an obvious-seeming
+adaptation: strict in CI, forgiving in a local loop. That would give a developer a
+pass on their machine and a failure in the pipeline **for one corpus at one
+commit**, which is the most demoralising property a checking tool can have and the
+fastest way to teach a team that the tool is noise.
+
+It is also the same guarantee as §4.6's *two users at the same commit hold the same
+index*, one layer up: a verdict that depends on where it ran is a verdict about the
+environment rather than about the corpus. Where strictness genuinely must vary —
+a repository that has not adopted a convention yet — the mechanism is a declared
+value in `standards/` that both runs read (§6.5), so the difference is a fact about
+the corpus and is visible in a diff.
 
 | `status`   | `code` | Means                                                                  |
 | ---------- | ------ | ---------------------------------------------------------------------- |
@@ -2774,6 +2848,30 @@ retrieval failure that FTS5 cannot fix — and the miss log (§6.4) is what woul
 supply that evidence, since it records the queries the deterministic path did not
 answer. Enabling a reranker before the miss log says why is solving a problem this
 corpus has not been shown to have.
+
+**The evidence above is one-sided, and the other side has numbers.** A surveyed
+agent-memory system reports 94% and 91% on LongMemEval — a benchmark for long-term
+conversational recall — running four retrieval strategies in parallel (vector,
+BM25, graph traversal, temporal) fused by reciprocal rank and reranked by a
+cross-encoder. That is a measured claim that the architecture this section declines
+works well at what it is built for.
+
+Three things make it not decisive here, and stating them is the point of naming it
+at all rather than leaving the section to cite only what agrees with it.
+
+The **task is different**: recalling what was said across a long conversation is not
+adjudicating whether a claim is supported. A corpus's hard problem is not finding
+the document, it is knowing whether to believe it, and no retrieval score addresses
+that. The **scale is different**, per the measurement above. And the **failure modes
+are not symmetric**: a memory system that returns the wrong passage answers a
+question badly, while a corpus that returns the wrong passage under an
+authoritative frame supplies a citation somebody will build on.
+
+But the honest form of this section's position is *we accept a retrieval ceiling in
+exchange for a retrieval path a reader can audit*, not *there is nothing to give
+up*. If the miss log ever shows FTS5 failing on queries a fused reranker would have
+answered, that is the trade coming due, and §11's optional reranker is where it
+gets paid.
 
 #### 11.0.1 Snippets Are Rendered, Not Excerpted
 

@@ -396,7 +396,12 @@ ______________________________________________________________________
 
 ## Reviewed Summaries — `hindsight` (2026-08-22)
 
-- [ ] **§11.0 refuses semantic search and never names the price.** `hindsight`
+- [x] **§11.0 now names what refusing semantic search costs.** *The section was
+  better than this entry credited — it already cited a measurement and named the
+  condition for enabling embeddings. The real gap was that it cited only favourable
+  evidence. It now states the LongMemEval numbers, the three reasons they are not
+  decisive here, and the honest form of the position: a retrieval ceiling accepted
+  in exchange for an auditable path.* Original: `hindsight`
   reports 94% and 91% on LongMemEval for an architecture gnosis declines on
   inspectability grounds. The task is not gnosis's and the number is the vendor's,
   but "we decline this, and here is roughly what declining costs on an adjacent
@@ -414,7 +419,9 @@ ______________________________________________________________________
   frontmatter. The salvageable half of `hindsight`'s proof count: record *which*
   sources support a claim without collapsing them into a number, since §1.1's local
   reductionism refuses the inheritance a count implies.
-- [ ] **State that one verdict may have two renderings and never two verdicts.**
+- [x] **§8.0 states that one verdict may have two renderings and never two
+  verdicts.** *With the strict-in-CI proposal named as the thing it forbids.*
+  Original:
   The disposition-traits proposal — strict in CI, lenient locally — would give a
   developer a pass locally and a failure in CI for one corpus at one commit. §4.6
   implies this is forbidden and no section says it outright, which is why a
@@ -426,7 +433,10 @@ Both summaries are in `manifesto.md` with what survived review. These are the it
 worth doing; the contested ones are recorded there rather than here, because a
 position argued against is not a task.
 
-- [ ] **The ontology records aliases and not rejections.** FPF's `F.18 NameCard`
+- [x] **The ontology records rejections.** *§5.8.2 requires them, `ontology.Rejection`
+  carries the phrase and a required reason, the loader refuses a reason-less
+  rejection and a phrase that is both admitted and refused, and the seed carries two
+  worked examples.* Original: FPF's `F.18 NameCard`
   carries the candidate set, the chosen name, **and the rejected candidates with the
   reason each was rejected**. gnosis keeps only what matched. A rejected alias is
   precisely the knowledge that gets re-litigated — somebody proposes `runbook` for
@@ -533,8 +543,10 @@ how cheap they are relative to what they buy.
   has been applied; reliance is the version that decides the next case without a
   fresh argument. Worth adopting as the stated test with the current wording kept as
   its gloss.
-- [ ] **Three surveyed projects write durable knowledge with no gate on the write
-  path** — `obsidian-second-brain` (rewrites pages), `Acontext` (an LLM distillation
+- [x] **§1.1.1 names the field's default and why it is right for its audience.**
+  *Four systems now, including hindsight's proof counts. The section's honest form
+  is that unverified accretion is correct for a memory and wrong for a record.*
+  Original: — `obsidian-second-brain` (rewrites pages), `Acontext` (an LLM distillation
   pass writes skill files), `doceo` (saves lessons and self-revises from feedback).
   Not an action item for gnosis so much as a calibration one: §1.1's posture is
   contested by the field's default, not merely by an imagined opponent, and the
