@@ -143,12 +143,32 @@ ______________________________________________________________________
 
 ## Noticed While Building Phase 2
 
-- [ ] **`staleness_days` and `in_degree_cut` are read by nothing.** Loaded,
-  validated, rationalised, and dead — the same state `hedging_max` was in, except
-  that one was at least consulted. `staleness_days` is §14.3's default window and
-  `gnosis.FreshnessOf` now exists to use it; `in_degree_cut` is §14.4.1's
-  centrality cut and nothing computes centrality. Found by tracing which standards
-  values reach a finding.
+- [ ] **Freshness is per document, not per claim.** `show` reports the oldest check
+  across every source the document cites, so one unverified source marks the whole
+  page. That is the right *conservative* answer and the wrong *useful* one: a reader
+  wants to know which sentence rests on the stale source. `gnosis_claims` anchors
+  already tie a claim to its evidence, so the join exists; what is missing is
+  carrying it through `lint.Document`.
+- [ ] **The `stale` check cannot compare archived text to upstream.** Half of §12's
+  own row for it. `lint` does no network by design (§4.6), so the drift half needs a
+  different home — plausibly `fetch --recheck`, which already has the connection and
+  already writes `checked.jsonl`. Recorded in §12 rather than dropped from the table.
+- [ ] **`standards.Unread`'s classification is a maintained list.** Recording what
+  reads each value cannot be discovered at runtime, so it is a switch in Go with a
+  test asserting the set. The failure direction is safe — a newly consumed value not
+  recorded is reported as unread, which is a false alarm somebody chases — but it is
+  still a second place to remember, and the honest note is that the test is what
+  makes it survivable.
+
+- [x] **`staleness_days` and `in_degree_cut` are read by nothing.** `staleness_days`
+  now drives the `stale` check's window. `in_degree_cut` stays unread deliberately:
+  §14.4.1 wants it for *unprovable AND load-bearing*, `unprovable` is Phase 3, and a
+  reader that classified bare centrality would be a different feature wearing the
+  same number. Instead the deadness is now *reported* — `standards.Unread` records
+  what reads each value, a test asserts the set, and `doctor` reports a value tuned
+  off the seed that nothing reads. §6.5.1. A third state fell out of implementing
+  it: `html_extractor`/`html_extractor_version` are *pinned*, not consumed, and
+  calling them either of the other two misleads in opposite directions.
 - [ ] **§6.2 assumes every threshold affects the finding count and two of seven
   do.** `corpus_budget` and `corpus_warn_fraction` feed `doctor`'s budget
   diagnostic and their delta is exact. The allowlist and caps govern admission;
@@ -156,10 +176,13 @@ ______________________________________________________________________
   the other two are read by nothing. `standards check` says which case each
   loosening is in rather than printing a zero, but §6.2's own wording should be
   revised to ask for the count *where one exists*.
-- [ ] **Freshness is computed and nothing calls it.** `gnosis.FreshnessOf` and
-  `checked.jsonl` are both in place; no command joins them. `show` still renders no
-  freshness and `doctor` reports no stale sources. This is the last mile of the
-  §14.3 work and it is small.
+- [x] **Freshness is computed and nothing calls it.** `lint`'s `stale` check and
+  `show`'s freshness line both land now, joined by `bundle.LoadFreshness` — which is
+  the shell's work because `checked.jsonl` keys `(uri, hash)`, claims key archive
+  paths, and the fetch record is the only artifact holding both. Two things surfaced
+  in the doing: `stale_after` governs the *claim* and `staleness_days` governs the
+  *check* (§14.3.0), and never-checked is deliberately **not** a finding, because it
+  is true of every document in a corpus that has just started fetching.
 - [ ] **`init` does not scaffold `standards/`.** Deliberate for now — an absent
   file falls back to the embedded seed, so a seed improvement reaches every
   existing bundle, which scaffolding would prevent. Worth revisiting if the values
@@ -483,10 +506,10 @@ how cheap they are relative to what they buy.
   a corrupted bundle or a bad `--bundle`, and it currently writes that index without
   comment — destroying the only copy of the state that would have shown the problem.
   Cheapest high-value item in the survey.
-- [ ] **A reader cannot see a claim's freshness.** §14.3 computes `fresh`/`stale`/
-  `unknown` and `show` renders none of it. `obsidian-second-brain` writes every fact
-  as `(as of YYYY-MM, source.com)` inline. Staleness that only the index knows is
-  staleness the person reading the claim does not.
+- [x] **A reader cannot see a claim's freshness.** `show` renders the state and why.
+  Still per *document* rather than per *claim* — `obsidian-second-brain`'s inline
+  `(as of YYYY-MM, source.com)` is finer-grained than this, and reaching it needs the
+  claim-level source join that §5.5.1 anchors would support. Filed below.
 - [ ] **`skillsaw`'s ratchet may not re-verify prior passes.** `oh-my-agent`'s judge
   re-checks every criterion each iteration "because fixing C2 is how C1 silently
   regresses." Needs checking in skillsaw; if the ratchet re-scores only failed
@@ -580,11 +603,12 @@ how cheap they are relative to what they buy.
   **make the fixture adversarial** — assert on what the agent sent, not only on what
   it received. Their own honest-limits note bounds the claim: it does not prove a live
   model produces the same calls, and that belongs to usage rather than to CI.
-- [ ] **`bundle.AuditTrail` cannot distinguish corruption from operational failure.**
-  *Rule added to §15; the code does not implement it yet.*
-  Gentleman's threat model draws the line: only malformed state, checksum, or receipt
-  evidence is corruption; Git and filesystem failures are operational. A malformed
-  audit line currently reads the same as a failing disk.
+- [x] **`bundle.AuditTrail` cannot distinguish corruption from operational failure.**
+  `AuditTrail` and `LoadChecks` now report a malformed line as corruption *with its
+  line number*, distinct from a read failure. The honest limit is recorded in §15 and
+  in the code: `errs` has five codes and none means "the bytes on disk are wrong", so
+  this is `EINVALID` with a message that says corruption — **legible rather than
+  machine-checkable**. A sixth code belongs at the second consumer, not the first.
 - [ ] **A declined promotion is logged as an observation, not recorded as a decision.**
   gnosis writes a refusal to `audit.jsonl`, which is per-user and gitignored.
   Gentleman records the decline itself as a canonical authorization, atomically. By

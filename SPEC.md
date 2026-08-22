@@ -1626,6 +1626,47 @@ defaults, the archive gates, and the promote gate's signals. Two consequences:
 - The standards files are hash-pinned into every finding and every audit row, so
   a verdict is inseparable from the configuration that produced it.
 
+#### 6.5.1 A Value Nothing Reads
+
+A threshold declared, justified, validated, and read by no code is the failure
+this section's own machinery makes easy to miss. Every guard here checks that a
+value is *present* and *defended*; none checks that it *does* anything. Two of the
+first eleven values sat that way through two phases — `staleness_days` and
+`hedging_max` — each with a paragraph of reasoning behind a number that changed
+nothing.
+
+Nothing at runtime can discover which values are branched on, so gnosis records it
+statically, in Go, and one test asserts the recorded set. Three states, and the
+third is the one a two-state design gets wrong:
+
+| State | Meaning |
+| ----- | ------- |
+| consumed | some code path branches on the number |
+| pinned | the value must equal a constant compiled into gnosis; it is recorded onto every artifact produced under it, and editing it in a bundle changes nothing except which gnosis will load that bundle |
+| unread | nothing reads it |
+
+`html_extractor` and `html_extractor_version` are pinned, and calling them either
+of the other two would mislead: *consumed* tells a reader their edit takes effect,
+*unread* invites deleting the provenance every extracted record carries.
+
+**`doctor` reports the narrow case, not the general one.** The general fact —
+gnosis declares a knob it does not read — is a property of the binary, identical
+for every corpus, actionable by nobody holding one, and not even fixable by
+deletion, since the loader then rejects the file for the missing rationale. A
+diagnostic like that is noise, and the first implementation emitted it on every
+freshly initialised bundle before a test caught it. What belongs to a corpus is
+narrower and genuinely useful: **somebody edited a number here and got nothing for
+it.** So `doctor` reports a value tuned off the seed that nothing reads, and a
+value pinned to something this binary does not implement. The general fact belongs
+in gnosis's own tests, where its only possible audience reads.
+
+`in_degree_cut` is the current unread value, and it stays unread deliberately.
+§14.4.1 wants it for the conjunction *unprovable AND load-bearing*, and
+`unprovable` is Phase 3, so the cut has nothing to narrow yet. Giving it a reader
+that classified bare centrality would be a different feature wearing the same
+number, and would make the value look consumed while the thing it was declared for
+stayed unbuilt.
+
 Their thresholds file also states this repo's charter better than the manifesto
 does, and its header is adopted verbatim as the first key:
 
@@ -2947,7 +2988,7 @@ independently runnable via `--check <name>`, and emits `finding.Diagnostic`.
 | `evidence`             | yes            | a sourced claim whose quote no longer validates                                                                |
 | `warrant`              | yes            | an adjudicated claim with no `gnosis_warrant`, or a warrant with an empty `rationale`                          |
 | `co-sign`              | yes            | an escalated claim missing a required co-signer and carrying no recorded override (§10.6)                      |
-| `stale`                | yes            | archived text ≠ upstream, or `today ≥ stale_after`                                                             |
+| `stale`                | yes            | `today ≥ stale_after`, or a source unchecked longer than `staleness_days` — **the drift half is not implemented; see below**    |
 | `orphan`               | yes            | no inbound links — **see the applicability note**                                                              |
 | `newly-orphaned`       | yes            | had an inbound link at baseline, has none now                                                                  |
 | `broken-link`          | yes            | unresolved link, reported **as a gap, never an error**                                                         |
@@ -2974,7 +3015,16 @@ independently runnable via `--check <name>`, and emits `finding.Diagnostic`.
 | `constraint-coverage`  | yes            | per subject key: claims parsed and candidates lost; a backlog signal for the operator patterns                 |
 | `ontology`             | yes            | types no concept uses, undeclared types, deprecated keys still in use                                          |
 
-Three design notes:
+Four design notes:
+
+**`stale` reports half of what it names, and says so.** Comparing archived text
+to upstream requires a fetch, and `lint` does no network — §4.6 argues that a
+reader must not require the writer, and requiring the network is the same
+argument. So the check implements the date comparison and the check-age window,
+and the drift half stays unimplemented rather than being quietly dropped from the
+table. A source whose upstream has not been compared is `unknown` (§14.3), which
+is a real answer rather than a gap, and this is the same shape `scan` uses when it
+reports the stages it did not run.
 
 **Regression-relative, not absolute.** `coherence` reports
 `NewlyOrphanedEndpoints` *and* `NewlyCoveredEndpoints`, with `BaseAvailable`
@@ -3186,6 +3236,43 @@ with `goalx/cli/freshness_state.go`'s four-value vocabulary — `fresh`, `stale`
 `not_applicable` (no upstream to compare) are genuinely distinct from `stale`,
 and collapsing them turns "we never looked" into "it is fine".
 
+#### 14.3.0 Two Clocks, and Only One of Them Is the Claim's
+
+`stale_after` and `staleness_days` look like the same knob at two grains, and
+implementing them proved they are not. They measure different things, and
+conflating them would reintroduce the read-time dependence the paragraph above
+just argued against.
+
+**`stale_after` governs the claim.** An author writes a date because the thing
+being asserted has a horizon — a version that will ship, a policy under review, a
+number that gets restated annually. It is a statement about the world, so it is
+absolute, and it outranks having been checked: a source can be verified byte-identical
+and still be past the date its author said to revisit it.
+
+**`staleness_days` governs the check.** It asks how long ago *this user* last
+compared an archived source against upstream. That is a statement about an
+observation, and an observation is already per-user and already timestamped, so
+measuring it relatively costs nothing: the answer does not depend on when the
+document is read, only on when the fetch happened, which is recorded.
+
+The distinction decides where the number may be applied. Applying
+`staleness_days` to a *document* — treating an old document as stale because its
+author set no date — would make a claim's status depend on when somebody read it,
+which is precisely what an absolute `stale_after` exists to prevent. Applying it
+to a *check* does not. So a document with no `stale_after` is never stale on its
+own account; it is stale only when the sources under it have gone unverified
+longer than the window.
+
+A document is exactly as verified as its **least recently checked** source. Taking
+the newest check would let one re-fetch vouch for three sources nobody has looked
+at, which is the same collapse §14.3 avoids one level down.
+
+Neither half is a finding when nothing has been checked at all. "The sources under
+this document have never been verified" is true of every document in a corpus that
+has just started fetching, and a warning true of everything teaches a reader to
+skip the category. It is a *state* — `unknown`, which `show` renders — and the
+four-state vocabulary exists so that it can be reported without being alarming.
+
 #### 14.3.1 Nothing Here Is Periodic, and One Thing Should Be
 
 Every trigger in this specification is an event: an ingest, a conflict, a pull
@@ -3316,6 +3403,18 @@ ______________________________________________________________________
   operational. Collapsing them sends somebody hunting for tampering when a volume
   unmounted, and — worse in the other direction — lets a genuinely corrupt record
   read as a transient failure worth retrying.
+
+  The distinction is **legible rather than machine-checkable**, and saying so is
+  more honest than the alternatives. `skillet/errs` carries five codes and none of
+  them means "the bytes on disk are wrong"; adding a sixth for a single consumer
+  is the kind of vocabulary growth skillet's own guidance argues against, and a
+  second error type living in `internal/gnosis` would be a competing vocabulary
+  for the same job. So corruption is `EINVALID` with a message that says
+  corruption and names the offending line. That is not nothing: `EINVALID` already
+  means *no retry of the same value will help*, which is the actionable half of
+  the distinction, and the half a caller branches on. What it does not give is a
+  programmatic test for tampering, and a corpus that needs one should get a sixth
+  code at the point where the second consumer appears, not before.
 - **Anything an agent can name is an execution surface.** A quarantined path
   arrives from a model's reply (§9.4) and is refused if it escapes the bundle; the
   general rule is that any string a reply supplies which later selects a file, a
