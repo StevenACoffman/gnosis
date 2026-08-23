@@ -456,6 +456,17 @@ both are expensive to retrofit:
   from preview and apply being one handler rather than two. An advisory lock is a
   fine first step for serialisation and can never supply that property, because a
   lock carries no command.
+  **Status 2026-08-22: the command type is built and the transport is deferred with a
+  trigger.** `internal/command` carries `Command`, `Promote`, `Admit`, and a fail-closed
+  `Effect`, so the "type before transport" instruction above is satisfied and the advisory
+  lock is now the *correct* answer rather than a first step — every writer is in this
+  process. The trigger is the first writer that is not: §13's served viewer, or an agent
+  runtime calling `admit` directly.
+  One thing the sentence above understates, now recorded in §4.6.2: preview-and-apply being
+  one handler gives the property **only while both see the same input**. In process the
+  lock spans compute-and-write and that is free; across two round trips the corpus can move
+  between them, so a served coordinator needs one round trip or an expected revision on the
+  apply. That is the prerequisite a transport has to meet, not a detail of which one.
 - **Claim anchors before any claim row is written** (§5.5.1). A claim's identity
   and address live in the document. Writing claims first and adding anchors later
   means every claim written in between has an identity no rebuild can recover.

@@ -3787,6 +3787,25 @@ alternatives and the schema must let them co-occur freely. This is where the
 commitment to maintaining local decisions about how to prioritize and trade off
 requirements actually lives.
 
+**Three here, two in the specification, and they agree — recorded 2026-08-22
+because the counts differ and a reader comparing them will stop to check.**
+SPEC §10 carries *two provenance classes*, sourced and adjudicated, and notes that
+`sources` belongs to both. The third class above is not missing from it: genuinely
+tacit is the adjudicated class with an empty `sources`, which is why the schema lets
+a warrant and a citation co-occur rather than treating them as alternatives. The
+counts answer different questions — this document is classifying *knowledge*, the
+specification is classifying *provenance* — and one class of provenance covers two
+kinds of knowledge because the difference between them is how many sources were
+weighed, not how the claim earned its place.
+
+The specification also states the point better than the paragraph above does, and
+its sentence is the one to quote: **a decision that weighed two published positions
+names both, even though the decision appears in neither.** That is what makes
+adjudicated claims *sourced differently* rather than unsourced, and it is the line
+three repositories arrived at independently — `canonizer` and `skillet` both hold a
+version of it against the same defect, a provenance check that would reject the one
+artifact which cannot carry a quote.
+
 ### Decisions Since Settled
 
 Recorded here because each changed the shape above, and because a reader of this

@@ -105,6 +105,49 @@ ______________________________________________________________________
   commits to no protocol — but a lock cannot carry a command, so it can never
   provide §9.4's guarantee. The command type should therefore exist before the
   second writer does, even if the transport does not.
+  **REVIEWED 2026-08-22: the deferral is right and two of this entry's own claims are
+  stale. Kept open, with a trigger that can fire.**
+  **The command type now exists** — `internal/command` has the `Command` interface
+  (`Op`/`Effect`/`Validate`), `Promote`, `Admit`, and a compile-time assertion — so the
+  "should exist before the second writer" clause is satisfied. The interface comment
+  carries the property that makes the transport small: *a transport that deserialises into
+  a Command still has to hand it to something that calls Validate.*
+  **And the stated unknown is half-answered by §4.6.2, which this entry cites.** That
+  section already settles preview-versus-apply *as a type question*: **one command
+  differing in one field**, so *"the same handler receives the same input, computes the
+  same diff, and `Effect` decides only whether the final write happens."* `Effect` is built
+  and fails closed. What remains open is the **protocol** question, which is different and
+  smaller: whether a remote caller previews, receives a diff, and then sends a *second*
+  command to apply.
+  **That distinction matters because §4.6.2's argument has a premise a two-round-trip
+  transport can break.** "They cannot diverge" holds because the handler receives *the same
+  input*. Across two round trips the bundle can change in between, and then the diff the
+  gate approved is not the diff that lands — precisely what §9.4 forbids. In-process today
+  the writer lock spans compute-and-write so the premise holds for free. A served
+  coordinator would need what the manifesto already names: **a lock plus an expected
+  revision, so a stale writer is rejected rather than merely queued.** That is the actual
+  prerequisite for a two-call protocol, and it is not recorded anywhere as an item.
+  **Replacement trigger, because "Phase 2's real writers will say" has expired — Phase 2 is
+  complete and every writer is in-process:** the first writer that is **not in this
+  process**. Concretely, §13's served viewer (Phase 5) or an agent runtime calling `admit`
+  directly. Until one exists the `flock` is not a compromise, it is the correct answer, and
+  this entry should read as a deferral rather than as debt.
+  **Preference when it fires, unchanged and recorded so it is not re-derived:** a Unix
+  socket carrying the §8.0 envelope — the path is its own discovery, filesystem permissions
+  are the authorization the bundle already uses, and the seam is an `io.ReadWriter` that a
+  pipe can test. HTTP arrives anyway with §13 and is a second transport over that seam, not
+  a competitor; MCP likewise if an agent runtime becomes the primary caller. The choice is
+  reversible precisely because the gating lives in the type.
+- [ ] **The writer lock's contract is prose and nothing enforces it.** Seven call sites
+  carry `Requires: the writer lock is held` in their doc comments — `bundle.Audit`,
+  `AuditVerified`, `ingest`, and others — with no runtime assertion behind any of them. A
+  second in-process writer that forgets to take it is a defect available **today**, where
+  the transport question is one available in Phase 5.
+  Same shape as `adh`'s `Critic.Deny`, found the same day: a guarantee that lives in a
+  comment. Cheapest fix is for the lock holder to be a value the writing functions require
+  rather than a precondition they document — a `*bundle.Writer` that can only be obtained
+  by taking the lock, so the compiler enforces what the comment currently asks for.
+  Recorded separately from the transport because it does not wait on it.
 
 ______________________________________________________________________
 
@@ -417,12 +460,33 @@ ______________________________________________________________________
   the other end — anything in an agent directory not in the lock is hidden from the
   agent. The missing half here: an archived file that **no `fetch.jsonl` row
   records** is unaccounted for regardless of whether anything cites it.
-- [ ] **`skillet/finding.Category` is an untyped string.** `Severity` and `Action`
+- [x] **`skillet/finding.Category` is an untyped string.** *Settled in skillet
+  2026-08-22: it stays untyped, and the shared question was the wrong one.* Original:
+  `Severity` and `Action`
   are typed while `Category` is a bare `string` with `omitempty`, so nothing stops
   two gnosis checks spelling one failure differently. VAC enumerates nineteen named
   reasons and never free prose; §8.0's `reason` vocabulary does this for the
   envelope but not for findings. Cross-repo — recorded against `skillet` as the
   shared question.
+  **What the measurement found.** Across the family's thirty category values there is
+  **not one same-word-different-meaning collision** — the risk this entry names has
+  zero instances. The one real defect is its opposite: exegesis and canonizer spelled
+  the *same* failure two ways (`skilllens-softening` versus `softening`) from the same
+  `skilllens.SofteningPhrases` call. A closed enum was refused as a union of private
+  vocabularies that would make every new check a kernel release; a registration seam was
+  refused because it would not have caught that defect, both spellings being validly
+  registered in their own repos.
+  **The rule instead: where the kernel owns the detector, the kernel owns the name.**
+  `skilllens` now exports its three category constants, unprefixed. Nothing changes for
+  gnosis — its eighteen categories are its own domain vocabulary, which is exactly the
+  case the rule leaves alone, and `reasonFor`'s switch on `identity` / `index-drift` /
+  `conformance` is unaffected.
+  **One thing worth taking from it here.** gnosis sets `Category` two ways — string
+  literals and the derived `resolutionCategory(kind)` — and a grep for literals misses
+  the two derived values. That is a live wrinkle for §12's check table and for anyone
+  auditing the vocabulary: **it is not enumerable by inspection.** A test that walks the
+  registry and asserts the emitted set matches what §12 documents would close it, and is
+  the gnosis-side analogue of what skillet solved with constants.
 - [ ] **Read both transcript adapters before writing ours.** `engineering-notebook`
   ingests Claude Code *and* Codex session transcripts into daily summaries and a
   browsable journal — the §9.6 Stop-hook path already built, and the second
@@ -571,6 +635,35 @@ gnosis's.
   test defensible instead of deletable.
 
 ______________________________________________________________________
+
+## Adjudication — This Repository Holds the Reference Model
+
+`skillet` and `canonizer` each carry an entry saying an adjudicated artifact has no home
+and fails a provenance check by construction, and both hold it pending "a second consumer".
+There are three specifications of the idea, gnosis's is the fullest, and none of the three
+had counted the others. Recorded here because the consequence is a constraint on this
+repository rather than a task for it.
+
+- [x] **§10's two provenance classes are the family's reference, and the count difference
+  with `manifesto.md` is explained.** *The manifesto classifies three kinds of knowledge,
+  §10 classifies two kinds of provenance, and genuinely-tacit is the adjudicated class with
+  empty `sources`. Noted in the manifesto so a reader comparing them does not have to
+  re-derive it.*
+- [ ] **Nothing implements the warrant yet, and three repos now cite it as though something
+  does.** `gnosis_warrant` is specified in §10.6.4 down to `co_signed_by`, `override`, and
+  `reverses`, and a grep for it across `internal/` and `cmd/` returns **nothing** — it is
+  Phase 3, correctly. The risk is not the gap, it is that `skillet` and `canonizer` both
+  now point at this specification as the mature model, so the shape here is load-bearing
+  outside this repository before any of it is built. Worth one line in §10.6.4 saying so,
+  the way §14.1.1 records that `Report.Skipped` became load-bearing elsewhere.
+- Not a task, recorded so it is not re-litigated: **canonizer will get a smaller warrant
+  than this one, deliberately.** `skillet` will carry `{By, At, Rationale}` on
+  `ruleset.Rule` and nothing more. Tiers, co-signers, and reversal links stay here, because
+  they belong to §10.6's authority model — which canonizer explicitly bet against in its
+  own §10.6.4-equivalent, holding that a required rationale filters more bad adjudications
+  than a permission check. Two warrants with different obligations is the correct outcome,
+  not drift, and gnosis's `Actor` being a closed three-kind enum for §10.6.4's counting is
+  precisely why a shared warrant would be weaker than this one rather than stronger.
 
 ## Applicability — This Repository Is the Family's Reference (2026-08-22)
 
@@ -929,6 +1022,32 @@ and `PLAN.md` §5.6. What remains open is here.
   convention, while several rules phrased as MUST are conventions with no checker.
   Cheap to add as a column or a marker; the value is that it makes the unenforced
   ones visible enough to either enforce or downgrade.
+  **DECIDED 2026-08-22: maintain the short list, not the long one, and make it
+  self-checking in the direction that drifts.**
+  Sized first, because the shape of the answer follows from it: the specification
+  carries **51 MUSTs and 12 MUST NOTs** — 63 rules, no SHOULDs — against **11 named
+  lint checks** plus a handful of gates. So `convention` is the overwhelming default
+  and `code` is the exception, perhaps twenty rules at most.
+  That rules out annotating every rule, which was the entry's first instinct. Sixty-three
+  inline `[code]`/`[convention]` tags is the larger maintenance burden *and* the one that
+  rots invisibly: a rule that gains a checker keeps reading `[convention]` and nothing
+  notices. Inverting it — **a table in §12 listing only the enforced rules, with the check
+  that enforces each** — is roughly twenty rows, and it puts the edit at the moment you are
+  already editing both, which is when a checker is added or removed. Anything absent from
+  the table is convention by definition, so the unenforced set stays countable without
+  being enumerated.
+  **The part that makes it more than a second place to drift:** a test that walks
+  `lint.Checks()` and asserts the table names only checks that exist, and that every check
+  appears. The first direction catches the failure that matters — the table claiming
+  enforcement that was deleted — and the second catches a checker nobody documented. That
+  buys the non-drift property of a generated table at the cost of a hand-maintained one,
+  without needing stable identifiers for all 63 rules.
+  **Fold in the adjacent wrinkle rather than writing a second walk.** §12's categories are
+  set two ways — string literals and the derived `resolutionCategory(kind)` — so the emitted
+  vocabulary is not enumerable by grep, which is recorded against the settled
+  `finding.Category` entry above. The same registry walk can assert the emitted category set
+  matches what §12 documents. One test, two properties, and both are currently invisible to
+  inspection.
 
 - [ ] **§12's check table should carry an auto-fixable column.** `kb-lint`'s does.
   We have the axis already — `finding.Action` is `automatic`/`guided`/`human` — and

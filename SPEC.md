@@ -574,6 +574,22 @@ elsewhere. As **one command differing in one field**, they cannot diverge: the s
 handler receives the same input, computes the same diff, and `Effect` decides only
 whether the final write happens. The property follows from the data model.
 
+**The premise is "the same input", and a remote caller can break it.** In process
+the writer lock spans compute-and-write, so nothing changes underneath a preview
+and the premise holds for free. A transport that lets a caller preview, receive a
+diff, and then send a *second* command to apply has two round trips with a gap
+between them, and the corpus can move in that gap — at which point the handler
+recomputes honestly and lands a diff the gate never approved. Nothing above
+prevents that, because it is not a property of the command type.
+
+So the rule for any served coordinator: **preview and apply are one round trip, or
+the apply carries the revision the preview was computed against and is refused when
+it no longer matches.** A lock held across both calls is the third option and the
+worst, because it lets one idle client block every writer. This is deliberately not
+decided here — no out-of-process writer exists yet — but it is the prerequisite a
+two-call protocol has to satisfy, and recording it is what stops the transport
+choice from quietly costing §9.4 the guarantee this section just constructed.
+
 **`Effect`'s zero value MUST NOT be "apply".** A `DryRun bool` has this backwards —
 `false` means *really do it*, so a caller that forgot the field performs a live
 write. That inverts the rule this design applies everywhere else: `quotecheck`'s
