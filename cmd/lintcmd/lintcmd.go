@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/peterbourgon/ff/v4"
 
@@ -46,8 +47,8 @@ links, a log-format check on a bundle with no log — is skipped with its reason
 stated, because a silent skip is indistinguishable from a clean result.
 
 Findings are not failures. A corpus with blocking findings exits ` +
-			strconv.Itoa(root.CodeFindings) + `, distinct
-from the ` + strconv.Itoa(root.CodeError) + ` a broken tool exits with, so a CI job can tell
+			strconv.Itoa(int(root.CodeFindings)) + `, distinct
+from the ` + strconv.Itoa(int(root.CodeError)) + ` a broken tool exits with, so a CI job can tell
 "the corpus has problems" from "gnosis could not run".`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
@@ -64,7 +65,11 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	if err != nil {
 		return c.fail(root.ReasonIndexDrift, err)
 	}
-	snap, err := bundle.Snapshot(os.DirFS(c.Bundle), idx)
+	fresh, err := bundle.LoadFreshness(c.Bundle)
+	if err != nil {
+		return c.fail(root.ReasonNoBundle, err)
+	}
+	snap, err := bundle.Snapshot(os.DirFS(c.Bundle), idx, fresh)
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
 	}
@@ -83,7 +88,7 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 
 // selectChecks narrows the registry to --check when given.
 func (c *Config) selectChecks() ([]lint.Check, error) {
-	all := lint.Checks()
+	all := lint.Checks(time.Now().UTC())
 	if c.Check == "" {
 		return all, nil
 	}

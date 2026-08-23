@@ -69,7 +69,7 @@ func corpus(t *testing.T) string {
 func decode(t *testing.T, stdout string, v any) {
 	t.Helper()
 	var env struct {
-		Status string          `json:"status"`
+		Status root.Status     `json:"status"`
 		Data   json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
@@ -133,7 +133,7 @@ func TestMalformedQueryIsUsageNotFailure(t *testing.T) {
 	dir := corpus(t)
 
 	_, stderr, err := run(t, "--bundle", dir, "search", "retries AND (")
-	if code := exitCode(t, err); code != root.CodeUsage {
+	if code := exitCode(t, err); root.Code(code) != root.CodeUsage {
 		t.Errorf("exit code = %d, want %d", code, root.CodeUsage)
 	}
 	if !strings.Contains(stderr, "syntax") {
@@ -178,12 +178,12 @@ func TestAbsentAndMalformedReferencesDiffer(t *testing.T) {
 	dir := corpus(t)
 
 	_, _, err := run(t, "--bundle", dir, "show", absent)
-	if code := exitCode(t, err); code != root.CodeError {
+	if code := exitCode(t, err); root.Code(code) != root.CodeError {
 		t.Errorf("absent document exit code = %d, want %d", code, root.CodeError)
 	}
 
 	_, _, err = run(t, "--bundle", dir, "show", "not-an-identifier")
-	if code := exitCode(t, err); code != root.CodeUsage {
+	if code := exitCode(t, err); root.Code(code) != root.CodeUsage {
 		t.Errorf("malformed reference exit code = %d, want %d", code, root.CodeUsage)
 	}
 }

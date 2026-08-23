@@ -1,9 +1,11 @@
 package bundle
 
 import (
+	"errors"
 	"io/fs"
 	"strings"
 
+	"github.com/StevenACoffman/gnosis/internal/archive"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/lint"
@@ -26,7 +28,7 @@ const conceptPrefix = "/" + conceptDir + "/"
 // zero value states that the bundle has no index.
 // Ensures: a bundle with no concepts yields a valid empty Snapshot rather than an
 // error, because every command must work against a freshly initialised bundle.
-func Snapshot(fsys fs.FS, idx IndexState) (*lint.Snapshot, error) {
+func Snapshot(fsys fs.FS, idx IndexState, fresh FreshnessState) (*lint.Snapshot, error) {
 	const op = "bundle.Snapshot"
 
 	docs, err := Load(fsys)
@@ -38,25 +40,82 @@ func Snapshot(fsys fs.FS, idx IndexState) (*lint.Snapshot, error) {
 		return nil, &errs.Error{Op: op, Err: err}
 	}
 
+	archived, err := archivedPaths(fsys)
+	if err != nil {
+		return nil, err
+	}
+
 	return &lint.Snapshot{
-		Documents:   documents(docs),
-		Links:       links(docs),
-		Resolutions: gnosis.Reconcile(Observed(docs), idx.Rows),
-		LogLines:    logLines,
-		HasLog:      hasLog,
-		HasIndex:    idx.Present,
+		Documents:     documents(docs),
+		ArchivedText:  archived,
+		SourceChecks:  fresh.Checks,
+		StalenessDays: fresh.StalenessDays,
+		Links:         links(docs),
+		Resolutions:   gnosis.Reconcile(Observed(docs), idx.Rows),
+		SchemaVersion: gnosis.SchemaVersion,
+		LogLines:      logLines,
+		HasLog:        hasLog,
+		HasIndex:      idx.Present,
 	}, nil
 }
 
 // documents projects loaded files into the check-facing shape.
 func documents(docs []Document) []lint.Document {
 	out := make([]lint.Document, 0, len(docs))
-	for _, d := range docs {
+	for i := range docs {
+		d := &docs[i]
 		out = append(out, lint.Document{
 			ID: d.ID, Path: d.Path, Type: d.Type, Title: d.Title,
+			Body: d.Body, SchemaVersion: d.SchemaVersion,
+			Claims:     claimRefs(d.Claims),
+			StaleAfter: d.StaleAfter, SourceKeys: d.SourceKeys,
 		})
 	}
 	return out
+}
+
+// claimRefs projects a document's claims into the check-facing shape.
+func claimRefs(claims []DocClaim) []lint.Claim {
+	if len(claims) == 0 {
+		return nil
+	}
+	out := make([]lint.Claim, 0, len(claims))
+	for i := range claims {
+		out = append(out, lint.Claim{
+			ID: claims[i].ID, ArchivePaths: claims[i].ArchivePaths,
+		})
+	}
+	return out
+}
+
+// archivedPaths is the set of archived text files present, for the archive-path
+// check to resolve claim addresses against.
+//
+// Walked through the same fs.FS as the documents, so a check never touches a disk
+// and a caller testing with an fstest.MapFS gets the same answers as one reading a
+// bundle. An absent archive is an empty set rather than an error: a corpus that has
+// fetched nothing has no dangling paths, only claims that will report as dangling
+// the moment they name one.
+func archivedPaths(fsys fs.FS) (map[string]bool, error) {
+	const op = "bundle.archivedPaths"
+
+	out := map[string]bool{}
+	err := fs.WalkDir(fsys, archive.TextDir, func(name string, d fs.DirEntry, err error) error {
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return fs.SkipAll
+		case err != nil:
+			return err
+		case d.IsDir():
+			return nil
+		}
+		out[name] = true
+		return nil
+	})
+	if err != nil {
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+	return out, nil
 }
 
 // links extracts every link from every body and resolves each against the
@@ -68,14 +127,15 @@ func documents(docs []Document) []lint.Document {
 // identifier no document carries resolves to nothing, which is legal.
 func links(docs []Document) []lint.Link {
 	present := make(map[gnosis.ID]bool, len(docs))
-	for _, d := range docs {
-		if d.ID != "" {
-			present[d.ID] = true
+	for i := range docs {
+		if docs[i].ID != "" {
+			present[docs[i].ID] = true
 		}
 	}
 
 	out := make([]lint.Link, 0)
-	for _, d := range docs {
+	for i := range docs {
+		d := &docs[i]
 		if d.ID == "" {
 			continue
 		}

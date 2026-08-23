@@ -18,6 +18,7 @@ package lint
 
 import (
 	"sort"
+	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/finding"
@@ -44,6 +45,25 @@ type Snapshot struct {
 	// HasLog distinguishes an absent log from an empty one.
 	HasLog bool
 
+	// SchemaVersion is the conventions version this build of gnosis writes.
+	// Documents declaring an older one are reported by the schema-version check.
+	SchemaVersion int
+
+	// ArchivedText is the set of paths under evidence/text/ that exist, so the
+	// archive-path check can resolve a claim's addresses without touching a disk.
+	ArchivedText map[string]bool
+
+	// SourceChecks is when this user last verified each source version, keyed as
+	// Document.SourceKeys are. Per-user by §4.3.1, which is why it is gathered
+	// rather than derived: two colleagues at one commit hold different values and
+	// are both right.
+	SourceChecks map[string]time.Time
+
+	// StalenessDays is the declared window after which an unverified source is
+	// reported, from standards/. Zero disables the window, which is the state of a
+	// corpus whose standards did not load.
+	StalenessDays int
+
 	// HasIndex reports whether the bundle has a derived index at all. A bundle
 	// freshly cloned has none, and in that state every document differs from the
 	// index trivially — which is why the index-relative checks are skipped
@@ -52,11 +72,38 @@ type Snapshot struct {
 }
 
 // Document is the subset of a document the checks examine.
+//
+// SchemaVersion is nil for a document that declares none, which is the state the
+// schema-version check reports (§5.5.1.1).
 type Document struct {
-	ID    gnosis.ID
-	Path  string
-	Type  gnosis.TypeKey
-	Title string
+	ID            gnosis.ID
+	Path          string
+	Type          gnosis.TypeKey
+	Title         string
+	Body          string
+	SchemaVersion *int
+
+	// Claims are the document's declared claims and the evidence they name.
+	// Empty for a document that declares none, which most Phase 2 documents do.
+	Claims []Claim
+
+	// StaleAfter is the date the author asked for this to be revisited by, or the
+	// zero time when they declared none. An absolute date rather than a duration,
+	// on OKF's determinism argument (§14.3): a date keeps the staleness decision a
+	// plain comparison with no reference to when the document was read.
+	StaleAfter time.Time
+
+	// SourceKeys identify the source versions this document rests on, in the same
+	// form checked.jsonl keys them. Empty for a document citing nothing, whose
+	// freshness is not_applicable rather than unknown.
+	SourceKeys []string
+}
+
+// Claim is the subset of a claim the checks examine: its identity, and where it
+// says its evidence lives.
+type Claim struct {
+	ID           string
+	ArchivePaths []string
 }
 
 // Link is one link found in a body.
@@ -99,7 +146,12 @@ type Skip struct {
 // Ensures: every returned check has a non-empty Name, an Applies, and a Run.
 // The slice is freshly built per call, so a caller cannot mutate the registry
 // another caller will see.
-func Checks() []Check {
+// Checks returns the registry as of a moment.
+//
+// The clock is a parameter because one check needs it and a check that read the
+// clock itself could not be tested for the boundary cases that matter — a document
+// expiring today, and one expiring tomorrow.
+func Checks(now time.Time) []Check {
 	checks := []Check{
 		conformanceCheck(),
 		identityCheck(),
@@ -107,6 +159,11 @@ func Checks() []Check {
 		brokenLinkCheck(),
 		orphanCheck(),
 		logFormatCheck(),
+		schemaVersionCheck(),
+		placeholderCheck(),
+		emptySectionCheck(),
+		archivePathCheck(),
+		staleCheck(now),
 	}
 	sort.Slice(checks, func(i, j int) bool { return checks[i].Name < checks[j].Name })
 	return checks

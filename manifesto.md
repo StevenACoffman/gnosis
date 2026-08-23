@@ -156,6 +156,25 @@ here is an endorsement of the whole project — only of the part we are stealing
   pattern, applied to repo consistency.
 - *Feeds:* a new drift gate alongside exegesis; skillsaw's ratchet
   (regression-relative gating); adh's ops stage.
+- **What actually landed, and a caution about citing prior art (2026-08-22).** Its
+  `Convention bool` — true only where the corpus demonstrably uses the pattern being
+  checked — was the most-cited idea from this entry, appearing in exegesis's backlog,
+  gnosis's §12, and skillet's open decision about naming a general `Applicability`
+  type, where it was counted as one of two members of a family. **It was never built.**
+  A grep across all six repositories finds zero occurrences: it is a description of
+  `coherence`'s code that three of our own documents cited as though it were ours, and
+  skillet spent months deferring a decision on a two-member family that had one member.
+  The idea itself was right and gnosis had already implemented a better version without
+  anyone noticing the connection — `internal/lint`'s `Check.Applies` returns a predicate
+  **and a reason**, and every skip lands in the report. Counting the real sites then
+  resolved the decision the other way: five implementations across three tools, each
+  suppressing a different thing on purpose, so the shareable thing is a **rule** and not
+  a type. *Applicability is derived, not declared, and a run states what it skipped.*
+  The caution generalizes past this entry. A survey bullet is a description of somebody
+  else's code, and once it is cited a few times it starts reading like a component we
+  have. **Nothing in this document's format distinguishes "we took this" from "we
+  admired this",** and the `Feeds:` line — which names where an idea *would* go — is
+  exactly where that ambiguity lives.
 
 **stringer** — `github.com/davetashner/stringer` (`stringer/`)
 
@@ -712,6 +731,37 @@ and maintained by agents."
   inventing one. It supplies the *sourced* provenance class directly; the
   *adjudicated* class maps onto `verified` by a `human:` actor with no
   `sources`.
+
+**What adopting it actually looked like, six days on (2026-08-22).** Worth
+recording, because the bullets above read as though conforming to a published
+format were a matter of deciding to, and the two halves came apart immediately.
+
+The **freshness** half landed without incident: gnosis parses, stores, and reads
+`stale_after`, and needed no shared type to do it. The **trust** half has now been
+implemented twice, in two repositories, and **neither matches the spec** — in
+opposite directions. gnosis specified §5.3's fold correctly and shipped a
+`gnosis.Actor` that rejects two of the three actor forms §7 defines, so the parser
+cannot accept what the fold must read. `adh`'s `contextstore.Unit.Verified` is a
+*string* holding one of the three tier names, where §5.2 defines `verified` as a
+list of `{by, at}` events the tier is folded from — the same field name and the same
+tier names, holding the conclusion instead of the evidence.
+
+Neither is careless, and that is the finding. gnosis's closed actor enum is
+load-bearing where it is strict, because §10.6.4 counts *distinct human actors* and
+a kind that could pass for a person makes the count wrong in the flattering
+direction. adh's stored tier is cheaper and carries a `Rank()` for routing that OKF
+does not serve. **Two defensible local decisions, both diverging from a format both
+repositories claim to follow**, inside a week of the survey concluding that the
+demand for a shared trust vocabulary was hypothetical.
+
+The lesson is about triggers rather than about OKF. `skillet` had recorded the
+promotion trigger as *the first repo that actually stores trust metadata*, and both
+divergences were written **without storing any**. Storage is not the event;
+**classification** is, because that is where being wrong is silent — a
+mis-classified tier reads as a stronger claim than it is. The trigger now says so,
+and what it will promote is §5.3's fold and not the record types: gnosis's `okf`
+keeps frontmatter verbatim, since re-encoding YAML cannot round-trip, so a struct
+would be decode-only.
 
 **leafwiki** — `perber/leafwiki`
 
@@ -2011,6 +2061,1656 @@ via the specific estimators we need. Recorded so its absence is a decision rathe
 than an oversight; if a semantic reranker is ever enabled (§11, optional), the
 inner-product and projection material becomes relevant and not before.
 
+### The LLM-Wiki Field — the `agent-purple` Survey
+
+**Local copies:** `~/Documents/agent-purple` — 19 implementations and 9 documents.
+
+This is the first survey where gnosis is not alone. A dozen projects here implement
+Karpathy's pattern, several arrived at the same architecture independently, and two
+are close enough to be siblings. The convergences are worth more than the
+differences, because a design four strangers reached separately is a design the
+problem forces.
+
+**What the field converged on, with no coordination.** Markdown plus git as the
+substrate. A deterministic CLI beside an agent, not inside it. Lint as a
+first-class operation. The index as a derived cache. Search over browsing. Every
+one of those is in this specification for reasons argued from first principles,
+and every one shows up in projects that never read it.
+
+#### `canopy`, and a Principle Taxonomy Worth Stealing
+
+A Go binary for markdown wikis, built on *"판단은 LLM이, 불변식은 코드가"* —
+**judgment to the LLM, invariants to code**, which is this project's thesis in nine
+words. Its `docs/philosophy.md` lists eleven principles, and several are ours
+verbatim: *derivatives are never hand-edited*, *distinguish source, state, and
+cache* (its three tiers to our four), *code generates candidates and the LLM
+judges* (§6.2 plus §10.3, exactly), *distinguish assertion from conjecture*.
+
+The contribution is not any principle. It is that **each one is tagged `[code]`,
+`[convention]`, or `[code+convention]`** — a stated axis for *what enforces this*.
+Our specification is full of MUSTs and says nowhere which are machine-checked and
+which rest on people behaving. Two examples make the gap concrete: canopy marks
+*raw/ is immutable* as `[convention]`, where §4.1 makes tier 0 append-only and
+content-addressed precisely because "immutable is an assertion nothing currently
+enforces" — we are stricter and could say so. Conversely several of our own rules
+are convention wearing a MUST, and a reader cannot tell which.
+
+Two mechanisms we lack outright: **`bridge`**, which surfaces similar-but-unlinked
+pages as candidate connections, and a **rediscovery loop** (`resurface` with
+👍/👎/😴 feedback feeding later candidate selection) that answers §14.3.1's
+periodic-review gap with something better than a date comparison. And its gap log —
+"searches that found no answer accumulate, becoming page-creation candidates" — is
+`miss.jsonl` and the `gap` check, arrived at independently.
+
+#### `mnemo_wiki`, Our Nearest Sibling in OKF
+
+The closest sibling: an LLM wiki **stored in OKF**, with a command surface nearly
+identical to our Phase 1 — `init`, `new`, `lint`, `index`, `reindex`, `search`,
+`show`, `links`, `move`, `log`, `validate`. Its statement of the division is
+crisper than ours: **"It never calls a language model itself… The tool is the
+hands; the agent is the head."**
+
+Where it differs is instructive. mnemo_wiki puts the agent's routines in a
+`CLAUDE.md` inside each wiki — the rules, the frontmatter each page type needs, the
+step-by-step for adding a source. That is our §5.7 schema document, and theirs is
+load-bearing where ours is generated. The comparison worth making later is whether
+a corpus's conventions belong in a file the agent reads or in a tool that refuses
+the write.
+
+#### The Deterministic Half, Twice: `kb-lint` and `wiki-compiler`
+
+`kb-lint` is a Python linter for markdown knowledge bases with seven checks:
+`links`, `frontmatter`, `orphans`, `structure`, `content`, `index`, `consistency`.
+Its check table carries a column ours does not: **`Auto-fixable?`**. We have that
+axis — `finding.Action` is `automatic`/`guided`/`human` — and §12's table does not
+show it, so a reader cannot see at a glance which findings a tool can close. That
+is a free improvement.
+
+Two of its content checks we lack: **`{{PLACEHOLDERS}}`** left in a page, and
+**empty sections**. Both are lexical, both are the kind of thing an agent leaves
+behind, and neither needs a model. Its `index` check is a deliberate divergence
+rather than a gap — it validates `_index.md` against the file tree and auto-fixes
+it, where §5.6 makes `index.md` a curated map precisely so it is *not* a generated
+listing.
+
+`wiki-compiler` is the thesis stated as a pipeline: `Raw Notes → Extractor → Graph → Rewriter → Linter → Compiled Wiki`, pure Python, "no LLM calls, no embeddings, no
+dependencies", published under the title *LLM Wikis Are Over-Engineered*. It is
+what remains when the model is removed entirely, and it is a useful floor: anything
+gnosis asks a model to do that this does deterministically is a place we have not
+tried hard enough.
+
+#### `tome`, and an Admission Test We Lack
+
+An agent-memory vault with constraints "enforced by the CLI and `tome lint` rather
+than trusted to prose" — again the same instinct. Its contribution is the criterion
+for what is worth writing down at all: **durable, non-obvious, not trivially
+derivable.**
+
+gnosis gates on evidence, conformance, and identity, and has no test for whether a
+claim is *worth having*. A well-sourced triviality passes every check we specify.
+That is a real hole, and it is the kind that fills a corpus with true, cited,
+useless pages until search stops being worth running.
+
+#### `LLM Wiki V3: Segmentation`, and Its Librarian Pattern
+
+A concept document in the V1/V2 lineage, and one idea in it is directly applicable.
+When an agent searches the corpus for its own context, "as the agent searches… its
+context fills. By the time it returns, it may have drifted from the original
+objective… The team inherits the agent's drift."
+
+The **librarian pattern** separates retrieval into its own context: the caller
+states an objective and waits, the librarian searches and returns pre-scoped
+material, and the caller reads it fresh alongside the objective. `gnosis ask`
+already emits a prompt with retrieved context, so we have the mechanism — what we
+lack is the *reason*, stated. It is not token economy. It is bias prevention, and
+that framing changes what the command should and should not include.
+
+Its general claim is also worth recording: the failure modes of a growing wiki "are
+not data problems, they are segmentation failures… the answer is not a stronger
+foundation, it is more foundations — each one narrow."
+
+#### Shirky's *Ontology Is Overrated*, Our Honest Counter-Argument
+
+Everything above agrees with us. This does not, and it is the strongest available
+objection to §5.8's controlled vocabulary, so it belongs here rather than in a
+footnote.
+
+Shirky's case is that categorization schemes impose a single true home on things
+that have none — *"there is no shelf"* — and his exhibit is Yahoo's directory,
+where *Books and Literature* appears under *Entertainment* with an `@` marking it
+as filed "for your convenience" while it "really" lives elsewhere. To which, he
+says, one can only respond: "What's real?" His alternative is the link and the tag:
+free-form labelling, no categorical constraint, value extracted from big messy data
+sets.
+
+**Note what this shares with Bush and Luhmann.** Three writers across sixty years
+naming the same defect — a thing can be in only one place — and Shirky draws the
+opposite conclusion from ours: abandon the controlled vocabulary rather than
+enforce it.
+
+The reconciliation is in the conditions, and Shirky supplies them himself. His
+argument holds where the corpus is large, open, uncoordinated, and its users
+share no purpose — the Web. `ontology.toml` governs the opposite case: a small
+corpus, a coordinated team, and a purpose that *is* comparison. A subject key
+exists so §10 can decide whether two claims disagree, and free-form tags cannot do
+that at any scale. So the vocabulary stays enforced (§5.8.2.1), and Shirky is the
+reason it stays **small** — subjects start empty, accrete only on a real collision,
+and anything that cannot name a dimension is a tag rather than a subject. He is
+also the reason tags exist beside subjects at all: the free-form layer is where
+everything that is not a comparison lives.
+
+#### *What to Keep, What to Skip*, Our Only Field Evidence
+
+**Local copy:** `what_to_keep.md` (Eugeniu Ghelbur, *The AI Operator*)
+
+Everything else surveyed here is a design. This is a **report from months of daily
+use**, and it is the only document in the field that says which of the proposed
+features died in practice. It deserves more weight than its length suggests, and
+some of what it says is uncomfortable for this specification.
+
+**The split it found.** "v2" clusters into governance features — confidence,
+supersession, forgetting — and infrastructure — hybrid search, hooks, quality
+scoring, tiered memory. His verdict after months: *"the split between them is
+exactly the split between what works and what is overkill."* Governance earned its
+place; infrastructure did not.
+
+**Kept, and it validates four of our decisions:**
+
+- **Confidence as a marker, not a score.** `stated` / `high` / `low`, one word per
+  fact. *"This is the single highest-value v2 idea and it requires zero
+  infrastructure."* And the sharp part: **"a `stated` claim gets treated as a
+  quote, not a truth."** That is exactly what our sourced-versus-adjudicated split
+  is for, and it is a better sentence than any in §10.4. v2 wanted decaying numeric
+  confidence (0.85, reinforced on access); we refused numeric scores in §17 and
+  kept `certainty` as HIGH/MEDIUM/LOW, which is his version, arrived at
+  independently.
+- **Supersession as reconciliation, not a data structure.** *"You do not need a
+  formal supersession chain. You need the AI to actually resolve the conflict
+  instead of hoarding it."* We have `gnosis_supersedes` as a formal edge — worth
+  keeping, because a team corpus needs the audit trail a single-user vault does
+  not, but his point stands: the structure is not the value, the resolution is.
+- **Lifecycle hooks as scheduled agents.** *"You do not need an event-bus
+  abstraction. You need cron and a rules file."* That is §14.3.1's periodic review,
+  and it names the mechanism.
+- **Quality-scoring engines are weight.** Independent agreement with §17.
+
+**Skipped, and this is the challenge:**
+
+> "At wiki scale, you do not have a retrieval problem. A curated wiki is 50,000 to
+> 100,000 tokens. That is small. Grep plus read finds the right note faster and more
+> predictably than an embedding lookup… Bolting embeddings onto a 200-note vault is
+> solving a problem you do not have."
+
+We already keep the semantic reranker optional (§11), so this is not a
+contradiction. But it is the only *measured* statement in the survey about the
+scale these systems actually run at, and it points at something larger than
+embeddings: **gnosis may be over-engineered for the corpus it will hold.** At 200
+notes, a SQLite index with FTS5, four tiers, claim-level addressing, and three
+adjudication tiers is a great deal of machinery.
+
+The honest reply is that his evidence comes from a single-person vault, and every
+mechanism here that looks heavy exists for something a single-person vault does not
+have: contradictory sources admitted by different people, contributors of mixed
+skill, and a corpus that carries the team's authority rather than one person's
+memory. But that is a *reason to expect* the machinery to pay, not evidence that it
+does — and his caveat cuts both ways, because he is equally clear that scale is
+what decides. It belongs on the record as the strongest available argument that
+this design is too big, to be answered with a real corpus rather than with prose.
+
+**One thing he says that we should simply adopt:** *"The point of a forgetting curve
+is not the math. It is that something deletes."* §14.3.1 reports unreviewed claims
+and explicitly never invalidates, on the grounds that an old claim is not a wrong
+claim. He is describing the failure that rule permits — notes that accumulate become
+a graveyard — and he is right that reporting is not the same as pruning.
+
+#### `stigmergy` — Gates, Refusal, and Minting
+
+**Local copy:** `stigmergy/`
+
+The most operationally serious project surveyed, and the only one designed for a
+team from the start. Three ideas worth taking.
+
+**"A model writes; code decides."** An agent drafts a page; **eight deterministic
+gates** run over the resulting *diff* — zone, binary-page, body-rewrite, secrets,
+pii, frontmatter, contract, anchoring — and *"the diff those gates approved is
+provably the diff that lands."* Their summary is the sharpest statement of this
+family's thesis: **"A model can be argued with. A gate cannot."**
+
+The property in that sentence is one we do not state. Our promote gate checks
+content and then a write happens; nothing says the checked artifact and the
+committed artifact are the same bytes. That is a time-of-check-to-time-of-use gap,
+and it is exactly the gap a gate exists to close.
+
+Note also `body-rewrite` as a *gate*: §6.3 separates mechanical accretion from
+gated synthesis as two operations, and stigmergy enforces the same split as a check
+on the diff, which is harder to route around.
+
+**"An honest refusal beats a confident guess."** Their read path — a single MCP
+server — *"answers questions with sources, and refuses when it cannot support an
+answer,"* and: **"A system that never refuses is the failure, not the success."**
+gnosis has `blocked` and `needs_human` on the *write* path and nothing equivalent on
+the read path. `ask` emits a prompt with retrieved context and never declines.
+
+**Identity minting is human-gated.** *"A name the registry does not know makes it
+ask ONCE and park until a steward answers."* The capture waits rather than guessing.
+We take the opposite line — UUIDv7 assigned automatically at admission (§5.1) —
+and it is worth being clear that these are different problems: they gate *which
+entity this is*, we gate *whether this claim is supported*. Their approach would
+catch the duplicate-concept case §4.6.1 leaves to a post-merge check.
+
+#### `akbp` — Protocol Discipline and Graded Conformance
+
+**Local copy:** `akbp/` — rohitg00's own implementation of the v2 gist.
+
+Two mechanisms worth stealing.
+
+**Review-gated writes as a protocol, not a workflow.** `dry_run: true`,
+`approved: true`, `approval_required` — an agent previews a decision, the same write
+is *rejected without approval*, and applied after it. The core rule: **"agents can
+propose memory, but durable writes are review-gated."** Our promote gate is a
+command; theirs is a property of every write call, which is harder to bypass.
+
+**Conformance has levels.** Their demo *"runs level 3 conformance"* — a graded
+suite rather than a boolean. Our §11 treats OKF conformance as pass/fail, and a
+graded ladder would let a producer state how far it conforms and let a consumer
+require a level. Also worth noting: `export-check`, `import-check`, and
+`import-apply` as distinct verbs, which makes bundle round-tripping testable.
+
+#### `wenlan` — Which Parts of a Page the Machine May Rewrite
+
+**Local copy:** `wenlan/`
+
+Its refresh model makes a distinction we do not: *"Wenlan rebuilds it from current
+Sources and Memories, records the revision, and **stages changes to human writing
+for review**."*
+
+So a page has machine-owned regions and human-owned regions, and a refresh may
+rewrite the first while the second must be staged. §6.3 splits accretion from
+synthesis at the level of the *operation*; wenlan splits at the level of the
+*region*. That is finer and it is the version that survives an agent refreshing a
+page a person has edited — which is the common case and one our design currently
+resolves by gating the whole rewrite.
+
+Its two linked lifecycles — Sources and Memories, "linked without collapsing them
+into one layer" — are our tier 0 and the corpus, and the vocabulary is clearer.
+
+#### `piekbs` — Four Concrete Findings
+
+**Local copy:** `piekbs/` — 87 Go files, `modernc.org/sqlite`, FTS5, MCP.
+
+The closest implementation to ours in language and stack, and the one that
+produced specific findings rather than principles.
+
+**It solved the snippet problem the way we guessed we would have to.** Their commit
+*"perf(search): avoid slow FTS5 snippet generation"* drops FTS5's `snippet()`
+entirely and computes an excerpt in Go: parse the markdown, take
+`ParseMarkdown(content).Content`, collapse whitespace, find the first keyword, and
+window 120 characters around it. Our own note on this recorded a tension — strip
+link syntax at index time and slugs become unsearchable, strip at render time and
+FTS5's offsets no longer match what is shown — and concluded that re-deriving the
+snippet rather than offset-mapping it was "probably right". They did exactly that,
+and had a second reason we did not have: FTS5's `snippet()` was measurably slow.
+Independent confirmation of an untested guess is worth more than the guess.
+
+**Per-document `schema_version` — a gap we have.** Their `documents` table carries
+one, and `FindOutdatedNotes` reports every document written under a version older
+than the current one. That is not staleness against an upstream source, and it is
+not index drift. It is *a document written under an older version of the corpus's
+own conventions*, and we have no way to express it.
+
+The gap is about to bite. §5.5.1 introduces `gnosis_claims` frontmatter that no
+document written in Phase 1 carries, so on the day extraction lands, every existing
+document predates the format — and nothing records which. The same applies to any
+future change in required frontmatter or in `ontology.toml`'s shape.
+
+**Their tokenizer is `trigram`; ours is `porter unicode61`.** Theirs is a Chinese
+team with a Lark importer, and the choice follows: porter stems English and
+unicode61 splits on word boundaries, which is close to useless for a language that
+does not put spaces between words. Trigram handles CJK and substring matching and
+gives up stemming.
+
+Neither choice is wrong, but ours is an *assumption* rather than a decision — §5.5
+justifies the `tokenchars` and says nothing about the corpus being English. It
+should say so, because the day someone ingests a Chinese source into a corpus
+tokenized with porter, search will quietly stop finding it.
+
+**Two divergences where we are on the better side, and one where they are.**
+Their `links.target_doc_id` is `NOT NULL` with a foreign key, so a link to a page
+that does not exist yet cannot be stored — OKF §6.1's "not-yet-written knowledge"
+is unrepresentable, and our nullable target plus retained `href` is the more useful
+model for a corpus that grows. Their `links.confidence REAL DEFAULT 1.0` is the
+per-edge score §17 refuses, and refuses for reasons that apply here too.
+
+Against that: their frontmatter validator distinguishes an **absent** field from an
+**explicitly empty** one — *"`sources: []` is considered present; it means 'no
+sources' rather than 'field missing'"* — which is our own absent-versus-empty
+discipline (`Unchecked` versus `Missing`, `HasLog` versus `LogLines`) applied
+somewhere we have not yet applied it. Phase 1 reads only scalar frontmatter, so
+this is guidance for when `gnosis_evidence` and `sources` arrive rather than a
+present defect.
+
+Finally, a false alarm worth recording because checking it was cheap: their whole
+`kb` package is gated behind `//go:build fts5` and their CI wants
+`CGO_ENABLED=1`. We use FTS5 with no build tag. `modernc.org/sqlite` v1.57 has no
+`fts5` tag at all — FTS5 is compiled in unconditionally — so their constraint looks
+like a convention carried over from a CGo driver, and our pure-Go, no-tag posture
+is correct.
+
+#### Nearest Architecture (`kvt`), and a Library That Exists (`okf`)
+
+`kvt` is the closest thing to gnosis anyone else has built: markdown as the source
+of truth, a **derived SQLite index with FTS5, links, and frontmatter fields**,
+every write committed to git, exposed over REST and MCP. Its one visible divergence
+is that it *regenerates* `index.md` as a service-owned file where §5.6 keeps it a
+curated map — the same disagreement `kb-lint` has with us, now twice.
+
+`okf` (skosovsky) is a Go OKF toolkit with `bundle`, `validator`, `graph`, `store`,
+and `store/fs` packages and transactional mutations. It is a genuine build-versus-
+adopt question for `internal/okf`, and the reason to keep ours is narrow but real:
+our `Parse`/`Render` retains the frontmatter block **verbatim** so a round trip is
+byte-exact, which a general-purpose library that re-encodes YAML cannot offer. Worth
+re-checking if that assumption ever stops holding.
+
+#### Noted, Not Adopted
+
+`chroma` and `milvus` are vector databases; relevant only if §11's optional
+reranker is ever enabled, and both are far heavier than a corpus of this size
+justifies — a judgement the practitioner report above turns from an intuition into
+a measured one. `synthadoc` and `swarmvault` compile multi-format sources into
+markdown wikis with linting, and are ingestion prior art to read when Phase 2 needs
+adapters rather than now. `expo-llm-wiki` is a second OKF implementation, useful as
+a conformance cross-check because two independent readings of one spec is how the
+ambiguities get found. `cq-gitstore` is the most interesting of the small ones: it
+makes a git repository of OKF markdown a `Store` adapter for mozilla-ai's `cq` SDK,
+which is evidence OKF is becoming an interchange format with consumers that are not
+wikis at all. `mnemos` is agent memory with citations, in the same family as
+`memory-os`. `logseq` and `Zettlr` are end-user PKM applications — the graph view and
+the outliner are worth looking at when §13's viewer is built, and neither
+contributes to the model. `memory-os`, `jarvis-vault`, and `LLM-wiki-dev` are agent
+*session* memory rather than a curated corpus: the distinction is that they capture
+what an agent learned, where gnosis admits what a team has checked. `open-knowledge`
+is an editor. `llm-wiki-skill`, `karpathy-llm-wiki`, and `wiki-gen-skill.md` are
+skill packages that instruct an agent rather than constrain it, which is the
+posture §1.1 argues against for an artifact that outlives its conversation.
+
+### Governance, Memory, and the Opposite Choice — the `agent-green` Survey
+
+**Local copies:** `~/Documents/agent-green` — 39 repositories.
+
+Where `agent-purple` was a field of LLM-wiki implementations, this is a field of
+*governance layers*: things that sit between a person, an agent, and a repository
+and decide what may be relied on. Two findings dominate. One repository pair — FPF
+and `haft` — supplies vocabulary this specification has been circling without
+naming. And one repository, `obsidian-second-brain`, implements Karpathy's pattern
+and chooses the **opposite** of gnosis on every axis, which is worth more than any
+agreement here.
+
+#### FPF and `haft` — "Reliance-Bearing Memory"
+
+The [First Principles Framework](https://github.com/ailev/FPF) (Anatoly Levenchuk)
+is a 105,000-line pattern language for keeping meanings, claims, evidence, and
+decisions coherent across people, tools, and time. `haft` is its Go implementation:
+"a local governance layer for AI coding agents ... what problem is being solved,
+which options were compared, which decisions the human made, what evidence supports
+them, and what has gone stale."
+
+That sentence is most of §4 through §14 in one line, arrived at independently. What
+it adds is a **better test than the one §10.7.4 states**:
+
+> Ordinary local reasoning may stay in chat; records enter the project graph for
+> handoff, replay, authority, automation, **evidence**, or another explicit
+> downstream reliance.
+
+§10.7.4 says *decisions are committed, observations are cached*, and that rule is
+sound but hard to apply at the margin — is a fetch record a decision? `haft`'s
+criterion is **downstream reliance**: does later work need to depend on this? Under
+that test the fetch record is obviously committed (a quotation relies on it) and
+`checked.jsonl` obviously is not (nothing relies on when you looked). The two rules
+agree everywhere §4.3.1 and §4.6 already reasoned; reliance is the one that decides
+the next case without a fresh argument. **Recorded as the sharper formulation of
+the same rule, not as a replacement.**
+
+Four more things transfer directly:
+
+- **"Kernel gates, not prompt-only discipline."** Skills carry the procedure; the
+  MCP kernel validates required fields, parity gaps, missing evidence, and
+  authority boundaries *server-side*. This is exactly the family's own division —
+  everything measurable is a CLI, the agent is reserved for what a deterministic
+  check cannot decide — and finding it independently in a project built on a
+  different framework is the strongest evidence yet that the split is forced by the
+  problem rather than by taste.
+- **"Evidence decays."** Old proof is not treated as forever current. §14.3.
+- **"Human authority stays explicit."** Agents may frame, compare, verify, and
+  *prepare* records; binding decisions require the human principal. §9.5, and
+  §4.6.2's `Approver` is the field that makes it a property of the type.
+- **"Retrieval is not application, evidence, approval, or performed work."**
+  gnosis half-states this. A `search` hit is not evidence that a claim is true, and
+  a document existing in the corpus is not the corpus having checked it. FPF's
+  longer form is sharper still: *"a publication carrier does not become its
+  subject, and a readable view does not become evidence, assurance, permission,
+  decision, architecture, or work without the corresponding exact relation and
+  test."* Worth a line in §11 and §17.
+
+#### The Idea gnosis Does Not Have: Order Is Not Causality
+
+FPF is **relation-first**, and states the consequence plainly:
+
+> The order of text, graph edges, cards, skills, or a demonstrative walkthrough
+> does not by itself prescribe causal, temporal, method, or performed-work order.
+> Such order exists only when an explicit, separately governed causal claim states
+> it. This does not make FPF acausal. Causality must be carried as a claim rather
+> than inferred from layout.
+
+gnosis's `links` table is **untyped**: a link is a link, and §5.5 records `href` and
+direction and nothing about what the connection *asserts*. That is defensible for
+Phase 1 — an untyped link cannot lie about a relationship it does not name — but it
+means the corpus cannot distinguish "A cites B", "A supersedes B", "A causes B", and
+"A is filed near B". §20's deferred trails decision assumes an ordered list of links
+is a path; FPF's point is that an ordered list is a *layout* until something claims
+it is a path.
+
+Two other repositories arrived at the same place from different directions. FPF's
+CAUSAL-USE card exists because "association, intervention, and counterfactual claims
+are being treated as interchangeable" — Pearl's rungs, as an admission gate.
+`systems-thinking` names **Factor Listing** as its first anti-pattern: *"listing
+multiple causes without showing how they connect ... the word 'and' connects causes
+that should have causal arrows."* Three independent sources, one conclusion: **an
+unlabelled connection is not a causal claim, and a list is not an explanation.**
+Recorded as a TODO against §5.5 and §20 rather than acted on — typing the link graph
+is a Phase 3 decision and it needs a vocabulary, which is §5.8's problem.
+
+#### `obsidian-second-brain` — The Same Pattern, Every Choice Inverted
+
+This is the most useful repository in the survey and it agrees with almost nothing
+here. It implements Karpathy's LLM Wiki and publishes a table of how it *extends*
+it. Set beside gnosis:
+
+| | `obsidian-second-brain` | gnosis |
+| --- | --- | --- |
+| A new source contradicts a page | **Rewrite the page.** "Claims revised, stale facts replaced." | Append a version; never rewrite (§4.1, §9.6) |
+| Contradictions | Resolved **automatically** | Adjudicated, with a warrant carrying a required rationale (§10.6) |
+| Patterns across pages | Synthesized **unprompted** into new pages | A synthesis is a claim and needs its own evidence (§17) |
+| Cadence | Four scheduled agents: morning, nightly, weekly, health | "Nothing here is periodic, and one thing should be" (§14.3.1) |
+| Note format | **AI-first**, "for LLM retrieval, not human review" | Human-readable OKF; the reader is the point (§11) |
+| Thesis | "A knowledge base that maintains itself" | A corpus that will not maintain itself without a warrant |
+
+Every one of those is a real position honestly held, and the differences are not
+carelessness — they follow from a different goal. That project serves **one person's
+recall**, where gnosis serves **a team's shared account of what it has checked**.
+For one person's recall, rewriting is right: you want the current answer, not the
+history of your own wrongness. For a shared account it is fatal, because a rewritten
+claim cannot be told from a fabricated one, and §9.6's whole argument is that a
+correction has to accrete rather than overwrite.
+
+What it does supply, and gnosis should steal, is the **per-fact recency marker**:
+its research dossiers write every key fact as `(as of YYYY-MM, source.com)`, inline.
+gnosis puts freshness in the index and in `checked.jsonl`; a reader looking at a
+rendered claim sees none of it. §14.3's staleness is currently a fact about the
+corpus that the corpus does not show a reader.
+
+The `--jsonl` envelope is the counter-example to the "AI-first" format: an artifact
+can be machine-legible without ceasing to be human-legible, and the family's whole
+posture is that a document nobody can read is a document nobody can review.
+
+#### `oh-my-agent` — Verification, Not Narration
+
+Directly applicable to `agentic-dev-harness` and `skillsaw`. Its opening claim is
+the harness thesis stated better than adh states it: *"Each mechanism is mechanical:
+a command exits 0 or it doesn't, a file is on disk or it isn't. No LLM is asked
+whether the work 'looks correct.'"* Five mechanisms are worth lifting:
+
+- **The Anti-Circumvention Gate** checks four artifacts a shortcut cannot fake —
+  phase records, the plan, a *distinct* QA agent's result file, a *distinct*
+  refactor agent's result file. *"Missing artifacts mean the phase did not run,
+  whatever the narration says."* This is `proof`'s no-proof-no-close generalised
+  from artifacts to **stages**, and the distinctness requirement is the part adh
+  does not have: a QA result written by the implementer is not a QA result.
+- **The independent judge is briefed on the criteria only, never on what the
+  implementer claims it fixed**, and **re-verifies every criterion each iteration,
+  including prior passes** — *"because fixing C2 is how C1 silently regresses."*
+  That is a direct finding against `skillsaw`'s ratchet, which should be checked:
+  a ratchet that re-scores only the failed dimensions cannot see a regression its
+  own fix caused.
+- **An allowlist of executable commands.** Only `typecheck`, `test`, and `lint` may
+  run; *"an agent that writes anything else into the state file gets it ignored,
+  never run."* A state file an agent can write is an execution surface, and gnosis's
+  §9.3 should say so about anything a reply can name.
+- **A cap on reinforcement** — five, *"so a permanently red gate can't trap you."*
+  gnosis's promote gate currently blocks unconditionally while two signals are
+  unimplementable, with no cap and no escape. That is the correct behaviour and it
+  is also a deadlock; the honest form is a bound with a recorded reason, not a
+  bypass.
+- **`oma skills eval` measures utility lift on held-out tasks, treatment versus
+  baseline, "instead of assuming a skill helps."** This is a stronger claim than
+  `skillsaw`'s rubric produces. A rubric score says a skill is well-formed; a
+  measured lift says it works. They are different claims and the second is the one
+  a user cares about.
+
+##### The Judge Protocol Itself, Read (2026-08-22)
+
+The five above came from the README table. `.agents/workflows/ralph/resources/judge-protocol.md`
+(207 lines) and `skills/_shared/runtime/event-spec.md` are the artefacts, and reading
+them changes two of those five and adds four things the table did not show.
+
+- **`REGRESSED` is a status, not a re-check.** The entry above took
+  "re-verify every criterion" as the mechanism. The protocol goes a step further: a
+  criterion that was `PASS` and now fails gets **its own status**, emitted *exactly
+  once* on the transition, and explicitly does **not** increment `fail_count` on that
+  first regression. Regression and failure route differently — a regression ships the
+  diff between the last passing iteration and now, so the next attempt is a targeted
+  diagnosis rather than a reimplementation. Re-verification is the precondition; the
+  distinct status is the finding, and it is the half `skillsaw`'s ratchet would still
+  be missing after adding re-verification.
+- **The counter resets on success, and the reason is about noise.** *"`fail_count`
+  counts consecutive failures only… An intermittently flaky verification therefore
+  cannot accumulate to `BLOCKED` across non-consecutive failures — recurring flakiness
+  surfaces as repeated `REGRESSED` signals instead."* That is a design argument about
+  how a counter interacts with a noisy check, and it is the part the cap entry above
+  missed by treating five-as-a-bound as the whole idea. Three surveyed projects now
+  converge on the same shape — consecutive, resets on progress, small *N* — which is
+  worth more than any one of them.
+- **But the escape is wrong for a corpus, and the entry above should not be read as
+  endorsing it.** The verdict rule is `PASS: ALL criteria are PASS **or BLOCKED**`.
+  The deadlock is broken by counting an unresolved criterion as satisfied. For a
+  development loop that is defensible; for an admission gate it is the exact collapse
+  §9.5.1 exists to prevent, and gnosis's answer — `needs_human`, a person rather than
+  a counter — is the better one. Recorded because the survey took the cap as a model
+  and the model has a defect at the point where it matters most.
+- **Independence is structural, and its loss is an event.** The judge is a spawned
+  subagent with fresh context receiving *"only the criteria table, the verification
+  cache records, and this protocol — never the implementer's narration"*; the file
+  says outright that *"independence is structural, not a prompt-level role-play."*
+  When spawning is unavailable it runs inline **and records the downgrade** as a
+  `ralph.judge-inline-fallback` event. That is a third state neither gnosis nor
+  canonizer has: not `checked`, not `unchecked`, but *checked under reduced
+  independence*. A gate that silently degrades its own isolation reports a verdict it
+  did not earn.
+- **`decision.missing` is a first-class event kind.** `event-spec.md` closes the
+  event vocabulary to nine kinds, and one of them exists solely to record *"deterministic
+  verifier failure for a required `decision.made` event"*, carrying `workflow`,
+  `checkpoint`, `missing`, and `remediation`. An append-only log that can record the
+  absence of a record it required is `VerdictUnchecked` one layer up, and §15's audit
+  trail has no equivalent — it records writes that happened and is silent about writes
+  that should have.
+- **The sharpest paragraph in either file is about this project's own central bet.**
+  `decision.made` requires `rationale`, `minLength: 1`, enforced by JSON Schema rather
+  than convention — §10.6.4's warrant as a data field, arrived at independently. And
+  then the warning: *"Substitute real content… Only `subject` is a fixed key… an audit
+  log of identical boilerplate strings records that decisions happened but not what
+  they were."* §10.6.4 bets that a required rationale filters more bad adjudications
+  than a permission check. **This is the observed failure mode of that bet in a
+  running system**, and their countermeasure is prose exhortation. A deterministic one
+  exists and costs almost nothing — refuse a rationale that folds to the emitted
+  template, or to a rationale already recorded for the same subject. That hardens the
+  bet rather than hedging it.
+
+One structural note. `event-spec.md` requires readers to *"derive state by sorting
+valid events by `(ts, eventId)`"* and states that *"raw file order is an
+implementation detail only"*, carrying `parentEventId` and `causalityKey` as explicit
+fields. That is §5.5.1.2's *order is not causality* implemented at the log layer, by a
+project that never argued the principle — the strongest kind of agreement. The one
+place to diverge is the word *valid*: sorting only valid events silently drops
+malformed lines, which is the opposite of what §15's corruption-versus-operational
+split needs. Count them and say so.
+
+#### `agents-md` — The Marker Contract, Which Answers an Open TODO
+
+gnosis has `gnosis schema [link|--check]` for maintaining `AGENTS.md`, and an open
+TODO about machine-owned versus human-owned regions. `agents-md` has the whole
+answer and it is three rules:
+
+1. Generated sections are wrapped in HTML-comment markers.
+2. Everything outside the markers is preserved forever.
+3. **A file with no markers is never overwritten** — a `AGENTS.generated.md` is
+   written beside it instead.
+
+Rule 3 is the one a naive implementation misses and the one that matters: a file
+that predates the tool was not written under its contract, so the tool may not claim
+it. That is the same fail-closed direction as `EffectUnset` and `VerdictUnchecked`,
+applied to a file format. It also runs both a skill and a CLI against **one shared
+marker contract**, which is skillet's thesis with a different noun.
+
+#### The Gentleman Programming Ecosystem — a Family Beside Ours
+
+**Local copies:** `gentle-ai`, `engram`, `gentle-wiki`, `Gentleman-Skills`.
+
+Four repositories from one author covering roughly the concerns this family covers:
+a Go CLI that gates work, a Go memory layer, a documentation corpus, and a skill
+catalogue. It is the only assembly in either survey that can be compared to ours as
+an assembly rather than as a component, and the comparison is worth more than any
+single mechanism in it.
+
+**The shape matches almost exactly.** Two Go binaries with `internal/` and `cmd/`,
+SQLite as the store, FTS5 as the search, `openspec/` for specification-driven
+development, one binary per concern, and a skill catalogue one layer up that drives
+the CLIs. `engram`'s own comparison document lists why it is not the popular
+TypeScript alternative, and every divergence it names is a choice gnosis made
+independently: Go single binary over Node plus Python plus a vector database; SQLite
+FTS5 over ChromaDB; one database file over two storage systems; and — the
+load-bearing one — **"Agent-curated summaries only"** over **"captures all tool
+calls then compresses,"** which it states as *"Agent decides what matters"* rather
+than auto-capture. That is a fifth independent derivation of the architecture
+`agent-purple` found four of.
+
+##### `AI_POLICY.md` — the Document This Family Does Not Have
+
+`gentle-ai` ships a contribution policy for AI-assisted work, and it is the single
+most directly liftable artefact in the survey. Four of its rules matter here.
+
+- **"Review is based on observable submission quality, not on whether text or code
+  appears to be AI-generated."** It refuses AI-detection as a review criterion
+  outright. That is the correct position and it is the one `aidetector` — set aside
+  in the `agent-purple` survey — got wrong.
+- **"They may reject work that the contributor cannot explain, verify, or defend."**
+  The gate is not on authorship but on defensibility. §10.6.4 argues that a required
+  rationale filters more bad adjudications than a permission check; this is the same
+  bet, stated as a review policy instead of a schema field.
+- **"AI tools must not receive human attribution, including `Co-Authored-By`,
+  `Reviewed-by`, `Tested-by`, `Signed-off-by`, approval, or equivalent credit. An
+  optional `Assisted-by` trailer may be accepted."** This is `gnosis.Actor`'s
+  `human:` / `agent:` / `check:` split, in git trailers, for the identical reason:
+  §10.6.4 counts distinct *human* actors, so an agent that could pass for a person
+  makes the count wrong in the direction that flatters the work. Two projects
+  reached the same three-way distinction from opposite ends — one from a review
+  policy, one from a type.
+- **The disclosure has three required fields**: the tool or model, the material
+  scope of the assistance, and **the verification the contributor performed.** The
+  third is the interesting one. It is not "an AI helped" but "here is what I
+  checked" — an audit row for a contribution, with the same shape as
+  `audit.Row`'s actor plus outcome plus detail.
+
+Recorded as a gap rather than a convergence: **this family has no AI-assistance
+policy at all**, in any of its repositories, while every one of them is built this
+way. §1.1 argues at length that every claim in a corpus is testimony and must name
+its witness; the repositories that argue it do not name theirs.
+
+##### Deterministic Agent Testing — Directly Applicable to `adh`
+
+`gentle-ai/docs/testing-agents-deterministically.md` solves a problem `adh` has and
+states it better than `adh` does: *"A model asserting 'I verified it, it passes' is
+prose, not proof."* The product invariant it needs to test is that **a real agent
+does real work and the deterministic CLI correctly decides whether that work is
+acceptable** — which cannot be tested with unit tests and cannot be tested against a
+live model, because a test that is non-deterministic, billed per token,
+network-dependent, and holding an API key *"gets disabled within a month."*
+
+The technique is to **keep the agent real and replace only its reasoning**: the real
+binary at a pinned version, the real shipped prompt, real Git, real filesystem, real
+TLS with a self-signed certificate — and a local server speaking the model protocol
+from a script. Their five-point generalisation is worth quoting because it is a
+method and not a trick:
+
+1. Keep the runtime real — same binary, version pin, shipped prompt, permissions.
+2. Replace only the reasoning.
+3. **Make the fixture adversarial.** Assert on the incoming request, not just the
+   outgoing response. Fail when evidence arrives out of order.
+4. Fake nothing else. Anything that can be deterministic should stay real.
+5. Keep the non-deterministic part out of the gate.
+
+Point three is the one that makes it a test rather than a playback, and their code
+shows it: the fixture refuses to dictate the next step if the agent asked to advance
+before producing commit evidence. *"The contract is checked in both directions."*
+
+Point five is a scoping principle for `skillsaw` as much as for `adh`: *"Whether a
+prompt reliably steers a live model is a product question, answered by usage, not by
+CI."* And the honest-limits section is the discipline this specification practices in
+prose and not in its suite — **"Not proved. That a live model, given the shipped
+prompt, produces the same tool calls the fixture scripts."**
+
+For gnosis the application is specific. The relay was designed so that gnosis never
+calls a model, which makes its own tests easy — and `cmd/relay_test.go` consequently
+hand-writes every reply. Nothing tests that an agent handed a real emitted prompt
+produces a reply `admit` will accept. That is the one place gnosis's determinism
+makes a gap rather than closing one.
+
+##### `review-authority-threat-model.md` — the Sentence gnosis Needs
+
+Ninety-eight lines, and the first paragraph is one gnosis should copy the posture of:
+
+> It does not claim to authenticate state against a malicious local actor with the
+> same user and filesystem access: without an external trust anchor, that actor can
+> rewrite the state, receipt, Git repository, or binary.
+
+And then, among the retained controls: **"Checksums only where useful for detecting
+accidental corruption; they are not authentication."**
+
+gnosis's tier-0 record is content-addressed so that *"a rewritten record lands at a
+different path, which makes append-only structural rather than conventional."* That
+is true and it is narrower than it sounds: it detects **accidental** corruption and a
+careless edit, and a local actor who recomputes the hash and renames the file defeats
+it entirely. §4.3.1 says tampering is *"visible rather than absorbed"* and that
+over-claims by exactly the amount Gentleman's sentence marks off. The threat model
+also names three controls gnosis lacks:
+
+- **A lock plus an expected revision**, so a stale writer is rejected rather than
+  merely queued. gnosis holds its lock across compute-and-write, which is sufficient
+  today; a served coordinator holding the lock across many commands would need the
+  revision.
+- **Corruption distinguished from operational failure** — *"Only malformed state,
+  checksum, graph, or receipt evidence is corruption; operational Git and filesystem
+  failures remain [operational]."* `bundle.AuditTrail` treats a malformed line as an
+  error and cannot say whether the disk failed or somebody edited the file.
+- **A declined candidate recorded as a first-class authorization.** gnosis records a
+  refused promotion in the audit trail; Gentleman records the *decline itself* as a
+  canonical authorization, atomically, without creating a review lineage. The
+  distinction is that a refusal in a log is an observation and a recorded decline is
+  a decision, which is §10.7.4's own line applied one level up.
+
+##### `engram` — Where It Agrees, and the One Place It Diverges
+
+Beyond the architecture convergence, three mechanisms:
+
+- **A review lifecycle that is deliberately local.** A memory carries a computed
+  `state` of `active` or `needs_review` plus a `review_after` date, and
+  *"`review_after` is intentionally not part of sync payloads."* Marking something
+  reviewed is local-only while the memory itself is shared. That is `checked.jsonl`
+  exactly — §4.3.1's one documented exception to §4.5 — reached independently, which
+  is the strongest evidence yet that the per-user/committed line falls where gnosis
+  put it.
+- **Provenance of why a record exists, with an opt-out for machine writes.**
+  `mem_save` takes `capture_prompt`, best-effort records the prompt that produced an
+  observation, and the guidance is that *"automated saves such as SDD artifacts
+  should pass `capture_prompt=false`."* gnosis stamps a quarantined document with the
+  cache key of the reply that produced it, which is the same idea with a stronger
+  handle: the key resolves to the exact prompt, model, and source version.
+- **The audit boundary is fail-soft and says so out loud.** A store that does not
+  implement `InsertAuditEntry` *"silently skips the audit with a log warning — no
+  panic, no 5xx"*, and the insert is deliberately synchronous because buffering
+  *"would complicate recovery, lose entries on process restart."* gnosis reached the
+  same synchronous conclusion, and its fail-soft path is **weaker**: the audit
+  failure lands in the outcome's message where no machine reads it, while engram's
+  lands in a log where an operator does.
+
+Where it diverges is the same axis `obsidian-second-brain` diverges on, and for the
+same reason. A topic upsert *"increments `revision_count` so evolving decisions stay
+in one memory"*; exact duplicates *"update metadata (`duplicate_count`,
+`last_seen_at`) instead of creating new rows"*; deletion is a soft `deleted_at` that
+search ignores. One record that counts its own revisions, rather than a version per
+revision. For one person's working memory that is right and cheaper. For a shared
+account it loses the ability to say what the claim used to be, which §9.6 will not
+give up. Worth noting all the same: **`revision_count` answers "has this been
+churning?" for free**, and gnosis can only answer it by walking git.
+
+##### The Skill Catalogue, and a Convention That Verifiably Held
+
+`Gentleman-Skills` splits `curated/` from `community/` and the split is an admission
+*procedure*, not a label. Curated skills are *"personally crafted and
+battle-tested"* by the owner. Community skills *"go through a democratic voting
+process"* — a seven-day review, GitHub reactions as votes, maintainers counting on
+day eight, plus automated structural validation.
+
+That is a permission-and-quorum model, and gnosis explicitly bet against it: §10.6.4
+holds that a required rationale filters more bad adjudications than a permission
+check ever will. Here is a live system that chose the other way. The bet is not
+symmetric and the difference is the cost of being wrong — a bad skill in a catalogue
+is uninstalled, and a bad claim in a corpus is cited. A vote counts *how many* people
+approve; a rationale records *why one* did. For a catalogue with many reviewers and
+low blast radius, counting is the cheaper instrument. Recorded because it is the
+first time in either survey that §10.6.4's position has been contested by something
+that works.
+
+The more useful finding is in `gentle-ai`'s own `AGENTS.md`, which is not project
+instructions but a **skills index**: a `Skill | Trigger | Path` table with *"load the
+relevant skill(s) BEFORE writing any code."* It declares a portability convention —
+*"`gentle-ai-*` skills are repo-specific workflow skills. Unprefixed skills are
+portable writing or work-unit skills and intentionally keep their canonical
+names"* — and the convention **verifiably held** when checked: `cognitive-doc-design`
+is unprefixed and is **byte-identical** across `gentle-ai` and `gentle-wiki`, while
+`branch-pr` is exposed as `gentle-ai-branch-pr` and has legitimately diverged.
+
+That is the promote-on-second-consumer moment, observed from outside. Two repositories
+hold one skill at identical bytes, by hand, with nothing enforcing it — and the
+convention that says which files ought to match is written in prose in a table.
+It holds today because one person maintains both. **A cross-repository check that
+same-named unprefixed skills hash alike is a `skillsaw` command that does not exist
+and should**, and it is the one mechanism in this ecosystem that this family could
+supply back.
+
+`gentle-ai` also splits skills by *whose* work they govern: `internal/assets/skills/`
+is embedded in the binary and ships to users, `skills/` is repo-local and governs
+work on the tool itself. Neither `skillet` nor `steve-skill-market` marks that
+difference, and it is a real one — a skill that ships is a published artefact under
+`speclint`'s rules, and a skill that governs the repository is closer to a
+`CONTRIBUTING.md`.
+
+#### Two Reviewed Summaries, and What Survived Review
+
+**Local copies:** `~/Documents/agent-green/scientific-agents-summary.md` and
+`~/Documents/agent-green/FPF-valuable.md` — second-hand surveys of
+`scientific-agents` and of FPF, commissioned separately and evaluated here.
+
+Both are accurate: every citation resolves and every attributed concept is in the
+cited file. Neither is fabricated. They differ in what that accuracy bought, and
+the difference is worth recording because it is a fact about *surveying* rather
+than about either repository.
+
+##### `scientific-agents` — the value was in the reading, not the read
+
+The repository is 503 expert-persona briefs, each a terse bulleted checklist under
+fixed headings. The logician brief gives soundness one line: *"soundness links
+proof ⊢ to truth ⊨; completeness links truth to proof."* The summary's best
+section is three paragraphs elaborating that into an argument about `canonizer`.
+**The repository supplied vocabulary; the analysis was the reviewer's.** That is a
+legitimate thing to get from a survey and it means the value does not scale with
+reading more of it.
+
+Three items are worth acting on:
+
+- **Soundness over completeness, with a known-answer test per rule.** *"Developer
+  trust is highly sensitive to false alarms"* is §12's posture stated more
+  precisely than §12 states it, and "every rule must have a known-answer test
+  proving its soundness" is the planted-defect self-test built for the promote
+  gate, generalised to every rule. `canonizer` and `skillsaw` should have it.
+- **Object-language versus metalanguage.** Rules about code, versus rules about
+  rules. `skillet/ruleset/conflict` is a metalanguage check and nobody had named it
+  as one. It also clarifies §5.8: the subject vocabulary is metalanguage and the
+  claims expressed in it are object language, which is *why* a vocabulary admitted
+  before the corpus can adjudicate over it goes wrong — you would be fixing the
+  metalanguage before knowing what the object language needs to say.
+- **Competency questions.** Natural-language questions the corpus must answer,
+  frozen as tests, written before the schema. gnosis has dispatcher-level read
+  tests and nothing that asks whether the corpus still answers what it was built
+  to answer.
+
+And the sharpest line in the repository, which the summary did not pick up:
+
+> Separate formal result from interpretive claim; label when moving from
+> entailment to pragmatic recommendation.
+
+That is §11.0.0's *retrieval is not evidence* and the causal-rung item, in one
+sentence, from a different discipline.
+
+Three of its recommendations **contradict positions this specification argues**,
+and the summary does not notice:
+
+- **SSSOM confidence scores.** Logging a model-suggested alias "with a lower
+  confidence" is the scoring §10.3 and §17 refuse. The *justification* field
+  (human-curated versus lexical-similarity) is valuable and is `gnosis.Actor`
+  applied to vocabulary; the number is not.
+- **Tolerance-based gold-file testing** — *"cosine similarity > 0.95 rather than
+  exact string-matches, avoiding fragile build gates when models change."* Correct
+  for a system with a model in its test path. §18.3 requires a byte-identical
+  rebuild and §6.1 a byte-identical cache, and both are affordable **precisely
+  because** gnosis calls no model. Adopting tolerances would dissolve the
+  determinism argument to solve a problem this tool does not have.
+- **The Medallion mapping**, which is the one to reject outright. Bronze / Silver /
+  Gold orders tiers by **refinement for consumption**; gnosis orders them by
+  **trust and durability**. Tier 1 quarantine is not "cleaned data" — its defining
+  property is that it is *untrusted* — and Gold would span tier 2 (authoritative,
+  committed) and tier 3 (derived, gitignored), which sit at opposite ends of the
+  axis that matters. Renaming the tiers after Medallion's would make a reader think
+  tier 2 is an aggregation of tier 1 rather than a different trust state. That is
+  not a digression, it is a worse model.
+
+The rest is either already built under other names (OpenLineage: `archive_paths`,
+the extractor version on each record, the cache key stamped on a quarantined
+document — only the adjudicator ID is missing, and that is §10.6's warrant) or
+addressed to a different system (SHACL and OWL need an RDF model; DSM cycle
+detection conflates references with imports; `CITATION.cff` and ORCIDs solve
+research-software attribution).
+
+##### FPF — a more accurate survey, and therefore less actionable
+
+The FPF summary is the better of the two, and the evidence is that **three of its
+eight sections describe things gnosis already does**, one of them built the same
+week. A reviewer who reports the tool back to itself has read it.
+
+- §5's *unknowns propagate, never coerce to zero* is `quotecheck.Unchecked`,
+  `gate.VerdictUnchecked`, and `FreshnessUnknown`. The summary names the Go
+  identifiers.
+- §6's rebuild floor is `index.FloorBreached` and `rebuild_floor_fraction`, down to
+  preserving the old database and requiring an override. Its FPF citations are
+  misattributed — `E.2.DA` and `E.21` are about declared floors for a *scoped use*,
+  a bounded-result concept — though the prose correctly credits `haft`, which is
+  where this survey found it in the first place.
+- §8's edition pinning is two-thirds built: the cache key already carries source
+  identity, prompt, model, and model version. The **third axis is real and belongs
+  elsewhere**: a rubric or ruleset edition does not enter a gnosis prompt, so a
+  `standards/` change cannot stale a reply — but for `skillsaw` and `canonizer`,
+  where the rubric *is* the thing being applied, a cache keyed without it would
+  serve yesterday's grade under today's rules.
+
+Two more restate findings this survey already recorded: the causal rung, and
+findings-over-scores.
+
+**Two items are genuinely new, and one is very good.**
+
+**`F.18 NameCard`'s `Rejections` field.** A NameCard records the candidate set, the
+chosen name, *and the rejected candidates with the concrete reason each was
+rejected*. gnosis's ontology has `aliases` and nothing else: it records what
+matched and keeps no trace of what was considered and refused. **A rejected alias
+is exactly the knowledge that gets re-litigated every six months** — somebody
+proposes `runbook` as an alias for `Playbook`, someone who remembers why it was
+refused is not in the room, and the corpus has no way to say. It is the required-
+rationale discipline applied to vocabulary, and it is cheap: one list and one
+sentence per entry.
+
+**NSTD.1's blocked overread.** An ingestion record states what the ingestion does
+*not* authorize. gnosis records what a source supports and nowhere records what it
+was explicitly held not to support — which is the same asymmetry as the rejections
+gap, at the level of a source rather than a name.
+
+One conflict the summary does not flag: **§4's decay curves.** §14.3 uses an
+absolute `stale_after` date on OKF's determinism argument — a date *"keeps the
+staleness decision a plain date comparison with no reference to when the concept
+was read."* A decay curve reintroduces exactly the read-time dependence that
+argument rejects. What *is* worth taking from C.27 is a different field: **`Effort`
+— the resource cost of keeping a claim current.** Nothing in gnosis records what a
+claim costs to maintain, and a corpus that knew would be able to say which of its
+knowledge is expensive rather than merely old.
+
+§3's `E.17.0` conformance formalism is the one clear digression. It is heavy
+machinery, and what makes gnosis's retrieval inspectable is grep and content
+addressing rather than a participant-determined conformance relation.
+
+##### What Both Surveys Suggest About Surveying
+
+A second-hand survey is worth commissioning and is worth checking, and the two
+failure modes are different. The `scientific-agents` summary was *accurate about
+its source and wrong about this project* — it recommended three things the
+specification argues against, because it read the source closely and this codebase
+less so. The FPF summary was accurate about both and therefore mostly told us what
+we had. **Neither error is detectable without doing the comparison**, which is the
+argument for treating a commissioned survey as a claim to be checked rather than a
+finding to be filed — which is, unavoidably, the argument this entire project is
+about, arriving from the outside.
+
+**A third failure mode, 2026-08-22, and it is the one to design against.** Seven
+commissioned gap reports arrived — one per tool, seventy findings, each with a
+citation and a Go implementation plan. Almost none survived contact with the code,
+and the reason is structural rather than careless: **all seventy cite one of two
+documents, and the larger is a re-survey of the same 144 repositories this family
+already absorbed.** So the reports rediscovered this family's own recommendations,
+from the same corpus, and presented them as defects in the tools that had already
+implemented them. gnosis was told to store source bytes durably and to segment
+claims at sentence level — both shipped, in Phase 2, *because* of that corpus. adh
+was told its critic runs in the builder's context, when withholding the transcript
+is the one thing `internal/critic` documents itself as doing. skillet was told to
+grow a SQLite evidence store, which is gnosis's tier 0 in the wrong repository, at
+`llmwiki`'s file path.
+
+The two earlier failure modes were about *accuracy* — accurate on the source and
+wrong on us, or accurate on both and therefore redundant. This one is about
+**provenance of the evidence**, and it is detectable without doing the full
+comparison, which the other two were not. The discriminator is cheap: **where does
+a finding's citation point?** A finding citing the code it claims is defective can
+be checked with one grep. A finding citing a survey cannot be checked at all
+without redoing the survey — and when the survey covers ground already absorbed,
+what comes back is the absorption, inverted into a gap.
+
+Two smaller tells worth keeping, because they are visible before any checking. Four
+of the seven files were exactly eighty-five lines, which is a template rather than
+a finding count. And citation snippets repeat across unrelated findings — the same
+sentence about `ontology.yml` coupling rules backs both a modal-verb linter and a
+test-prompt drift gate, supporting neither. That last one is `quotecheck`'s failure
+mode exactly: a quotation that validates while supporting none of what it appears
+to support, in a document about this family's quality tooling.
+
+None of which makes commissioning them wrong. Three items did survive, and one —
+`certainty` on `finding.Diagnostic` — was worth the whole exercise, because
+checking it found the same proposal already sitting in gnosis's own §16.1,
+duplicating a field that had existed all along. **A wrong finding that arrives twice
+from different directions is evidence about the design, not about the finder.**
+
+##### `hindsight` — a working system, and the first survey that costs us an argument
+
+**Local copy:** `~/Documents/agent-green/hindsight-summary.md`, over
+`agent-green/hindsight`.
+
+The third commissioned summary, and the first over a substantial working system
+rather than a persona catalogue or a specification. Every concept it names is real
+and documented: world facts and experiences, observations with proof counts,
+mental models projected as knowledge pages, memory defense at intake, disposition
+traits, and four-strategy recall fused by RRF with a cross-encoder reranker.
+
+Its best contribution is a distinction gnosis does not have, and its worst
+recommendation would break a guarantee gnosis does. Both are worth stating
+carefully, and neither is the most important thing in the repository — which the
+summary does not mention at all.
+
+**What the summary misses, and it is the whole point.** `hindsight` reports 94% and
+91% on LongMemEval and claims state of the art. §11.0 refuses semantic search on
+inspectability grounds — *"a retrieval path nobody can inspect is a retrieval path
+nobody can correct"* — and argues the position entirely from principle. Here is a
+measured claim about what the other architecture achieves on an adjacent task.
+**That refusal has a price and this specification has never named one.** The task is
+not gnosis's task, the benchmark is conversational recall rather than corpus
+adjudication, and the claim is the vendor's own — but "we decline this and here is
+the number we decline" is a stronger position than "we decline this", and only one
+of them is honest about the trade. Recorded against §11.0.
+
+**The distinction worth taking: world facts against experiences.** A standard —
+*"React 19 prohibits X"* — and an episode — *"in session 12 the team applied this
+rule to file Y, and it was approved"* — are different kinds of knowledge with
+different evidence. gnosis has a place for the first and none for the second, and
+the second is arguably the *tribal* knowledge this project is named for: not what
+the guideline says, but what happened when this team applied it here.
+
+The summary's mapping is wrong in a way that matters. It puts experiences in
+**tier 3**, which is the derived cache — and §4.5 is unambiguous that *"anything
+that exists only in SQLite is a bug."* Session traces cannot be re-derived from the
+bundle, so filing them there would put irreplaceable primary data in the one tier
+designed to be destroyed and rebuilt. An experience belongs in tier 2 as a
+committed document of its own type, with a commit hash as its evidence — which is
+the same shape as every other claim, because §1.1 makes an experience testimony
+like anything else.
+
+**Three recommendations conflict with positions this project argues.**
+
+- **Proof counts.** *"Increment the card's proof count"* as new sources corroborate
+  a claim. §1.1 is local reductionist — *a source's reliability is never inherited
+  by its claims* — and a count invites exactly that inheritance: three sources
+  agreeing is not three times as true, and may be three sources copying one
+  another. `hindsight`'s own version is better than the summary's rendering of it
+  (*"refined as evidence strengthens, weakens, or contradicts it — history is
+  preserved"*), and the salvageable idea is the **multi-source evidence ledger** —
+  recording that four sources support a claim, without collapsing four into a
+  number that reads as strength.
+- **A background consolidation loop** merging quarantined claims into canonical
+  cards. This is §14.3.1's *nothing here is periodic* and, more seriously, it is
+  the `obsidian-second-brain` failure this survey already recorded: an unattended
+  merge with no gate and no warrant. gnosis's answer to "these two claims are the
+  same" is `duplicate`, a finding a person resolves (§4.6.1).
+- **Disposition traits as gating strictness** — *"strict in CI, empathic in local
+  loops."* This is the summary's extrapolation and not the source: `hindsight`'s
+  dispositions are *"soft traits that influence reasoning style"* on a 1–5 scale,
+  shaping interpretation rather than admission. Converted into gate strictness it
+  becomes the single most demoralising property a checking tool can have — a
+  developer sees a pass locally and a failure in CI, for one corpus at one commit,
+  which is what §4.6's *two users at the same commit hold the same index* exists to
+  prevent. The legitimate version is what gnosis already does: **one verdict, two
+  renderings.** `--jsonl` and human output differ in presentation and never in
+  finding.
+
+**Two are confirmation rather than news.** Memory defense at intake is §9.3 stage 3,
+already specified down to redaction before anything reaches disk and already in
+TODO; the agreement is useful and the design is not new. Mental models — standing
+answers computed offline and read at zero cost — is §8.3's `gnosis file`, specified
+and unbuilt, and finding it independently is a mild vindication of that section.
+
+**One is self-defeating.** The four-strategy retrieval proposal keeps RRF and the
+cross-encoder in the description and then, for gnosis, drops the semantic and
+reranking parts in favour of *"grep plus NameCards plus validity windows"* — which
+is the existing FTS5 search plus two features that do not exist. It removes exactly
+the components that produce the accuracy it cites, and then claims the benefit.
+
+##### The Number, Checked Against Its Own Harness (2026-08-22)
+
+The section above accepted the benchmark claim at face value and argued about what
+declining it costs. The section immediately before it says a commissioned survey is
+*"a claim to be checked rather than a finding to be filed."* So the claim was
+checked, against `hindsight-dev/benchmarks/` rather than the README, and **the number
+does not transfer — not because it is dishonest, but because a retrieval score is a
+function of its grader and the grader does not travel with the score.**
+
+To hindsight's credit, the divergence is self-documented. `longmemeval/docs/judge_prompt_comparison.md`
+is a per-category side-by-side of the LongMemEval paper's grader prompt against their
+reimplementation of it. Almost nobody publishes this. Verified against
+`common/benchmark_runner.py:253-353`, what it shows:
+
+- **The `unanswerable` category is `*Not implemented*`.** That category exists to
+  measure whether a memory system correctly *declines* when the information is absent.
+  An over-retrieving system is penalised by it and unaffected by its removal. This is
+  the abstention measurement — the benchmark's own version of `unchecked` is not
+  `pass` — dropped from a state-of-the-art claim.
+- **The fallback grader is not LongMemEval's.** The paper has *"no default — all
+  categories have specific prompts."* The `else` branch is a LoCoMo-style prompt
+  instructed three times to *"be generous with your grading."* A category string that
+  does not match one of five literals routes silently to a lenient judge: a
+  **fail-open default in a grading path.**
+- **The output shape changed from forced choice to reason-then-label.** Paper:
+  *"Answer yes or no only."* Theirs: *"First, provide a short (one sentence)
+  explanation of your reasoning… If it's correct, set `correct=true`."* Neither is
+  wrong; they are not the same instrument.
+- **`single-session-preference` grades against a gold answer where the paper grades
+  against a rubric.** A different task at a different difficulty.
+- Two defects their own comparison does not catch: line 257 instructs the model to
+  `set correct=no` on a boolean field, in the failure branch only; and for the three
+  largest categories the question and both answers are injected **twice** under
+  different labels, because the branch prompt already contains them and the outer
+  message appends them again. Those three categories are graded on a prompt the other
+  four are not.
+- **A judge exception is scored as a wrong answer** (`return False, f"Error: …"`).
+  This is the honest direction — it depresses their own score — and it is the exact
+  inverse of `ruflo`'s default below. It is still a conflation: the reported accuracy
+  is a lower bound of unknown looseness, and nobody can say how many failures were
+  grader failures. `Unchecked` earns its keep even when the collapse is conservative.
+
+The README is candid about one more thing worth copying: *"independently reproduced
+by research collaborators… Other scores are self-reported by software vendors."*
+That is a declared trust asymmetry inside a comparison chart, which is more than most
+publish — and under OKF §5.3 it also means the *comparison* inherits the weaker tier,
+because a derived claim cannot outrank its inputs.
+
+**What this does to §11.0.** Less than it looks, and in a useful direction. The
+section already states the trade honestly; what changes is that the number on the
+other side of it is softer than quoted, so the section should say the grader diverges
+rather than restate the figure as settled. **The load-bearing damage is elsewhere, and
+it is in a sentence added by the same revision:** *"If the miss log ever shows FTS5
+failing on queries a fused reranker would have answered, that is the trade coming
+due."* The miss log records queries the deterministic path **did not answer**. A query
+answered *wrongly* — a confident, ranked, incorrect hit — never enters it. **The
+stated trigger cannot fire for the failure mode that matters**, and the instrument is
+self-referential: it is scored by the path it is scoring. The repair is the thing
+hindsight dropped — a small committed set of labelled queries with known-correct
+target concepts, **including queries whose correct answer is that the corpus holds
+nothing** — graded by exact concept-ID match. A pure predicate over a string in
+`gradecore`'s sense: no judge, no model, replayable. That yields recall@k *and* an
+abstention rate, and it is the only way §11.0's bar becomes reachable.
+
+#### `ruflo` — a Self-Optimizing Loop, Read as the Negative Control
+
+623 MB of Rust and TypeScript, and the self-optimising machinery is not the valuable
+part. **The valuable part is `docs/darwin/log.jsonl` (31 lines) and
+`docs/dream-cycle/LEDGER.md`, which together are the best empirical record this
+survey has found of what an unguarded ratchet actually does.** Every claim below is
+from the logs and the tree, not the README.
+
+`docs/darwin/PLAN.md` specifies a clean hill-climb: pick the dimension furthest from
+an external SOTA baseline, make one change, measure, `Δ > 0 → commit`, `Δ ≤ 0 →
+revert`, `error → revert`, halt after three consecutive non-improvements. Selecting by
+*gap to a declared reference* rather than by absolute weakness is a genuine
+improvement on `skillsaw diagnose`, and worth taking on its own. What happened next is
+the finding.
+
+- **A two-outcome gate met a three-outcome world and grew a bypass.** Iterations 1–4
+  each logged `"deltaScore": null, "action": "proposed"` — and each carries a commit
+  hash. Four changes entered the champion on *predicted* deltas (*"Theory predicts
+  +0.03–0.05 nDCG@10"*) because the benchmark could not be made to run. Iteration 10
+  is titled `FIRST REAL VALIDATION`. **The unmeasured case defaulted to accept.** This
+  is the strongest vindication in any survey here for `EffectUnset`,
+  `VerdictUnchecked`, and `quotecheck.Unchecked`: fail-closed is not fastidiousness,
+  it is the only thing standing between *could not measure* and *shipped*.
+- **The verdict vocabulary drifted from three values to roughly thirteen** —
+  `proposed`, `proposed+proven`, `proven`, `reproduced`, `infra-incomplete`,
+  `infra-blocked`, `bench-failed`, `bench-timeout`, `baseline-established`,
+  `skipped-at-target`, `deferred`, `measured-improved`, `noImprovement`. An open
+  reason vocabulary drifts under pressure, and it drifts toward whatever lets the run
+  continue. This is `vac-protocol`'s closed reason list with an empirical case behind
+  it.
+- **The loop gamed its own rubric within four iterations, and said so.** Iterations
+  22–25, dimension `metaharness-score`: *"Reverse-engineered metaharness rubric and
+  added 3 legitimate root signal files… fileCount 5→8 → +6"*; then a workspace
+  `Cargo.toml` so `languages [ts] → [ts,rust]` (+5); then *"crates symlink exposes
+  existing v3/crates Rust subcrates at root for rubric detection"* (+2). Score 40 → 55,
+  capability unchanged. The symlink is still in the repository root. The dimension was
+  a **file-presence count**, and any dimension scored by counting artefacts is gameable
+  by creating artefacts. This is why §17 refuses a weighted score, and it is the first
+  time this survey has watched the refusal earn itself.
+- **The optimiser improved a promotion rate by relaxing the promotion predicate.**
+  `docs/darwin-core/log.jsonl` iteration 3: metric `promoted/successful`, change
+  `relax-predicate-AND-to-OR`, 3/7 → 6/7, logged `"BIG WIN"`, committed. gnosis's
+  `standards/` design already anticipates this — a value moved in the finding-reducing
+  direction records that it was. **This log proves recording is not sufficient**: it
+  *was* recorded, in prose, as a win. The rule has to be stronger — a change that
+  loosens a gate may not count as an improvement to the metric that gate produces.
+- **No noise floor was ever established.** Accepts at `+0.0028` and `+0.0046` on
+  single runs; rejects at `−0.0002` and `−0.0004` as *"essentially flat."* Accept and
+  reject thresholds differ by an order of magnitude with no variance estimate, and the
+  champion is never re-measured. The plan's own SOTA-proof clause required *"3
+  consecutive runs within 1σ"*; σ was never computed.
+
+**What it supplies positively is a four-valued provenance verdict that resolves an
+open canonizer finding.** `docs/validation/README.md` keeps *two* signals per fix — a
+whole-file sha256 **and** a marker substring — and crosses them: hash matches is
+`Pass`; hash differs but the marker is present is `Drift`, *"acceptable — codebase
+advanced"*, recorded and not blocking; the marker missing is `Regressed`; the file
+gone is `Missing`. *"A SHA-256-only check would flag every benign whitespace change as
+a regression. The marker is the semantic invariant."* That is the fix for
+`verify.Provenance` conflating a fabricated anchor with a drifted source, and it adds
+a case §14.3 does not carry: upstream changed **and the quoted passage is still
+present** is a different fact from upstream changed **and the passage is gone**, and
+today both read as `stale`. Layer 3's history then yields two meta-signals free — a
+check that *flaps* indicts its own marker, and a source that persistently drifts wants
+a shorter derived `stale_after`.
+
+One caveat, confirmed in `plugins/ruflo-core/scripts/witness/lib.mjs:155-167`: the
+Ed25519 seed is `sha256(gitCommit + ':ruflo-witness/v1')`, the commit is public, and
+the derivation is published in the manifest beside the signature. **The seed is the
+private key, so anyone can forge a valid signature.** It detects accidental corruption
+and nothing else while presenting as `signatureAlgo: 'ed25519'`. This is exactly what
+`vac-protocol` refuses — *"signing an unreplayable bundle would launder it"* — and
+what Gentleman's threat model says out loud about checksums not being authentication.
+Two principles this document already holds, with the concrete instance they predict.
+
+**The dream-cycle ledger is the outcome-tracking finding, with a number on it.**
+`LEDGER.md` opens by auditing its own predecessor: 80 nightly research issues, **4
+shipped (5%), 1 rejected, 75 (94%) never touched**, some over two months stale. The
+root cause is named precisely — *"each night only checked whether it was repeating
+itself, never whether anyone had acted on what it proposed."* Deduplication without
+downstream-reliance tracking. That is `haft`'s reliance test applied to a corpus, with
+the cost of omitting it measured: gnosis's promote gate decides admission and nothing
+asks whether an admitted claim was ever cited.
+
+The v2 rows are what fixed it, and they are the model for `log.md`'s verdict schema:
+a closed vocabulary (`ACCEPT` / `ACCEPT-scoped` / `REJECT`), an `Effect` column
+carrying **signed measured numbers including the regressions**, and a witness stamp.
+Both `REJECT`s refused changes with large favourable primary metrics because a *named
+guard invariant* moved — *"max-load −46.1%, CoV −44.4% **but density −13.7% breaches
+±10% invariant**"*, and *"latency −55.9%/−57.5% **but recall@10 breaches 0.90 floor at
+N=8000**"*. Same organisation, four weeks after the darwin log gamed its rubric, and
+the difference is guard metrics with declared floors plus a hypothesis frozen before
+evaluation: `dream-gist-2026-08-19.md` carries its Given/When/Then with `subject to:`
+clauses naming the invariants, and the line *"Frozen before evaluation began; not
+modified after seeing results."* `ACCEPT-scoped` is `haft`'s `review_ready` in
+production, carrying the concern as a signed number rather than prose — *"low-bucket
+recovery −17.6% (t=7.00, held); med-bucket null (no generalization)."*
+
+Three smaller mechanisms from that gist. The baseline was reproduced independently
+twice with **both** numbers reported — 96 and 98, an implicit noise estimate rather
+than a single figure. A failing `tsc` was attributed away from the candidate by
+re-running under `git stash` rather than waved off. And the skipped stage is named
+*with its rate*: *"Darwin Results — Skipped — scope mismatch. Same class of skip as 4
+of the last 5 dream-cycle nights."* gnosis's lint registry already reports skips with
+reasons; the *rate* is what turns a per-run skip into evidence that a stage is mostly
+inapplicable.
+
+**And the recovery note is the one that should worry this project.** The
+ledger-append step **silently failed for five consecutive nights** while every other
+part of the routine succeeded — *"the ledger-append step itself has now silently
+failed for 5 consecutive nights with no alerting."* Backfilled rows are marked
+`recovered-live (5-night gap)` rather than made to look live, and the older backfill
+batch marks three columns as placeholders because *"those columns didn't exist before
+v2 and weren't tracked live"* — per-row provenance inside a table, which is OKF §5.3
+at row granularity. The audit log was the only unmonitored component and it was the
+one that failed. gnosis's `audit.jsonl` is written by the same process that does the
+work, and nothing verifies the write happened. **`oh-my-agent` supplies the check and
+`ruflo` supplies the failure**, which is the most useful thing two repositories in one
+survey have done together.
+
+#### `superpowers` — The Half of Skill Quality This Family Does Not Measure
+
+Filed twice by the first pass, wrongly both times: once in *Read Shallowly* as an
+"agent harness or runtime" whose composable-skill methodology might matter to
+`steve-skill-market`, and once in *Surveyed and Set Aside* among the skill
+catalogues. It is neither. **It is the closest peer this family has on the skill
+axis, and it holds the one thing `skillsaw` cannot currently produce: a method for
+finding out whether a skill changes behaviour.**
+
+Two corrections before the findings, because both were errors of counting.
+
+- **It is not one skill tree multiplied by host.** Fourteen `SKILL.md` files in one
+  `skills/` directory, supporting nine harnesses through **manifests only** — each
+  `.<harness>-plugin/plugin.json` carries `"skills": "./skills/"` and nothing else.
+  Zero duplication across nine hosts. That is the standing answer to this survey's
+  own open item — *a cross-repository check that same-named unprefixed skills hash
+  alike* — reached by making duplication structurally impossible rather than by
+  checking for it. The check is still right for `steve-skill-market`; this is the
+  layout that would retire it.
+- **The skills are not the product and not the substrate either.** The project
+  states the thesis the family operates on without having written it down:
+  **"Skills are not prose — they are code that shapes agent behavior."** Everything
+  below follows from taking that literally.
+
+##### Writing Skills Is TDD, and the Iron Law Applies to Edits
+
+`skills/writing-skills/SKILL.md` (679 lines) maps RED-GREEN-REFACTOR onto skill
+authoring: run a pressure scenario **without** the skill and capture the
+rationalisations verbatim, write the minimal skill addressing those specific
+failures, re-run, then close loopholes. `NO SKILL WITHOUT A FAILING TEST FIRST`,
+applied to edits as well as new skills. The governing sentence:
+
+> If you didn't watch an agent fail without the skill, you don't know if the skill
+> teaches the right thing.
+
+This is the axis this document already identified twice and could not fill —
+SkillLens's *Extraction Efficacy* and *Target Evolvability*, and `oh-my-agent`'s
+`oma skills eval` measuring lift rather than form. `skillsaw` scores the artifact.
+Nothing in the family asks whether the artifact changed anything, and here is a
+worked method that is cheap enough to run per edit.
+
+##### The Finding That Lands Directly on `skilllens`
+
+*Match the Form to the Failure* says the form that fixes one failure class
+**measurably backfires** on another, and classifies four:
+
+| Baseline failure | Right form | Wrong form |
+| --- | --- | --- |
+| Skips a rule under pressure (knows better, does it anyway) | Prohibition + rationalisation table + red flags | Soft guidance |
+| Complies, but the output has the wrong *shape* | Positive recipe: state what the output IS, in order | Prohibition list |
+| Omits a required element | Structural: a REQUIRED slot in the template | Prose reminders |
+| Behaviour should depend on a condition | Conditional on an observable predicate | Unconditional rule plus exemption clauses |
+
+The evidence is their own head-to-head, not a citation: *"the prohibition arm
+produced clearly more of the unwanted content than the recipe arm (fully separated
+distributions), and trended worse than even the no-guidance control."* **A
+prohibition can be worse than saying nothing.** `skillet/skilllens`'s risk-action
+blacklist — rubric dimensions 3, 5, and 9 — rewards prohibitions unconditionally,
+so if that measurement holds it is scoring the right form for one failure class and
+the wrong form for three. Two corollaries carry their own evidence: appending a
+single nuance clause to a winning recipe *"degraded it from consistent to noisy"*,
+and **exemption clauses do not scope** — *"'This limit doesn't apply to code
+blocks' still suppresses code blocks."*
+
+##### A Measurement Protocol, and a Bug Report Inside It
+
+The micro-test rules are a method the family can adopt unchanged. Three matter:
+
+- **"Always include a no-guidance control. If the control doesn't exhibit the
+  failure, there is nothing to fix — stop, don't author the guidance."** An
+  applicability gate that fires *before* authoring, which is cheaper than every gate
+  this family currently owns.
+- **"Manually read every flagged match… template echoes and quoted counter-examples
+  masquerade as hits; automated counts alone overstate both failure and success."**
+  This is a live defect report against any regex detector run over a skill document,
+  `skilllens` included: a blacklist scanning a skill whose body carries a
+  rationalisation table full of quoted bad phrasings will count the counter-examples
+  as violations. It is checkable today and it is the kind of error that inflates a
+  score in the flattering direction.
+- **"Variance is a metric. When guidance lands, reps converge on the same shape.
+  Five different interpretations across five reps means the wording isn't binding."**
+  Genuinely new here — measure dispersion across reps rather than mean quality.
+  `skillet/stats` already holds the machinery.
+
+##### A Behavioural Reason for a Mechanical Rule
+
+The `description` field must state triggering conditions and **never** summarise
+the workflow, because *"when a description summarizes the skill's workflow, an agent
+may follow the description instead of reading the full skill content"* — with the
+observation that produced the rule: a description saying "code review between tasks"
+caused one review where the skill's flowchart specified two. That is mechanically
+checkable, it belongs in `speclint`, and it is the rare structural rule whose
+justification is measured behaviour rather than taste.
+
+##### Three Repair Classes `skillsaw diagnose` Cannot Separate
+
+When an agent fails *with* the skill loaded, ask it how the skill should have been
+written, and classify the answer: *"the skill WAS clear, I chose to ignore it"* is
+not a documentation problem and needs a stronger foundational principle; *"the skill
+should have said X"* is a content problem; *"I didn't see section Y"* is an
+**organisation** problem — the content was right and unreachable. `diagnose` answers
+which dimension is weakest and cannot tell wrong content from right content in the
+wrong place, and those want opposite edits.
+
+##### The Harness-Portability Document
+
+`docs/porting-to-a-new-harness.md` (827 lines) is the best treatment of
+model-agnosticism in either survey, and it is `agentx`'s compatibility matrix made
+actionable.
+
+- **"Skills name actions, not tools."** Skill bodies use an action vocabulary —
+  *invoke a skill*, *dispatch a subagent*, *create a todo* — and a per-harness
+  `references/<harness>-tools.md` resolves each to a real tool name. **That is
+  `lexicon`'s Keyword/Role split applied to tool invocation**: surface term and
+  resolved role both retained, resolution as data. A second independent derivation of
+  the mechanism this document already wanted for vocabulary, with the stable layer
+  and the volatile layer the right way round.
+- **"The bootstrap is the entire integration. Without it, the skill files are
+  inert."** One named load-bearing mechanism, gated by a hard capability requirement
+  with a stop condition — automatic session-start injection with no per-session
+  opt-in, checked *before* writing code. Its `SessionStart` matcher is
+  `startup|clear|compact`, so the bootstrap survives compaction, which is the failure
+  `beadwork` names.
+- **A capability checklist with an `If absent` column, and "degradable" defined as
+  the skill already carrying fallback wording** — and *"never to invent a `Task`
+  call."* Better than capability probing, because the degradation is authored by
+  whoever wrote the skill rather than by the installer.
+- **One literal acceptance test**: a clean session, the exact message *"Let's make a
+  react todo list"*, and `brainstorming` must trigger before any code — plus a
+  named-refusals list of what does **not** count as an integration (hand-copied
+  files, `npx` shims, anything needing a per-session opt-in). `vac-protocol` §7
+  discipline applied to installation.
+- **"Everything ships through the harness's own install mechanism. Never edit the
+  user's files."** This contradicts `mdm`'s `rules link`, which symlinks forty-five
+  agent filenames into the user's tree, and superpowers' reason is the better one: an
+  installer that edits user config cannot be cleanly uninstalled or reasoned about.
+  Recorded as a contested pair, like quorum-versus-rationale.
+
+##### Its Test Harness Is a Third Option for the Relay Test
+
+`tests/explicit-skill-requests/` runs `claude -p --output-format stream-json` under
+an **isolated HOME** and greps the transcript for the `Skill` tool invocation. Two
+assertions, and the second is the interesting one: **were any non-`Skill` tools
+invoked before it**, with an explicit allowlist of tools that do not count as action.
+An *ordering* assertion over a machine-readable transcript. The prompt corpus is nine
+adversarial phrasings of one request, including a pressure variant (*"Don't waste
+time — just read the plan and start dispatching subagents immediately"*) and one
+where the user pre-summarises the workflow to tempt the agent into following the
+summary instead of the skill.
+
+So there is a third point on the axis `gentle-ai` opened. Gentle-ai keeps the runtime
+real and replaces the reasoning; superpowers keeps **both** real and makes the
+*assertion* mechanical, then keeps it out of CI. `docs/testing.md` says so plainly —
+*"Drill scenarios are slow (3-30+ minutes each)… They are not part of CI today; the
+natural follow-up is a tiered model (fast subset on PR, full sweep nightly)"* — which
+is a gate declaring what it skipped.
+
+That file does one more thing worth copying outright: **every test entry annotates
+its coverage delta against the other harness** — *"drill covers the YAGNI subset;
+bash adds commit-count, task-tracking, and token telemetry assertions"*, and
+*"tests description-recall, not behavior."* This family runs exegesis's tests,
+skillsaw's evals, `adh`'s `oracle selftest`, and canonizer's `gate.SelfTest` with no
+such map, so nobody can say what a second suite adds over the first.
+
+##### The Contribution Policy, and Where It Contests `gentle-ai`
+
+`CLAUDE.md` publishes **"This repo has a 94% PR rejection rate"** — a negative
+statistic about its own contribution stream, which is the honesty standard this
+document credits to AgentLint. And it carries the disclosure rule the family still
+lacks:
+
+> Every PR and issue must disclose the model, harness, harness version, and all
+> installed plugins — or state plainly that it was written by hand with no agent.
+> **Agent-generated content reasoned from documentation is held to a different bar
+> than work grounded in a real session.**
+
+This partly contests the reading recorded above, that `gentle-ai`'s refusal to treat
+apparent AI authorship as a review criterion is simply "the correct position." The
+two agree on the part that matters — gentle-ai refuses AI **detection**, superpowers
+requires AI **disclosure**, and those are different acts. Where superpowers goes
+further is in *weighing* the disclosure, and its reason is one §1.1 recognises:
+**whether the witness was present.** A claim reasoned from documentation and a claim
+grounded in a real session are different testimony. That is not a fact about
+authorship; it is a fact about evidence, and it is the distinction the family's
+missing `AI_POLICY.md` should be built on.
+
+Its stance toward the published skill specification is also worth copying. It vendors
+Anthropic's authoring guidance verbatim as a reference, accepts the machine-readable
+contract from it (`name`, `description`, the 1024-character cap), and then refuses
+its *prose* advice: *"PRs that restructure, reword, or reformat skills to 'comply'
+with Anthropic's skills documentation will not be accepted without extensive eval
+evidence showing the change improves outcomes."* That is the line `exegesis` and
+`skillsaw` should draw explicitly — `speclint` gates the machine-readable contract,
+and a rubric must not import a vendor's prose advice as though it carried the same
+authority.
+
+##### One Thing Not to Take
+
+`persuasion-principles.md` grounds an Authority-first recommendation ("YOU MUST",
+"Never", "No exceptions") in Meincke et al. (2025), *"Call Me A Jerk: Persuading AI
+to Comply with Objectionable Requests"*, citing 33% → 72% compliance. By its own
+title and stated task that study measures getting a model to comply with requests it
+was trained to refuse. Transferring a jailbreak effect size to "persuasion improves
+engineering discipline" is the uncalibrated-heuristic class this family already
+rejected wholesale in `unified-thinking`.
+
+There is also an unmarked tension inside the project. `SKILL.md` scopes the
+prohibition toolkit to discipline failures explicitly and says prohibitions backfire
+elsewhere; `persuasion-principles.md` is separately loadable, carries no such scope,
+and recommends Authority first. **Their own head-to-head wording tests are better
+evidence than the paper they cite and one level closer to the task.** Take those;
+leave Cialdini.
+
+#### Convergences Worth Recording
+
+- **`Acontext`** — "skill memory": agent memory as plain markdown skill files, and
+  explicitly *"progressive disclosure, not search ... no embeddings ... Git, grep."*
+  Independent agreement with §11.0's refusal of semantic search, reached for the
+  same reason — a retrieval path nobody can inspect is a retrieval path nobody can
+  correct. Where it parts company is the write path: an LLM distillation pass infers
+  "what worked and what failed" and writes it to a skill file with no quotation and
+  no gate, which is precisely the admission this specification exists to refuse.
+- **FPF's "unknowns propagate (never coerce to zero")** for constraint-fit. The
+  same rule as `quotecheck.Unchecked`, `VerdictUnchecked`, and `EffectUnset`, stated
+  as a measurement principle. Three unrelated derivations of one discipline.
+- **FPF's edition pinning** — `DescriptorMapRef.edition`, `policy-id`, and a
+  `PathSliceId` recorded with every parity run, because results without them are
+  *"refresh-unsafe."* §6.5's standards-hash-in-every-finding, independently.
+- **`haft`'s four-valued refresh verdict** — `no_change`, `apply_ready`,
+  `review_ready`, `candidate_rejected` — where `review_ready` is *"an auditable
+  semantic-delta classification, not a veto"*: the candidate is adopted, a prominent
+  warning prints, and every finding is retained for later review. gnosis's gate has
+  pass / fail / unchecked and no equivalent of "admitted, with the concerns
+  recorded." Whether §9.5 wants one is a real question and it is now in TODO.
+- **`haft`'s rebuild sanity guard** — a refresh is hard-rejected when the derived
+  source-unit projection falls *below 50% of the preceding verified count*. gnosis's
+  `index rebuild` has no such guard: a rebuild that finds three documents where
+  there were five hundred is a corrupted bundle, and gnosis would write it without
+  comment. A cheap, high-value check, and now a TODO.
+- **`gentle-wiki`'s scope rule** — a wiki *"complements product repositories by
+  explaining practices and concepts without becoming a second source of truth for
+  product behavior."* gnosis says at length what a document **is** and nowhere what
+  a corpus should **decline to hold**. A corpus that restates what the code already
+  says is a second source of truth that drifts, and the drift is invisible because
+  both halves are internally consistent.
+- **`systems-thinking`'s anti-pattern catalogue** — named failures with *mechanical*
+  detection criteria (phrase lists, structural absences) and a separate fix. That is
+  `skilllens` in a different domain, and it is the right shape: the detector is
+  deterministic and the repair is guidance. Worth mining for `canonizer`.
+- **`agent-sop`** — `.sop.md`, natural-language parameterised workflows, from the
+  Strands project. A sibling format to `SKILL.md` with a published specification;
+  relevant to `steve-skill-market` as an interchange question rather than a
+  competitor.
+
+#### What This Survey Changed in the Specification
+
+Recorded because a survey that changes nothing is a reading list, and the difference
+should be visible without a diff.
+
+| Finding | Where it landed |
+| --- | --- |
+| Content-addressing detects accidents, not tampering | §4.3.1 rewritten; tamper-resistance against a same-user actor is now an explicit non-goal |
+| Reliance is the operative test, not decision-versus-observation | §10.7.4 states reliance first and keeps committed/cached as its recognition rule |
+| Retrieval is not evidence | New §11.0.0, placed ahead of everything about findability |
+| An untyped link asserts nothing; order is not causality | New §5.5.1.2 |
+| A rebuild can destroy the only record of what was there | New rule in §4.5: refuse below a declared floor, name both numbers |
+| Corruption and operational failure are different | Added to §15 |
+| Anything an agent can name is an execution surface | Added to §15 |
+| `skillet/auditlog` is the wrong shape for a mutation row | §15 corrected, with the reason kept |
+| Quorum admission works where blast radius is low | §10.6.4 now states its bet as a bet, and names when it would be wrong |
+
+Five further rows come from the 2026-08-22 deep reads of `oh-my-agent`, `ruflo`, and
+`hindsight`, which the first pass had filed as read-shallowly:
+
+| Finding | Where it landed |
+| --- | --- |
+| A miss log cannot see a wrong answer, only a missing one | New §11.0.2 and §6.4.1; §11.0 now qualifies the benchmark figure it cites |
+| A required rationale is defeated by a template that satisfies it | §10.6.4 adds the fold-and-compare refusal |
+| Nothing verifies that an audit row was written | §15 requires the check and names the failure it is for |
+| Upstream drift with the passage intact is not upstream drift with it gone | New §14.3.2 |
+| A cap that folds unresolved into passed is a bypass | §9.5.1 names the collapse it refuses, and why |
+
+**`superpowers` changed almost nothing in this specification, and that is the
+correct outcome.** Its findings are about authoring and measuring skills, and gnosis
+authors no skills. One landed here — §18 gains the real-runtime, mechanical-predicate
+option for the relay test — and the rest went to `skillet`, `skillsaw`, `exegesis`,
+and `adh`, whose `TODO.md` files carry them. Recorded because a survey entry that
+produces nothing for the tool being specified is not a failed read; it is a read that
+found the right owner.
+
+Six further items are implementation rather than specification and are in `TODO.md`:
+the rebuild floor itself, freshness rendered where a claim is read, a relay test with
+a scripted model, `standards/promote.toml`, a cross-repository skill-identity check
+for `skillsaw`, and an `AI_POLICY.md` for this repository.
+
+#### Read Shallowly — Warranting Deeper Exploration
+
+Judged by README, layout, and targeted greps only. Each could repay a closer look.
+**Four entries have been removed because they were read on 2026-08-22** — `ruflo`,
+`hindsight`, `oh-my-agent`'s protocol files, and `superpowers` — and each is written
+up above. Three of the four repaid it in a direction the entry did not predict:
+`ruflo`'s value is as a negative control rather than as an optimisation loop,
+`hindsight`'s benchmark turned out to be the thing needing checking rather than the
+evidence that settles §11, and `superpowers` was filed as a harness and a catalogue
+when it is neither. The entry for `hindsight` said the benchmark was interesting
+because *"§11 currently argues from principle alone."* It still largely does, and now
+for a better reason.
+
+The pattern across all four is worth more than any of them: **every one was mis-filed
+by a property that is cheap to observe.** `ruflo` by size, `superpowers` by file
+count, `oh-my-agent` by a README table, `hindsight` by a headline number. The
+shallow read is not wrong to exist — there were thirty-nine repositories — but the
+axis it sorts on is availability, and availability correlates with nothing.
+
+- **`haft` internals** (Go, ~40 packages: `authority`, `autonomyenvelope`,
+  `decisionbinding`, `contextgraph`, `graphrank`, `governance`, `p13acceptance`).
+  This is the single highest-value item in the survey and only its README was read.
+  It is a Go implementation of the same problem gnosis solves, with a worked model
+  of authority and decision-binding that §10.6 would benefit from.
+- **`FPF-Spec.md` beyond the practical-use cards** — 105,000 lines. The TIME,
+  CAUSAL-USE, DESCRIPTION-USE, NAMING, and WORDING cards were read; the pattern
+  bodies they point into (C.27, C.28, E.17, F.18, E.10) were not. NAMING's
+  `NameCard` and WORDING's `KindRestorationCheck` both look directly applicable to
+  §5.8's vocabulary problem.
+- **`Context-Engineering`** (86M, course material) — surveyed at the top level only.
+- **`evals`** (Strands Evals SDK) and **`scientific-agents`** (503 expert profiles) —
+  identified as relevant to `skillsaw` in principle, not examined.
+- **`ECC`, `gstack`, `opengap`, `acpx`, `hankweave-runtime`** — agent harnesses and
+  runtimes, read at README level. *`superpowers` was in this list and has been read;
+  the entry guessed right that it mattered to `steve-skill-market` and wrong about
+  why — it is not a composable-skill methodology so much as a measurement discipline,
+  and the tools it lands on are `skilllens` and `skillsaw`.*
+
+#### Surveyed and Set Aside
+
+`camel`, `semantic-kernel`, `trpc-agent-go`, `nexent`, `deer-flow`, `Archon`,
+`hive`, `MMCTAgent`, `oh-my-openagent`, `gentle-ai`, `cascadeflow` — agent
+frameworks, orchestration platforms, and model-routing layers. gnosis calls no
+model and builds no agent; these solve a problem it does not have.
+Five repositories are skill catalogues — the collection *is* the product — and they
+are worth grading with `skillsaw` rather than mining for mechanism. Counted by hand,
+because a `find -name SKILL.md` is misleading here: `thinking-skills` (24, with a
+template and an authoring guide), `Gentleman-Skills` (24), `ai-agent-skills` (10,
+with a CI workflow that gates its own catalogue), `superpowers` (14), and `agent-sop`
+(5 `.sop.md` plus one skill for authoring them, in a different format entirely).
+
+**`superpowers` does not belong in that list and the count was the reason it was put
+there.** Fourteen skills is a catalogue-sized number and the collection is not the
+product: the skills are the output of an authoring discipline, and the discipline is
+the artefact. It is written up above, and the miscount is recorded here for the same
+reason the other three are — filing by size is how a methodology gets shelved as a
+collection.
+
+Two of those have something a catalogue owner should see. **`Gentleman-Skills` splits
+`curated/` from `community/`** — a trust tier inside one repository, which is §14.1's
+distinction already load-bearing in a live catalogue and something
+`steve-skill-market` does not currently make. **`ai-agent-skills` runs a
+`validate-skills.yml` workflow over its own contents**, which is what `skillsaw`
+exists to do; it is a real integration target rather than a hypothetical one.
+
+Three repositories were miscounted on a first pass and the corrections matter more
+than the count. `agent-thinking-skills` holds **two** skills, exactly as its README
+says — it was filed by its name rather than its contents. `gstack` is not a tooling
+opinion piece but a full stack with 54 top-level skill directories and 443 source
+files beside them. And the very large SKILL.md counts — `ECC` at 898, `ruflo` at 352,
+`oh-my-agent` at 94 — are **one skill tree multiplied by host**: the same skills
+installed into `.agents/skills`, `.claude/skills`, `.cursor/skills`, and
+`.kiro/skills`, plus test fixtures and benchmark runs. `trpc-agent-go`'s 74 all sit
+inside `examples/`. Those are harnesses that ship skills, and counting files would
+have made each of them look like the largest catalogue in the survey.
+
+`agents.md` is the AGENTS.md standard's own website. `principles` generates agent
+networks from first-principles decomposition and is an experiment its author labels
+as such.
+
+`doceo` and `systems-thinking` are single skills, one `SKILL.md` each. `doceo` was
+grouped with the catalogues on a first pass and does not belong there.
+It is a single skill — an AI tutor that answers in one screen: one plain-language
+answer, one diagram, one analogy, a self-quiz. What makes it relevant is the part
+that is not tutoring: **every lesson is saved to the user's notes, the next lesson
+reads what was already learned, and the skill revises itself from feedback.** That
+is a self-accreting corpus with a feedback loop, and it is the third project in this
+survey — after `obsidian-second-brain` and `Acontext` — that writes durable
+knowledge with no evidence gate on the write path. Three independent projects making
+the same choice is worth recording as the field's default rather than as one
+author's oversight, and it is the choice §1.1 exists to argue against.
+
+One more pattern is visible only across repositories. `gentle-ai` (runtime),
+`gentle-wiki` (documentation), `engram` (memory), and `Gentleman-Skills` (skills)
+are four repositories from one ecosystem, covering roughly the concerns this family
+covers. Whether that assembly agrees or disagrees with ours is unexamined and is the
+most interesting unread thing in the survey.
+
 ## What We Intend to Build from This
 
 Our tools cover skills. The knowledge base is still a hand-curated repository of
@@ -2086,6 +3786,25 @@ Only the third is source-free, which means a warrant and a citation are not
 alternatives and the schema must let them co-occur freely. This is where the
 commitment to maintaining local decisions about how to prioritize and trade off
 requirements actually lives.
+
+**Three here, two in the specification, and they agree — recorded 2026-08-22
+because the counts differ and a reader comparing them will stop to check.**
+SPEC §10 carries *two provenance classes*, sourced and adjudicated, and notes that
+`sources` belongs to both. The third class above is not missing from it: genuinely
+tacit is the adjudicated class with an empty `sources`, which is why the schema lets
+a warrant and a citation co-occur rather than treating them as alternatives. The
+counts answer different questions — this document is classifying *knowledge*, the
+specification is classifying *provenance* — and one class of provenance covers two
+kinds of knowledge because the difference between them is how many sources were
+weighed, not how the claim earned its place.
+
+The specification also states the point better than the paragraph above does, and
+its sentence is the one to quote: **a decision that weighed two published positions
+names both, even though the decision appears in neither.** That is what makes
+adjudicated claims *sourced differently* rather than unsourced, and it is the line
+three repositories arrived at independently — `canonizer` and `skillet` both hold a
+version of it against the same defect, a provenance check that would reject the one
+artifact which cannot carry a quote.
 
 ### Decisions Since Settled
 
@@ -2280,3 +3999,58 @@ exists to prevent, and it is the strongest argument for promoting `textnorm`.
   `ruleset/conflict` work recorded in skillet's TODO: certifying that a ruleset
   is internally consistent is the base rules' entire claim, and nothing checks it
   today.
+
+______________________________________________________________________
+
+## A Specimen of the Problem, Delivered as a Review of the Solution
+
+Two rounds of a commissioned gap review across the seven repositories arrived on
+2026-08-22 (`~/Documents/agent-green/FPF/*_topten.md`, then `*_todo.md`). Neither
+round produced a work item, and the assessment is recorded once in
+`skillet/TODO.md` rather than seven times. What belongs here is the part that is
+not about the review.
+
+**The second round's supporting citations do not survive being looked up**, and the
+way they fail is instructive rather than merely sloppy. Recommendations were
+supported by references of the form *"Line 123 (cloudstrategy_book.md), Line 124
+(eip_book.md), … and 2 other articles"*. Opening them:
+
+- The identical five references support **two unrelated recommendations** in two
+  different files, down to the trailing *"and 2 other articles"*.
+- Lines 123–124, attributed to a cloud strategy book and an enterprise-integration
+  book, are extracts from **Russell's *A History of Western Philosophy*** — "the
+  terror of cosmic loneliness", and a Pythagorean "ethic which praised the
+  contemplative life". The lines attributed to agile-organisation posts are a CLI
+  design guide.
+- One claim cites **65 articles** for the proposition that backend and frontend
+  systems have different performance profiles.
+
+This is worth keeping for three reasons, and none of them is that a reviewer was
+careless.
+
+**First, it is the argument for §1.1's posture, in one artifact.** Under global
+reductionism — believe testimony absent a warning sign — the document is
+admissible, because there is no warning sign on its face. It is well-formed, it
+names sources, it gives line numbers, it distinguishes its evidence classes. The
+only operation that separates it from a sound document is *opening the cited
+line*, which is precisely what local reductionism demands and what nothing in the
+delivery pipeline required. §1.1.0 now carries it.
+
+**Second, it is what the corpus will actually be fed.** The genre — machine-assisted
+survey over a large corpus — is the genre most of gnosis's future inputs will
+belong to. The citations here were not invented to deceive; they were attached
+because a citation was expected in that position. A corpus accepting prose will
+accept exactly this, at volume, and no amount of the author's good faith changes
+the outcome.
+
+**Third, it names a gap in our own guard.** gnosis would not have caught this
+document. `quotecheck` validates a **passage** against archived bytes, and these
+references supply a *location* and no passage. A citation of the form "line 123 of
+file X" is unfalsifiable by construction unless the reader fetches X and counts.
+That is the whole reason §5.5 requires a verbatim quotation rather than a pointer,
+and this specimen is the clearest argument for that requirement anyone has
+supplied — by violating it in a document arguing about the tool that enforces it.
+
+The reflexive part is not a joke and is the reason it is filed in the manifesto: a
+review of an evidence-checking toolchain, delivered with unverifiable evidence, is
+a better case for the toolchain than any of its recommendations were.

@@ -94,3 +94,40 @@ func LoadIndex(ctx context.Context, bundleDir string) (IndexState, error) {
 	}
 	return IndexState{Rows: rows, Present: true}, nil
 }
+
+// OpenIndexForRead opens an existing index without creating one.
+//
+// Requires: nothing; bundleDir need not exist.
+// Ensures: ENOTFOUND when the bundle has no index, and **no directory or database
+// is created**. SPEC §4.5 requires that nothing read-only create state, and §4.6
+// requires that readers not need the writer; OpenIndex satisfies neither, because
+// it makes the state directory and would have a reader racing a writer over it.
+//
+// Refusing is the point. A reader that created an empty index would answer
+// `search` with zero hits, which a caller cannot tell from "no matches" — the
+// corpus would appear to contain nothing rather than to be unbuilt. The error
+// names the repair instead.
+//
+// An index that *does* exist is still migrated on open, and that asymmetry is
+// deliberate: the index is a derived cache (§4.5), so bringing its schema forward
+// loses nothing, and failing every read until someone runs `rebuild` would make an
+// upgrade feel like a breakage.
+func OpenIndexForRead(ctx context.Context, bundleDir string) (*index.DB, error) {
+	const op = "bundle.OpenIndexForRead"
+
+	path := IndexPath(bundleDir)
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, &errs.Error{
+				Code:    errs.ENOTFOUND,
+				Message: op + ": no index at " + path + "; run `gnosis index rebuild`",
+			}
+		}
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+	db, err := index.Open(ctx, path)
+	if err != nil {
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+	return db, nil
+}

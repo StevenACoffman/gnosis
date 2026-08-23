@@ -9,10 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"time"
 
 	"github.com/peterbourgon/ff/v4"
 
 	"github.com/StevenACoffman/gnosis/cmd/root"
+	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/ontology"
 )
@@ -99,8 +102,25 @@ disagree.`,
 
 // exec is the imperative shell: make directories, write absent files, open the
 // index so the schema exists.
+//
+// The writer lock is taken first and covers the whole run, including the markdown
+// scaffold. SPEC §4.6 states the requirement in full for exactly this reason: the
+// writer owns the bundle rather than the database, so serialising only the
+// index-open would coordinate the cache and leave two concurrent `init` runs
+// racing over ontology.toml.
 func (c *Config) exec(ctx context.Context, _ []string) error {
 	result := Result{Bundle: c.Bundle, Created: []string{}, Existing: []string{}}
+
+	// The bundle root has to exist before a lock can be placed inside it, and
+	// `init` is the one command whose job is to create it.
+	if err := os.MkdirAll(c.Bundle, 0o750); err != nil {
+		return c.fail(err)
+	}
+	lock, err := bundle.AcquireWriterLock(ctx, c.Bundle)
+	if err != nil {
+		return c.fail(err)
+	}
+	defer lock.Release()
 
 	for _, dir := range []string{".", "c"} {
 		if err := os.MkdirAll(filepath.Join(c.Bundle, dir), 0o750); err != nil {
@@ -133,6 +153,30 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 
 	sort.Strings(result.Created)
 	sort.Strings(result.Existing)
+
+	// §15 audits every mutation. An init that created nothing still gets a row:
+	// "somebody ran init here and it was already initialised" is a fact about this
+	// machine, and a trail with only the successful creations would make a repeated
+	// init look like it never happened.
+	//
+	// The actor is a check because the tool caused the write, per §5.5's reasoning
+	// for `findings.opened_by`. Best-effort, and the warning goes to stderr where a
+	// person running the command will see it.
+	if aErr := bundle.AuditVerified(c.Bundle, &audit.Row{
+		At: time.Now().UTC(), Op: audit.OpInit, Actor: "check:init",
+		Paths:   result.Created,
+		Outcome: string(root.StatusOK),
+		Detail: strconv.Itoa(len(result.Created)) + " created, " +
+			strconv.Itoa(len(result.Existing)) + " already present",
+	}); aErr != nil {
+		_, _ = fmt.Fprintf(c.Stderr, "warning: the init was not audited: %v\n", aErr)
+		if bundle.AuditLost(aErr) {
+			// The append reported success and the row is not on disk, which no
+			// other signal reveals. Best-effort covers a *known* gap; it must not
+			// cover a trail that lied about writing (§15).
+			return root.ExitError(root.CodeError)
+		}
+	}
 	return c.report(result)
 }
 

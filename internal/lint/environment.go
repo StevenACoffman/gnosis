@@ -56,11 +56,107 @@ type Environment struct {
 	Documents   int `json:"documents"`
 	IndexedRows int `json:"indexed_rows"`
 
+	// Archive is what tier 0 currently costs, against its declared budget.
+	Archive ArchiveSize `json:"archive"`
+
+	// StandardsError is non-empty when standards/archive.toml exists and does not
+	// load. The text is the loader's own diagnostic, which already names the key.
+	//
+	// It is here for the same reason OntologyError is, and the reason is worth
+	// stating because the first implementation got it wrong: `inspectArchive`
+	// swallowed the error and reported a zero size, so a corpus with a malformed
+	// standards file produced a silent clean bill of health from the one command
+	// whose entire job is to report a broken apparatus. A check that cannot run
+	// must say so.
+	StandardsError string `json:"standards_error,omitempty"`
+
+	// Audit is the write trail's own health. §15's argument for having it: every
+	// other bullet in that section is enforced by a check, and the trail that
+	// records the enforcement is written by the same process it records — so a
+	// silent write failure leaves a corpus that looks correct and cannot show it.
+	Audit AuditHealth `json:"audit"`
+
+	// TunedButUnread names thresholds this bundle has moved off the seed that no
+	// code branches on, so the edit had no effect. Gathered by the shell, which is
+	// where the knowledge lives: what reads a value is a fact about the whole
+	// program, and this package cannot import standards in any case.
+	//
+	// It is deliberately not "every unread value". That version reported a finding
+	// on every freshly initialised bundle, naming something its owner could neither
+	// build nor delete, and a warning true of every corpus is one readers learn to
+	// skip.
+	TunedButUnread []string `json:"tuned_but_unread,omitempty"`
+
+	// MispinnedStandards names values the file pins to something other than what
+	// this binary stamps. An extracted record carries the binary's constant, so a
+	// file claiming a different extractor version describes provenance no record
+	// in the corpus actually has.
+	MispinnedStandards []string `json:"mispinned_standards,omitempty"`
+
 	// SchemaMissing and SchemaUnexpected are the difference between the schema
 	// the database has and the schema the migrations describe. Empty when the
 	// index is absent, since there is nothing to compare.
 	SchemaMissing    []string `json:"schema_missing,omitempty"`
 	SchemaUnexpected []string `json:"schema_unexpected,omitempty"`
+}
+
+// diagnoseStandards reports a standards file that exists and cannot be read.
+//
+// It blocks nothing, unlike a broken vocabulary. An unusable ontology means every
+// document is judged against nothing; an unusable standards file means the gates
+// fall back to the embedded seed, which is a defined and reasonable state — the
+// corpus is still checkable, just not against the thresholds somebody wrote.
+//
+// **The severity used to be SeverityError, which blocks, directly contradicting
+// the paragraph above.** Three places agreed it should not block — this comment,
+// Diagnose's contract, and the reasoning that a fallback to the seed is a defined
+// state — and only the constant disagreed, so the constant was the defect. Found
+// by reading, not by a failure: a wrong severity produces no test failure, it
+// produces a non-zero exit on a corpus with nothing wrong with it.
+func diagnoseStandards(env *Environment) []finding.Diagnostic {
+	if env.StandardsError == "" {
+		return nil
+	}
+	return []finding.Diagnostic{{
+		Severity: finding.SeverityWarning,
+		Category: "standards",
+		Path:     "standards/archive.toml",
+		Message: "the archive standards do not load, so the seed defaults are in " +
+			"force and the budget is unreported: " + env.StandardsError,
+		Action: finding.ActionGuided,
+	}}
+}
+
+// diagnoseUnread reports an edit to the standards files that did nothing.
+//
+// Warnings rather than errors, and never automatic. The corpus is entirely
+// checkable in both cases; what is wrong is that somebody changed a number and
+// got no behaviour for it, and whether to revert the edit or build the reader is
+// a judgement no tool should make.
+func diagnoseUnread(env *Environment) []finding.Diagnostic {
+	out := make([]finding.Diagnostic, 0, 2)
+	if len(env.TunedButUnread) > 0 {
+		out = append(out, finding.Diagnostic{
+			Severity: finding.SeverityWarning,
+			Category: "standards",
+			Path:     "standards/",
+			Message: "tuned away from the default and read by nothing, so the edit " +
+				"has no effect: " + strings.Join(env.TunedButUnread, ", "),
+			Action: finding.ActionHuman,
+		})
+	}
+	if len(env.MispinnedStandards) > 0 {
+		out = append(out, finding.Diagnostic{
+			Severity: finding.SeverityWarning,
+			Category: "standards",
+			Path:     "standards/",
+			Message: "pinned to something this gnosis does not implement, so records " +
+				"carry provenance the file contradicts: " +
+				strings.Join(env.MispinnedStandards, ", "),
+			Action: finding.ActionHuman,
+		})
+	}
+	return out
 }
 
 // Diagnose reports what is wrong with the apparatus.
@@ -69,14 +165,26 @@ type Environment struct {
 // taken by pointer for its size, not so it can be modified: nothing here writes
 // to it.
 // Ensures: diagnostics are sorted, so two runs over one bundle are comparable.
-// Only two conditions block — an unusable vocabulary and an index written by a
-// newer gnosis — because those are the two where continuing would mean judging
-// the corpus against something other than its own rules.
+//
+// **A finding blocks only where continuing would mean judging the corpus against
+// something other than its own rules.** That is the rule; an earlier version of
+// this contract stated a count instead — "only two conditions block" — which was
+// true when written and silently false by the time three more error-severity cases
+// existed. A rule survives the next case; a count does not.
+//
+// Today it admits five: a missing vocabulary, an unparsable one, a vocabulary with
+// no types, an index from a newer gnosis, and an index missing schema objects. A
+// damaged audit trail is deliberately not among them — it makes the corpus's
+// history unrecountable and leaves the corpus itself perfectly checkable.
 func Diagnose(env *Environment) []finding.Diagnostic {
 	out := make([]finding.Diagnostic, 0)
 	out = append(out, diagnoseVocabulary(env)...)
 	out = append(out, diagnoseBundleFiles(env)...)
 	out = append(out, diagnoseIndex(env)...)
+	out = append(out, diagnoseStandards(env)...)
+	out = append(out, diagnoseUnread(env)...)
+	out = append(out, diagnoseAudit(env)...)
+	out = append(out, DiagnoseBudget(&env.Archive)...)
 	finding.Sort(out)
 	return out
 }

@@ -229,3 +229,8 @@ gha-kubeconfig-*
 .vale
 # Added by goreleaser init:
 dist/
+
+# gnosis tier 3: derived, regenerable, and — for .gnosis/quarantine/ — unvetted.
+# SPEC §4 and §3083. `gnosis init` scaffolds this into a new bundle; it is here
+# too because this repository is also fetched and indexed while dogfooding.
+.gnosis/

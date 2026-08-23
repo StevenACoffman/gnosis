@@ -10,6 +10,11 @@
 #      corpus has learned to describe two ways.
 #   2. A mistyped key is an error, not a silent no-op. `normatve = true` is
 #      rejected by name, which is why this file is TOML and not YAML.
+#   3. When you decline a proposed alias, write it down. A `rejected` entry needs
+#      the phrase and one sentence of reason, and the loader refuses one without
+#      a reason. An `aliases` list keeps the conclusion and throws away the
+#      reasoning, so the phrase gets proposed again in six months by somebody who
+#      was not in the room. See SPEC §5.8.2.
 
 version = 1
 
@@ -37,6 +42,21 @@ desc = "prescribes ordered steps; bounds nothing"
 normative = true
 expects_subject = false
 aliases = ["Runbook", "Playbook"]
+
+  # A worked example of rule 3. Both of these get proposed, both are refused for
+  # a reason that is not obvious, and without the record they get proposed again.
+  [[types.rejected]]
+  alias = "Guide"
+  reason = """
+a guide explains why and a procedure prescribes what, in order; they have
+different templates, and a document that is really a guide fails the
+empty-section check when filed as one"""
+
+  [[types.rejected]]
+  alias = "Checklist"
+  reason = """
+a checklist is unordered by design and a procedure is ordered by definition;
+merging them would make step order unenforceable"""
 
 [[types]]
 key = "Decision"

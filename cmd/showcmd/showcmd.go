@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/peterbourgon/ff/v4"
 
@@ -26,10 +27,19 @@ type Config struct {
 	Command *ff.Command
 }
 
-// Result is the payload: the document, its links, and optionally its text.
+// Result is the payload: the document, its links, its freshness, and optionally
+// its text.
 type Result struct {
 	*index.Detail
 	Body string `json:"body,omitempty"`
+
+	// Freshness is how current the sources under this document are (§14.3).
+	//
+	// Rendered on the read path because that is the only place it reaches the
+	// person who is about to rely on the claim. The index has known this since
+	// checked.jsonl existed and nothing showed it, which made staleness a fact
+	// about the corpus that the corpus did not tell anyone.
+	Freshness bundle.DocFreshness `json:"freshness"`
 }
 
 // New registers the show command under parent.
@@ -72,7 +82,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 			"show needs exactly one path or identifier; try `gnosis show c/<id>-<slug>.md`"))
 	}
 
-	db, err := bundle.OpenIndex(ctx, c.Bundle)
+	db, err := bundle.OpenIndexForRead(ctx, c.Bundle)
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
 	}
@@ -94,6 +104,12 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 	}
 
 	result := Result{Detail: detail}
+	// A freshness that cannot be computed is not an error: the document renders,
+	// and its state stays the zero value, which is `unknown` — the honest answer
+	// when the lookup itself did not happen.
+	if fresh, fErr := bundle.FreshnessFor(c.Bundle, detail.Path, time.Now().UTC()); fErr == nil {
+		result.Freshness = fresh
+	}
 	if c.Body {
 		if result.Body, err = c.readBody(detail.Path); err != nil {
 			return c.fail(root.ReasonNoBundle, err)
@@ -125,8 +141,9 @@ func (c *Config) report(result *Result) error {
 		return nil
 	}
 
-	_, _ = fmt.Fprintf(c.Stdout, "%s\n%s\n%s\n",
-		result.Title, result.Path, result.ID)
+	_, _ = fmt.Fprintf(c.Stdout, "%s\n%s\n%s\n%s: %s\n",
+		result.Title, result.Path, result.ID,
+		result.Freshness.State, result.Freshness.Why)
 	writeLinks(c.Stdout, "links to", result.Outbound)
 	writeLinks(c.Stdout, "linked from", result.Inbound)
 	if result.Body != "" {

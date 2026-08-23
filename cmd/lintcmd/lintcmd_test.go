@@ -89,7 +89,7 @@ func TestDuplicateIdentifierExitsFindingsNotError(t *testing.T) {
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("err = %v, want a root.ExitError", err)
 	}
-	if int(exitErr) != root.CodeFindings {
+	if root.Code(exitErr) != root.CodeFindings {
 		t.Errorf("exit code = %d, want %d (findings, not error)", exitErr, root.CodeFindings)
 	}
 
@@ -144,7 +144,7 @@ func TestUnknownCheckIsAUsageError(t *testing.T) {
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("err = %v, want a root.ExitError", err)
 	}
-	if int(exitErr) != root.CodeUsage {
+	if root.Code(exitErr) != root.CodeUsage {
 		t.Errorf("exit code = %d, want %d (usage, not error)", exitErr, root.CodeUsage)
 	}
 	for _, want := range []string{"nonexistent", "conformance", "identity"} {

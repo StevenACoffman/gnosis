@@ -24,7 +24,8 @@ func conformanceCheck() Check {
 		Applies: always,
 		Run: func(snap *Snapshot) []finding.Diagnostic {
 			out := make([]finding.Diagnostic, 0)
-			for _, d := range snap.Documents {
+			for i := range snap.Documents {
+				d := &snap.Documents[i]
 				if d.Type != "" {
 					continue
 				}
@@ -200,7 +201,8 @@ func orphanCheck() Check {
 				}
 			}
 			out := make([]finding.Diagnostic, 0)
-			for _, d := range snap.Documents {
+			for i := range snap.Documents {
+				d := &snap.Documents[i]
 				if linked[d.ID] {
 					continue
 				}
@@ -263,8 +265,8 @@ func hasInternalLinks(snap *Snapshot) (bool, string) {
 // documentPaths indexes paths by identifier for message rendering.
 func documentPaths(snap *Snapshot) map[gnosis.ID]string {
 	byID := make(map[gnosis.ID]string, len(snap.Documents))
-	for _, d := range snap.Documents {
-		byID[d.ID] = d.Path
+	for i := range snap.Documents {
+		byID[snap.Documents[i].ID] = snap.Documents[i].Path
 	}
 	return byID
 }

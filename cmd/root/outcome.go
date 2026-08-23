@@ -1,6 +1,17 @@
-// outcome.go is the machine-output envelope: the JSONL result shape climax
+// outcome.go emits the machine-output envelope: the JSONL result shape climax
 // generates (`climax init --jsonl`), specialized with gnosis's status and reason
 // vocabulary. climax owns the envelope's shape; gnosis owns its words.
+//
+// The envelope itself lives in internal/gnosis. It moved there when the write
+// coordinator acquired a need for it (SPEC §4.6.2's `Execute` returns one), and
+// internal packages cannot import cmd — the same promote-on-second-consumer rule
+// the family applies to skillet, applied inside one repository. What stays here
+// is the part that is actually command infrastructure: writing a line to stdout
+// and turning a code into an exit status.
+//
+// The vocabulary is re-exported rather than referenced through gnosis, so a
+// command author has one place to look and the layering stays invisible at the
+// call site.
 //
 // Why gnosis has a status adh does not
 //
@@ -21,51 +32,57 @@ package root
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 )
 
-// Status values: the class of a command's result, and the field an agent
-// switches on under --jsonl.
+// Status values, re-exported from internal/gnosis.
 const (
-	StatusOK       = "ok"       // completed; nothing blocking to report
-	StatusFindings = "findings" // completed, and reported a blocking finding — not a failure
-	StatusBlocked  = "blocked"  // could not complete; a person must act
-	StatusError    = "error"    // the tool itself failed
+	StatusOK       = gnosis.StatusOK
+	StatusFindings = gnosis.StatusFindings
+	StatusBlocked  = gnosis.StatusBlocked
+	StatusError    = gnosis.StatusError
 )
 
-// Reason tokens: a stable machine string for a non-ok outcome, so an agent
-// branches on the token rather than matching prose. Every token here is paired
-// with a human-readable Message; neither substitutes for the other.
+// Reason tokens, re-exported from internal/gnosis.
 const (
-	ReasonDuplicateIdentity = "duplicate_identity" // one identifier, several documents
-	ReasonIdentityConflict  = "identity_conflict"  // document and index disagree at a path
-	ReasonIndexDrift        = "index_drift"        // the index no longer matches the bundle
-	ReasonUnparsable        = "unparsable"         // a document could not be read as OKF
-	ReasonVocabularyInvalid = "vocabulary_invalid" // ontology.toml was rejected
-	ReasonNoBundle          = "no_bundle"          // no bundle at the given path
-	ReasonNeedsHuman        = "needs_human"        // a decision is required to proceed
-	ReasonUsage             = "usage"              // bad flags or arguments
+	ReasonDuplicateIdentity = gnosis.ReasonDuplicateIdentity
+	ReasonIdentityConflict  = gnosis.ReasonIdentityConflict
+	ReasonIndexDrift        = gnosis.ReasonIndexDrift
+	ReasonUnparsable        = gnosis.ReasonUnparsable
+	ReasonVocabularyInvalid = gnosis.ReasonVocabularyInvalid
+	ReasonNoBundle          = gnosis.ReasonNoBundle
+	ReasonNeedsHuman        = gnosis.ReasonNeedsHuman
+	ReasonUsage             = gnosis.ReasonUsage
+	ReasonFetchFailed       = gnosis.ReasonFetchFailed
+	ReasonStandardsInvalid  = gnosis.ReasonStandardsInvalid
+	ReasonWriterBusy        = gnosis.ReasonWriterBusy
+	ReasonInvalidCommand    = gnosis.ReasonInvalidCommand
+	ReasonGateUnavailable   = gnosis.ReasonGateUnavailable
 )
 
-// Exit codes. Findings and errors are deliberately distinct: a CI job needs to
-// tell "the corpus has problems" from "gnosis broke", and collapsing them makes
-// a broken tool look like a dirty corpus.
+// Exit codes, re-exported from internal/gnosis.
 const (
-	CodeOK       = 0
-	CodeError    = 1
-	CodeUsage    = 2
-	CodeFindings = 3
-	CodeBlocked  = 4
+	CodeOK       = gnosis.CodeOK
+	CodeError    = gnosis.CodeError
+	CodeUsage    = gnosis.CodeUsage
+	CodeFindings = gnosis.CodeFindings
+	CodeBlocked  = gnosis.CodeBlocked
 )
 
-// Outcome is one result record. The shape is climax's, shared with adh, so an
-// agent that can read one family tool's output can read another's.
-type Outcome struct {
-	Status  string `json:"status"`
-	Code    int    `json:"code"`
-	Reason  string `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
-	Data    any    `json:"data,omitempty"`
-}
+// These are aliases rather than redeclarations so a value crosses the boundary
+// unchanged: a command can hand an Outcome to the coordinator's caller and back
+// with no conversion, and no second definition can drift from the first.
+type (
+	// Outcome is one result record.
+	Outcome = gnosis.Outcome
+
+	// Status is the class of a result.
+	Status = gnosis.Status
+
+	// Code is a process exit status.
+	Code = gnosis.Code
+)
 
 // EmitJSONL writes v to stdout as a single JSON line.
 //
@@ -79,48 +96,40 @@ func (c *Config) EmitJSONL(v any) error {
 	return nil
 }
 
+// EmitOutcome writes an already-built envelope.
+//
+// It exists for a caller that received one from elsewhere — the write coordinator
+// returns an Outcome (SPEC §4.6.2) — so a command relaying that result does not
+// have to take it apart and put it back together.
+func (c *Config) EmitOutcome(o Outcome) error {
+	return c.EmitJSONL(o)
+}
+
 // EmitOK writes a success outcome carrying data.
 func (c *Config) EmitOK(data any) error {
-	return c.EmitJSONL(Outcome{Status: StatusOK, Code: CodeOK, Data: data})
+	return c.EmitJSONL(gnosis.OK(data))
 }
 
 // EmitFindings writes an outcome for a completed command that reported at least
-// one blocking finding. The payload is included: a caller acting on findings
-// needs them, and making it fetch them separately would invite acting on a
-// stale read.
+// one blocking finding.
 func (c *Config) EmitFindings(reason, message string, data any) error {
-	return c.EmitJSONL(Outcome{
-		Status: StatusFindings, Code: CodeFindings,
-		Reason: reason, Message: message, Data: data,
-	})
+	return c.EmitJSONL(gnosis.Findings(reason, message, data))
 }
 
 // EmitBlocked writes an outcome for a command that could not complete because a
 // person must act.
 func (c *Config) EmitBlocked(reason, message string, data any) error {
-	return c.EmitJSONL(Outcome{
-		Status: StatusBlocked, Code: CodeBlocked,
-		Reason: reason, Message: message, Data: data,
-	})
+	return c.EmitJSONL(gnosis.Blocked(reason, message, data))
 }
 
 // EmitError writes an outcome for a tool failure.
 func (c *Config) EmitError(reason, message string) error {
-	return c.EmitJSONL(Outcome{
-		Status: StatusError, Code: CodeError, Reason: reason, Message: message,
-	})
+	return c.EmitJSONL(gnosis.Failure(reason, message))
 }
 
 // EmitUsage writes an outcome for a bad invocation.
-//
-// The status is StatusError rather than a fifth value: calling gnosis wrongly is
-// a tool-level failure, and the reason token already says which kind. What
-// distinguishes it is the exit code, because the repair differs — code 2 means
-// "call me differently" and code 1 means "changing the arguments will not help".
 func (c *Config) EmitUsage(message string) error {
-	return c.EmitJSONL(Outcome{
-		Status: StatusError, Code: CodeUsage, Reason: ReasonUsage, Message: message,
-	})
+	return c.EmitJSONL(gnosis.BadUsage(message))
 }
 
 // Fail reports a tool failure in whichever output form was requested.
@@ -152,9 +161,9 @@ func (c *Config) Fail(reason string, cause error) error {
 // nothing useful.
 // Ensures: the result is never nil. Exit code 2 in both output forms — the
 // invocation was rejected either way, and an exit code that depended on the
-// output format would be unusable. The message goes to stderr rather
-// than stdout even in human form, because stdout carries results and an
-// invocation that was rejected produced none.
+// output format would be unusable. The message goes to stderr rather than stdout
+// even in human form, because stdout carries results and an invocation that was
+// rejected produced none.
 func (c *Config) Usage(cause error) error {
 	if c.JSONL {
 		if err := c.EmitUsage(cause.Error()); err != nil {
