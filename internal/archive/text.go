@@ -32,15 +32,35 @@ func IsText(data []byte) bool {
 // a long unbroken run after it, is refused; the corpus loses one document to
 // `referenced` and nobody is misled. Under-reporting would commit the raster.
 func hasOversizePayload(data []byte, limit int64) bool {
+	return largestPayload(data) > limit
+}
+
+// largestPayload measures the longest embedded data URI, or 0 when there is none.
+//
+// Requires: nothing.
+// Ensures: the byte length of the longest payload found, whatever any limit is.
+// Pure.
+//
+// It measures rather than compares so a refusal can say **how big**, which is the
+// difference between a verdict an author can act on and one they can only argue
+// with. `hasOversizePayload` is the comparison, and there is one measurement under
+// both — a second traversal that counted differently would let the disposition and
+// the explanation disagree about the same file.
+//
+// The longest rather than the first: a document with a small icon and a large raster
+// is refused for the raster, and reporting the icon's size would send an author to
+// edit the wrong line.
+func largestPayload(data []byte) int64 {
+	var largest int64
 	rest := data
 	for {
 		i := bytes.Index(rest, []byte("data:"))
 		if i < 0 {
-			return false
+			return largest
 		}
 		rest = rest[i+len("data:"):]
-		if int64(payloadLen(rest)) > limit {
-			return true
+		if n := int64(payloadLen(rest)); n > largest {
+			largest = n
 		}
 	}
 }

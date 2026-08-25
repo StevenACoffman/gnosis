@@ -29,6 +29,8 @@
 // decisions are committed and observations are cached.
 package archive
 
+import "strconv"
+
 // Gates is the admission policy this package needs, as values.
 //
 // It deliberately mirrors part of standards.Archive rather than importing it:
@@ -56,12 +58,44 @@ type Gates struct {
 	// threshold. A codepoint either is or is not U+202E, and there is no value
 	// this struct could carry that would let a caller express that.
 	//
-	// **A nil ScanText means no scan, which fails open**, and that is the one
-	// fail-open default in this package. It is here because the alternative — a
-	// zero Gates that refuses everything — would make every test and every caller
-	// that legitimately does not scan carry a stub. The shell always supplies one
-	// and a test asserts the wiring rather than trusting it.
+	// # A nil ScanText refuses, and it used to admit
+	//
+	// **This was the one fail-open default in this package**, justified on the
+	// grounds that the alternative made every caller carry a stub — so a nil meant
+	// "no scan" and the source was admitted unexamined, with a single test standing
+	// between the shell and no §9.3 at all.
+	//
+	// That stopped being defensible when the candidate path was built the other way:
+	// a nil ruleset there degrades toward *more* blocking, reports the stages it
+	// could not run, and routes the document to a person. Two halves of one security
+	// stage failing in opposite directions is worse than either choice made twice.
+	//
+	// So a nil now refuses with ReasonUnscanned, and a caller that genuinely does not
+	// scan says so with NoScan. The stub the old default avoided is one identifier,
+	// and it is visible in the code where a nil was invisible.
 	ScanText func(string) RejectReason
+}
+
+// Bound is what a size check found, and what it was measured against.
+//
+// It carries the measurement because a refusal that names only a reason is one an
+// author can argue with and not act on: `embedded-payload` says nothing about which
+// payload or how big, and the obvious next move is to argue the cap down. A refusal
+// that says "9,012 bytes against a cap of 8,192" is one somebody truncates an example
+// to satisfy.
+//
+// The zero value asserts nothing: ReasonNone and no measurement, which is the honest
+// reading of a check that has not run.
+type Bound struct {
+	// Reason is why the artifact exceeded a bound, or ReasonNone.
+	Reason RejectReason
+
+	// Found is the measurement that exceeded, in bytes — the artifact's own size for
+	// ReasonOversize, and the longest embedded payload for ReasonEmbeddedPayload.
+	Found int64
+
+	// Limit is the declared cap Found exceeded, in bytes.
+	Limit int64
 }
 
 // Candidate is one fetched source as the caller found it.
@@ -85,6 +119,23 @@ type Candidate struct {
 	// applies. A PDF has none by design (§4.3), which is why it falls to
 	// `referenced` rather than failing.
 	Extraction *Extraction
+
+	// Revision is where the source stood in its own history when it was read —
+	// today only a git commit, and empty for every other adapter.
+	//
+	// **It is provenance for the person doing the fetch and it is never part of a
+	// record.** `Decide` does not read it, and a test asserts that the record's
+	// canonical bytes are identical with and without it, because the temptation to
+	// add it is obvious and §4.3.1 is what it would break: a record's name is the
+	// hash of its own content, so a field that varies with the *repository's*
+	// activity would make one unrelated push re-record every file in the tree,
+	// identical to its predecessor but for a hash nobody reads. Tier 0 grows when
+	// the corpus learns something, not when somebody pushes.
+	//
+	// That is the same argument §20.6 makes for leaving the commit out of the URI,
+	// and it applies here for the same reason: the commit is not a property of the
+	// bytes.
+	Revision string
 }
 
 // Extraction is text recovered from a source that could not be archived directly,
@@ -128,7 +179,7 @@ type Outcome struct {
 func Decide(c *Candidate, g Gates) Outcome {
 	rec := &Record{
 		URI:          c.URI,
-		SourceSHA256: hashHex(c.Bytes),
+		SourceSHA256: SourceHash(c.Bytes),
 		ByteSize:     int64(len(c.Bytes)),
 		MediaType:    c.MediaType,
 	}
@@ -190,10 +241,109 @@ func admits(ext string, data []byte, g Gates) RejectReason {
 	}
 	// Last, and only over text: §9.3 runs before any model sees the content, and
 	// scanning bytes that failed the text test would be scanning noise.
-	if g.ScanText != nil {
-		return g.ScanText(string(data))
+	if g.ScanText == nil {
+		// Fail closed. A source admitted because nobody wired a scanner is exactly
+		// the outcome §9.3 exists to prevent, and it is not recoverable afterwards:
+		// tier 0 is append-only.
+		return ReasonUnscanned
 	}
-	return ""
+	return g.ScanText(string(data))
+}
+
+// NoScan is the explicit opt-out from §9.3's scan, for a caller that has decided not
+// to run it.
+//
+// Requires: nothing.
+// Ensures: ReasonNone for any text. Pure.
+//
+// It exists so that "this Gates does not scan" is a statement in the code rather
+// than the absence of one. A nil ScanText refuses; naming NoScan is how a caller
+// says it means to skip, and a reader grepping for it finds every place that does.
+//
+// A function rather than a package variable, so it is neither mutable global state
+// nor something another package could reassign.
+func NoScan(string) RejectReason { return ReasonNone }
+
+// Exceeded reports whether a bound was passed.
+//
+// Requires: nothing; the zero Bound has exceeded nothing.
+// Ensures: true exactly when Reason is set, so a caller branches on one thing rather
+// than on a reason string it has to know the vocabulary of.
+func (b Bound) Exceeded() bool { return b.Reason != ReasonNone }
+
+// Detail renders the measurement for a reader, or "" when nothing was exceeded.
+//
+// Requires: nothing.
+// Ensures: one sentence naming the reason, the measurement, and the cap. Pure.
+//
+// It is a method rather than formatting at each call site for the reason
+// `scan.Describe` is one function: the promote gate and `fetch` both report this, and
+// two renderings would let them describe one file two ways.
+//
+// It does **not** repeat the reason token, and that was found by running the command:
+// `fetch` prints the reason on its own line and the finding indented beneath it, so a
+// Detail beginning "embedded-payload:" produced the token twice in three lines. The
+// prose stands alone instead — "an embedded payload is 9017 bytes against a declared
+// cap of 8192" needs no label, where a scan finding like "zero-width U+200B" is not a
+// sentence and does.
+func (b Bound) Detail() string {
+	if !b.Exceeded() {
+		return ""
+	}
+	what := "the document"
+	if b.Reason == ReasonEmbeddedPayload {
+		what = "an embedded payload"
+	}
+	return what + " is " + strconv.FormatInt(b.Found, 10) +
+		" bytes against a declared cap of " + strconv.FormatInt(b.Limit, 10)
+}
+
+// Oversize applies §9.3 stage 4's two declared bounds to text, and is the only
+// exported way to ask that question.
+//
+// Requires: data is the whole artifact being bounded; the caps are the values from
+// `standards/archive.toml`. A non-positive cap disables its own check, which is what
+// a caller that has not loaded standards holds.
+// Ensures: a Bound naming which cap was exceeded and by how much, or the zero Bound.
+// Pure.
+//
+// # Why this exists and what it does not duplicate
+//
+// §9.3 stage 4 is "oversize / binary, bounded, with the bound in `standards/`", and
+// until now the bound existed for a *fetched source* and not for a *candidate
+// document* — the archive gate bounds what arrives from upstream, and a document a
+// model wrote is neither fetched nor archived. The resolution is to apply the **same
+// declared caps** to the candidate rather than to invent a second bound, which is
+// what §6.5 forbids.
+//
+// The substantive half — finding a data URI and measuring it — is
+// `hasOversizePayload`, which this calls and `admits` calls. There is one
+// implementation of it. What is written twice is the length comparison, and that is
+// deliberate: `admits` checks the file cap *before* the text test and the payload cap
+// *after* it, because a binary must be reported as binary whatever its size, and
+// folding those two cases into one call would lose the ordering that makes the reason
+// correct. A one-line comparison stated in two places with different neighbours is
+// cheaper than an ordering nobody can see.
+//
+// The two caps are adjacent int64s and nothing in the signature stops a caller
+// swapping them, so a test distinguishes them: a payload under the payload cap but
+// over the file cap, and the converse.
+func Oversize(data []byte, perFileCap, embeddedPayloadCap int64) Bound {
+	if size := int64(len(data)); perFileCap > 0 && size > perFileCap {
+		return Bound{Reason: ReasonOversize, Found: size, Limit: perFileCap}
+	}
+	// The guard is not symmetry for its own sake. The payload measurement compares
+	// against the limit it is given, so at zero every data URI exceeds it — which
+	// for a caller holding no standards would report a document about icons as an
+	// oversize payload. A disabled cap must disable its check.
+	if embeddedPayloadCap > 0 {
+		if found := largestPayload(data); found > embeddedPayloadCap {
+			return Bound{
+				Reason: ReasonEmbeddedPayload, Found: found, Limit: embeddedPayloadCap,
+			}
+		}
+	}
+	return Bound{}
 }
 
 // allowed reports whether ext is on the allowlist.

@@ -54,6 +54,27 @@ const (
 	// reviewer might open the document in.
 	ReasonHiddenCharacters RejectReason = "hidden-characters"
 
+	// ReasonUnscanned: no §9.3 scanner was wired, so nothing examined this text.
+	//
+	// It is a refusal rather than a pass, and the direction is the whole point. A
+	// source admitted because a caller forgot to supply a scanner is the outcome
+	// §9.3 exists to prevent, and tier 0 is append-only — so the mistake is not
+	// recoverable by fixing the wiring afterwards. A caller that means to skip the
+	// scan says so with NoScan.
+	ReasonUnscanned RejectReason = "unscanned"
+
+	// ReasonInjectionPattern: text matching §9.3's stage 2 rules — a quoted
+	// instruction, an exfiltration destination, a standing directive, or a
+	// complete tool invocation. Distinct from ReasonSecret because the two call
+	// for opposite responses: this one says somebody is attacking the corpus.
+	ReasonInjectionPattern RejectReason = "injection-pattern"
+
+	// ReasonSecret: a credential in a vendor-documented format (§9.3 stage 3).
+	// The refusal is what keeps it out of tier 0, which matters more here than
+	// anywhere else: tier 0 is append-only, so a key that lands is a key that has
+	// to be rotated rather than deleted.
+	ReasonSecret RejectReason = "secret"
+
 	// The SVG rejections of §4.4. Sanitization is a refusal and never a rewrite,
 	// so what is committed is what was fetched.
 	ReasonSVGScript        RejectReason = "svg-script"

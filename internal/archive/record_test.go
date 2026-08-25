@@ -189,3 +189,48 @@ func sha256Sum(b []byte) []byte {
 	s := sha256.Sum256(b)
 	return s[:]
 }
+
+// TestARevisionDoesNotReachTheRecord is a guard against the obvious next commit.
+//
+// `Candidate.Revision` is provenance for the person doing the fetch, and putting it on
+// the record is the change somebody will reach for — it is right there, and a record
+// is where provenance usually goes. §4.3.1 is what it would break: a record's name is
+// the hash of its own content, so a field that varies with the *repository's* activity
+// would make one unrelated push re-record every file in the tree, identical to its
+// predecessor but for a hash nobody reads. Tier 0 grows when the corpus learns
+// something, not when somebody pushes.
+//
+// Asserted on the canonical bytes rather than by inspecting fields, because that is
+// the thing the invariant is actually about: two fetches of one file must produce the
+// same record, byte for byte, whatever the repository did in between.
+func TestARevisionDoesNotReachTheRecord(t *testing.T) {
+	t.Parallel()
+
+	const text = "Vendor documentation. The queue drains in order and never reorders.\n"
+	gates := archive.Gates{
+		Allowlist: []string{".md"}, PerFileCap: 262144, EmbeddedPayloadCap: 8192,
+		ScanText: archive.NoScan,
+	}
+
+	plain := archive.Decide(&archive.Candidate{
+		URI:   "git://example.org/repo.git#docs/queue.md",
+		Bytes: []byte(text), Extension: ".md",
+	}, gates)
+	stamped := archive.Decide(&archive.Candidate{
+		URI:   "git://example.org/repo.git#docs/queue.md",
+		Bytes: []byte(text), Extension: ".md",
+		Revision: "9f2c1b7ae4d05836f1c0aa2b3d4e5f60718293a4",
+	}, gates)
+
+	want, err := plain.Record.Canonical()
+	if err != nil {
+		t.Fatalf("canonical: %v", err)
+	}
+	got, err := stamped.Record.Canonical()
+	if err != nil {
+		t.Fatalf("canonical: %v", err)
+	}
+	if !bytes.Equal(want, got) {
+		t.Errorf("a revision changed the record:\n%s\n%s", want, got)
+	}
+}

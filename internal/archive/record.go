@@ -107,6 +107,18 @@ func TextPath(sha, ext string) string {
 	return path.Join(TextDir, sha[:2], sha+ext)
 }
 
+// SourceHash is a source's content address: sha256 over the bytes as fetched.
+//
+// Requires: nothing; the hash of no bytes is a defined value and not an error.
+// Ensures: exactly what Decide records as `source_sha256`, because it is the same
+// function. Pure.
+//
+// It is exported for the one caller that has to ask the question without deciding a
+// disposition: a re-check compares a fetched source against the hash tier 0 already
+// holds (§14.3.2), and computing that hash a second way would let the comparison
+// disagree with the record it is comparing against.
+func SourceHash(b []byte) string { return hashHex(b) }
+
 // hashHex is the one hash used for content addressing here, so no two call sites
 // can disagree about what a content hash is.
 func hashHex(b []byte) string {
