@@ -34,7 +34,9 @@ import (
 // read-time dependence §14.3 chose an absolute date to remove.
 func staleCheck(now time.Time) Check {
 	return Check{
-		Name: "stale",
+		Name:       "stale",
+		Categories: []string{"stale"},
+		Actions:    []finding.Action{finding.ActionGuided},
 		Applies: func(snap *Snapshot) (bool, string) {
 			// Derived applicability, per §12. Neither half of this check can fire
 			// on a corpus that declares no expiry and has verified nothing, and
@@ -50,15 +52,35 @@ func staleCheck(now time.Time) Check {
 			return false, "no document declares stale_after and no source has been verified"
 		},
 		Run: func(snap *Snapshot) []finding.Diagnostic {
-			out := make([]finding.Diagnostic, 0)
-			for i := range snap.Documents {
-				if d := staleness(now, &snap.Documents[i], snap); d != nil {
-					out = append(out, *d)
-				}
-			}
-			return out
+			return StaleFindings(snap, now)
 		},
 	}
+}
+
+// StaleFindings is the stale check's findings, callable without the registry.
+//
+// Requires: snap is populated; now is the moment to judge against.
+// Ensures: the same diagnostics the `stale` check produces, in document order. Pure.
+//
+// It is exported for one caller and the caller is the reason it exists rather than a
+// convenience. §6.2 requires a loosening to be recorded with the finding count before
+// and after, and `staleness_days` is a threshold this check reads — so
+// `bundle.staleFindingDelta` runs it twice over one corpus with the two windows. The
+// alternative was for that delta to reimplement the comparison, which would put a
+// second answer to "is this stale" one package away from the first.
+//
+// The registry calls it too, so there is one implementation rather than a check and a
+// copy of the check. **Applicability is deliberately not included**: a caller asking
+// for the count under two windows wants the same population both times, and skipping
+// would make the delta a comparison of two different questions.
+func StaleFindings(snap *Snapshot, now time.Time) []finding.Diagnostic {
+	out := make([]finding.Diagnostic, 0)
+	for i := range snap.Documents {
+		if d := staleness(now, &snap.Documents[i], snap); d != nil {
+			out = append(out, *d)
+		}
+	}
+	return out
 }
 
 // staleness reports one document's freshness problem, or nil when it has none.
@@ -98,6 +120,21 @@ func staleness(now time.Time, doc *Document, snap *Snapshot) *finding.Diagnostic
 // in front of the person reading the claim rather than in a list they scroll past.
 func unverified(now time.Time, doc *Document, snap *Snapshot) *finding.Diagnostic {
 	if len(doc.SourceKeys) == 0 || snap.StalenessDays <= 0 {
+		return nil
+	}
+	// **An episodic type is exempt from the window, and only from this half of the
+	// check** (§5.8.3.1). Its claims assert what happened at a moment, and its
+	// evidence is a commit hash — immutable by construction — so "its sources were
+	// last verified 40 days ago; re-run `gnosis fetch` on them" is advice nobody can
+	// act on and a finding that can never clear. A finding that cannot be cleared is
+	// worse than none: it teaches a reader that this category is permanent
+	// background.
+	//
+	// The declared-date half above still applies. That date is the author's own
+	// statement about their claim, and an author may legitimately ask for an episode
+	// to be revisited — the exemption is about evidence that cannot change, not about
+	// silencing a person who asked a question.
+	if declared, ok := snap.Vocabulary.TypeNamed(doc.Type); ok && declared.Episodic {
 		return nil
 	}
 	oldest, everChecked := oldestCheck(doc.SourceKeys, snap.SourceChecks)
