@@ -83,16 +83,16 @@ func conjunctions() []string {
 // discarded sibling. Concatenating the anchors in order reconstructs the prose
 // minus its separators, so no assertion is dropped. Returns an empty slice, never
 // nil. It is pure.
-func Claims(text string) []Claim {
+func Claims(text string, dependent []string) []Claim {
 	out := make([]Claim, 0)
 	for _, sentence := range Sentences(text) {
-		out = append(out, split(sentence)...)
+		out = append(out, split(sentence, dependent)...)
 	}
 	return out
 }
 
 // split cuts one sentence at a coordinating conjunction, or declines to.
-func split(sentence string) []Claim {
+func split(sentence string, dependent []string) []Claim {
 	whole := []Claim{{Text: sentence, Anchor: sentence}}
 
 	at, join := earliestJoin(sentence)
@@ -102,6 +102,16 @@ func split(sentence string) []Claim {
 	left := strings.TrimSpace(sentence[:at])
 	right := strings.TrimSpace(sentence[at+len(join):])
 	if left == "" || right == "" {
+		return whole
+	}
+
+	// **The copula test below cannot see this and it is why the words are data.**
+	// "The retry budget is three, and because the SLA is 400ms." cuts cleanly by
+	// every rule above, and the right half — "Because the SLA is 400ms." — is a
+	// fragment whose main clause is in its sibling. standsAlone accepts it because
+	// it finds a copula, and a copula is exactly what such a fragment has. Only
+	// knowing what *because* does refuses it (§9.4.1).
+	if opensDependent(right, dependent) {
 		return whole
 	}
 
@@ -220,4 +230,40 @@ func firstWord(s string) string {
 		return strings.Trim(fields[0], `,.;:!?"'`)
 	}
 	return ""
+}
+
+// opensDependent reports whether a clause begins with a word making it depend on
+// its neighbour.
+//
+// Requires: markers are lower-cased; an empty list refuses nothing, which is the
+// behaviour before the word list existed.
+// Ensures: matches on a word boundary, so "since" matches and "sincere" does not.
+// Pure.
+//
+// **Matching is a prefix rather than a search**, because these words only make a
+// clause dependent when they introduce it. "We keep three because the SLA is tight"
+// is one independent assertion containing the word; refusing every clause that
+// merely mentioned it would stop segmentation almost entirely.
+func opensDependent(clause string, markers []string) bool {
+	lower := strings.ToLower(strings.TrimSpace(clause))
+	for _, m := range markers {
+		if !strings.HasPrefix(lower, m) {
+			continue
+		}
+		rest := lower[len(m):]
+		if rest == "" || !isWordByte(rest[0]) {
+			return true
+		}
+	}
+	return false
+}
+
+// isWordByte reports whether b continues a word, so a marker must end at a boundary.
+func isWordByte(b byte) bool {
+	switch {
+	case b >= 'a' && b <= 'z', b >= 'A' && b <= 'Z', b >= '0' && b <= '9':
+		return true
+	default:
+		return b == '_' || b == '-'
+	}
 }

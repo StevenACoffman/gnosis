@@ -14,7 +14,7 @@ func TestTheWorkedExample(t *testing.T) {
 	t.Parallel()
 	const sentence = "The cache is enabled by default, but it is not shared across sessions."
 
-	got := segment.Claims(sentence)
+	got := segment.Claims(sentence, nil)
 	if len(got) != 2 {
 		t.Fatalf("got %d claims, want 2:\n%+v", len(got), got)
 	}
@@ -42,7 +42,7 @@ func TestRefusesTheCutItCannotMake(t *testing.T) {
 	// No copula in the left clause, so no subject can be recovered for "it".
 	const sentence = "Deploy on Friday, but it rarely ends well."
 
-	got := segment.Claims(sentence)
+	got := segment.Claims(sentence, nil)
 	if len(got) != 1 {
 		t.Fatalf("cut a sentence whose subject could not be recovered:\n%+v", got)
 	}
@@ -91,7 +91,7 @@ func TestNoAssertionIsDropped(t *testing.T) {
 	}
 	for _, in := range inputs {
 		anchors := make([]string, 0)
-		for _, c := range segment.Claims(in) {
+		for _, c := range segment.Claims(in, nil) {
 			anchors = append(anchors, c.Anchor)
 		}
 		// Joined with a space, because the cut consumes the separator it cut on.
@@ -136,7 +136,7 @@ func TestEveryClaimStandsAlone(t *testing.T) {
 		"Latency is low but it varies.",
 	}
 	for _, in := range inputs {
-		claims := segment.Claims(in)
+		claims := segment.Claims(in, nil)
 		if len(claims) < 2 {
 			continue // the cut was refused; nothing was promoted
 		}
@@ -171,9 +171,9 @@ func TestIsPure(t *testing.T) {
 	t.Parallel()
 	const in = "The cache is enabled by default, but it is not shared across sessions."
 
-	first := segment.Claims(in)
+	first := segment.Claims(in, nil)
 	for range 20 {
-		again := segment.Claims(in)
+		again := segment.Claims(in, nil)
 		if len(again) != len(first) {
 			t.Fatalf("count varies: %d then %d", len(first), len(again))
 		}
