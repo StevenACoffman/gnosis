@@ -27,7 +27,14 @@ type Promote struct {
 	// on the command is that it cannot be supplied silently later.
 	Approver gnosis.Actor
 
-	// Rationale is why. Required when RequiresRationale is set.
+	// Rationale is why, and whether one is required is not this type's business.
+	//
+	// **An earlier version carried a RequiresRationale flag beside it, and nothing
+	// ever set it.** The requirement is a property of the gate's decision, which
+	// only the coordinator can compute, so `authorisedBy` derives it there — and a
+	// field whose only effect is to make the type look like it enforces something it
+	// does not is worse than its absence. It is the pattern this project has now
+	// recorded four times: stored state with no writer.
 	Rationale string
 
 	// Confirmation is the phrase a person typed to authorise a promotion the gate
@@ -41,16 +48,6 @@ type Promote struct {
 	// it is *required* depends on the gate report, which only the coordinator can
 	// compute; whether it is *present* is this type's business.
 	Confirmation string
-
-	// RequiresRationale is set by the caller that knows which review tier applies
-	// (§10.6.4). This package cannot know the tier — that is a property of the
-	// document and the corpus — but it can refuse a command that says a rationale
-	// is required and does not carry one.
-	//
-	// The alternative was to check the rationale in the coordinator, which was
-	// rejected: it would put a gating rule outside the type, which is the one
-	// thing §4.6.2 says not to do.
-	RequiresRationale bool
 }
 
 // Op names the operation.
@@ -66,11 +63,13 @@ func (p *Promote) Effect() Effect { return p.Eff }
 // everything it must fix. An EINVALID code, because the command was constructed
 // wrongly and no retry of the same value will help.
 //
-// The rationale check is length-based and deliberately weak: it can tell an empty
-// justification from a present one and cannot tell a good one from a bad one.
-// §10.6.4's claim is that a required rationale filters more bad adjudications than
-// a permission check does, and that works through the reviewer having to write it
-// in a commit in front of colleagues — not through this function grading it.
+// **What this checks is what a command can be wrong about on its own**: a missing
+// path, an unset effect, an approver that is not `<kind>:<id>`. It deliberately
+// does not ask whether the rationale is required or whether the confirmation
+// matches, because both depend on the gate's decision over this corpus — which
+// `authorisedBy` has and this does not. A validator that guessed at them would
+// refuse commands the gate would have approved, which is the failure mode a caller
+// cannot diagnose.
 func (p *Promote) Validate() error {
 	const op = "command.Promote.Validate"
 
@@ -88,9 +87,6 @@ func (p *Promote) Validate() error {
 	} else if p.Approver.Kind() == "" {
 		bad = append(bad, "approver "+string(p.Approver)+
 			" is not <kind>:<id> with kind one of human, agent, check")
-	}
-	if p.RequiresRationale && strings.TrimSpace(p.Rationale) == "" {
-		bad = append(bad, "this promotion requires a rationale and carries none")
 	}
 	if len(bad) == 0 {
 		return nil

@@ -38,6 +38,7 @@ package command
 var (
 	_ Command = (*Promote)(nil)
 	_ Command = (*Admit)(nil)
+	_ Command = (*Discard)(nil)
 )
 
 // Command is one write, as a value.
