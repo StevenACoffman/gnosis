@@ -1114,6 +1114,73 @@ discipline, not the format.
 
 ______________________________________________________________________
 
+### Transcript Adapters — Reading `engineering-notebook`
+
+Read at `~/Documents/agent-fuschia/engineering-notebook` (Bun/TypeScript, ~1,600
+lines of source, SQLite store, Claude-summarized daily journal). It was named as
+the second reference implementation for §9.6's adapters — "two independent readers
+of the same on-disk formats are worth more than one" — and reading it is what that
+note was for. What transfers is almost entirely in one file, `src/parser.ts`, and
+almost none of it is what we expected to lift.
+
+**One parser, two formats, and the discriminator is a record type.** Claude Code
+and Codex are handled by the same 320-line function, which decides which dialect
+it is reading from the first record's `type` field (`session_meta` means Codex) and
+then latches. That is a better shape than a format flag from the caller: a session
+file is self-describing, and asking the caller which format a file is in makes the
+caller guess. Our adapter seam should discriminate the same way — from the bytes,
+not from configuration.
+
+**Everything except human text is dropped, and the list of exclusions is the
+specification.** Thinking blocks, `tool_use`, `tool_result`, `(no content)`
+placeholders, synthetic compact summaries (`isCompactSummary`), and Codex's
+`AGENTS.md`/`<environment_context>` preambles are each excluded by name. That list
+is the actual interface to a session transcript, and it is worth more to us than
+any of the code: every one of those is a category of text that would otherwise
+enter the corpus looking like something a person said. `gnosis` cares about this
+more than a journal does — a summary polluted by a tool result is untidy, and a
+*claim* attributed to a person who never made it is a provenance failure (§5.5).
+
+**Continuation and sub-agent files are distinguished, and the rule is a heuristic
+about paths.** A file whose first record carries a different `sessionId` than its
+filename is treated as a continuation of that parent, and its prefix records are
+skipped — except when the path contains `/subagents/`, where the parent's id in
+every record is expected. Two observations. The mechanism is real and we will need
+it: a transcript that replays its parent would file the same turn twice. And the
+sub-agent test is a string match on a path, which is exactly the "reading another
+tool's on-disk format will rot" §9.6 already warns about — so the seam has to make
+that check one line in one file, which is the shape §9.6 asks for and the reason
+it asks.
+
+**Malformed lines are skipped silently, and for us that would be wrong.** The loop
+does `try { JSON.parse } catch { continue }`. For a journal that is right: one bad
+line costs one message out of a readable narrative. For evidence it is the failure
+this project keeps refusing — a session whose unparsable half is dropped without a
+word produces a capture that looks complete and is not. Our adapter reports what it
+could not read, the way `scan.Coverage` reports the stages it did not run.
+
+**What does not transfer.** The summarization tier is an Anthropic API call per
+day-project pair, which is exactly the thing `gnosis` does not do: prompts go out
+through the relay and a model never gets called from inside the tool. The
+`toMarkdown` rendering truncates every message to its first line — fine for a
+journal index, useless as a source of quotations, since §4.1's whole argument is
+that a claim must be checkable against text somebody kept. And the SQLite schema is
+a session store rather than a claim store: sessions, messages, summaries, with no
+notion of a claim, an anchor, or evidence. It answers "what happened on Tuesday",
+not "what does this corpus assert".
+
+**The comparison against `skillopt_sleep` is the point of having read both.** They
+agree on the seam — normalize a foreign transcript into one internal shape, then
+never look at the foreign format again — and they disagree on what comes out of it.
+`skillopt_sleep` mines *outcomes*: retry chains, recurring intents, feedback
+labels, all offline. `engineering-notebook` renders *narrative*, with a model. We
+want the first and can build the second later, which is what §9.6 already says by
+implementing the heuristic tier and leaving the LLM tier as a prompt like any
+other. Reading the second implementation did not change that decision; it raised
+the confidence in it, which is what a second reader is for.
+
+______________________________________________________________________
+
 ### Prior Art for the Wiki Itself
 
 The `~/Documents/agent-magenta` survey: seven personal-knowledge-management
@@ -2525,14 +2592,14 @@ This is the most useful repository in the survey and it agrees with almost nothi
 here. It implements Karpathy's LLM Wiki and publishes a table of how it *extends*
 it. Set beside gnosis:
 
-| | `obsidian-second-brain` | gnosis |
-| --- | --- | --- |
-| A new source contradicts a page | **Rewrite the page.** "Claims revised, stale facts replaced." | Append a version; never rewrite (§4.1, §9.6) |
-| Contradictions | Resolved **automatically** | Adjudicated, with a warrant carrying a required rationale (§10.6) |
-| Patterns across pages | Synthesized **unprompted** into new pages | A synthesis is a claim and needs its own evidence (§17) |
-| Cadence | Four scheduled agents: morning, nightly, weekly, health | "Nothing here is periodic, and one thing should be" (§14.3.1) |
-| Note format | **AI-first**, "for LLM retrieval, not human review" | Human-readable OKF; the reader is the point (§11) |
-| Thesis | "A knowledge base that maintains itself" | A corpus that will not maintain itself without a warrant |
+|                                 | `obsidian-second-brain`                                       | gnosis                                                            |
+| ------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------- |
+| A new source contradicts a page | **Rewrite the page.** "Claims revised, stale facts replaced." | Append a version; never rewrite (§4.1, §9.6)                      |
+| Contradictions                  | Resolved **automatically**                                    | Adjudicated, with a warrant carrying a required rationale (§10.6) |
+| Patterns across pages           | Synthesized **unprompted** into new pages                     | A synthesis is a claim and needs its own evidence (§17)           |
+| Cadence                         | Four scheduled agents: morning, nightly, weekly, health       | "Nothing here is periodic, and one thing should be" (§14.3.1)     |
+| Note format                     | **AI-first**, "for LLM retrieval, not human review"           | Human-readable OKF; the reader is the point (§11)                 |
+| Thesis                          | "A knowledge base that maintains itself"                      | A corpus that will not maintain itself without a warrant          |
 
 Every one of those is a real position honestly held, and the differences are not
 carelessness — they follow from a different goal. That project serves **one person's
@@ -3364,12 +3431,12 @@ worked method that is cheap enough to run per edit.
 *Match the Form to the Failure* says the form that fixes one failure class
 **measurably backfires** on another, and classifies four:
 
-| Baseline failure | Right form | Wrong form |
-| --- | --- | --- |
-| Skips a rule under pressure (knows better, does it anyway) | Prohibition + rationalisation table + red flags | Soft guidance |
-| Complies, but the output has the wrong *shape* | Positive recipe: state what the output IS, in order | Prohibition list |
-| Omits a required element | Structural: a REQUIRED slot in the template | Prose reminders |
-| Behaviour should depend on a condition | Conditional on an observable predicate | Unconditional rule plus exemption clauses |
+| Baseline failure                                           | Right form                                          | Wrong form                                |
+| ---------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------- |
+| Skips a rule under pressure (knows better, does it anyway) | Prohibition + rationalisation table + red flags     | Soft guidance                             |
+| Complies, but the output has the wrong *shape*             | Positive recipe: state what the output IS, in order | Prohibition list                          |
+| Omits a required element                                   | Structural: a REQUIRED slot in the template         | Prose reminders                           |
+| Behaviour should depend on a condition                     | Conditional on an observable predicate              | Unconditional rule plus exemption clauses |
 
 The evidence is their own head-to-head, not a citation: *"the prohibition arm
 produced clearly more of the unwanted content than the recipe arm (fully separated
@@ -3577,28 +3644,28 @@ leave Cialdini.
 Recorded because a survey that changes nothing is a reading list, and the difference
 should be visible without a diff.
 
-| Finding | Where it landed |
-| --- | --- |
-| Content-addressing detects accidents, not tampering | §4.3.1 rewritten; tamper-resistance against a same-user actor is now an explicit non-goal |
-| Reliance is the operative test, not decision-versus-observation | §10.7.4 states reliance first and keeps committed/cached as its recognition rule |
-| Retrieval is not evidence | New §11.0.0, placed ahead of everything about findability |
-| An untyped link asserts nothing; order is not causality | New §5.5.1.2 |
-| A rebuild can destroy the only record of what was there | New rule in §4.5: refuse below a declared floor, name both numbers |
-| Corruption and operational failure are different | Added to §15 |
-| Anything an agent can name is an execution surface | Added to §15 |
-| `skillet/auditlog` is the wrong shape for a mutation row | §15 corrected, with the reason kept |
-| Quorum admission works where blast radius is low | §10.6.4 now states its bet as a bet, and names when it would be wrong |
+| Finding                                                         | Where it landed                                                                           |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Content-addressing detects accidents, not tampering             | §4.3.1 rewritten; tamper-resistance against a same-user actor is now an explicit non-goal |
+| Reliance is the operative test, not decision-versus-observation | §10.7.4 states reliance first and keeps committed/cached as its recognition rule          |
+| Retrieval is not evidence                                       | New §11.0.0, placed ahead of everything about findability                                 |
+| An untyped link asserts nothing; order is not causality         | New §5.5.1.2                                                                              |
+| A rebuild can destroy the only record of what was there         | New rule in §4.5: refuse below a declared floor, name both numbers                        |
+| Corruption and operational failure are different                | Added to §15                                                                              |
+| Anything an agent can name is an execution surface              | Added to §15                                                                              |
+| `skillet/auditlog` is the wrong shape for a mutation row        | §15 corrected, with the reason kept                                                       |
+| Quorum admission works where blast radius is low                | §10.6.4 now states its bet as a bet, and names when it would be wrong                     |
 
 Five further rows come from the 2026-08-22 deep reads of `oh-my-agent`, `ruflo`, and
 `hindsight`, which the first pass had filed as read-shallowly:
 
-| Finding | Where it landed |
-| --- | --- |
-| A miss log cannot see a wrong answer, only a missing one | New §11.0.2 and §6.4.1; §11.0 now qualifies the benchmark figure it cites |
-| A required rationale is defeated by a template that satisfies it | §10.6.4 adds the fold-and-compare refusal |
-| Nothing verifies that an audit row was written | §15 requires the check and names the failure it is for |
-| Upstream drift with the passage intact is not upstream drift with it gone | New §14.3.2 |
-| A cap that folds unresolved into passed is a bypass | §9.5.1 names the collapse it refuses, and why |
+| Finding                                                                   | Where it landed                                                           |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| A miss log cannot see a wrong answer, only a missing one                  | New §11.0.2 and §6.4.1; §11.0 now qualifies the benchmark figure it cites |
+| A required rationale is defeated by a template that satisfies it          | §10.6.4 adds the fold-and-compare refusal                                 |
+| Nothing verifies that an audit row was written                            | §15 requires the check and names the failure it is for                    |
+| Upstream drift with the passage intact is not upstream drift with it gone | New §14.3.2                                                               |
+| A cap that folds unresolved into passed is a bypass                       | §9.5.1 names the collapse it refuses, and why                             |
 
 **`superpowers` changed almost nothing in this specification, and that is the
 correct outcome.** Its findings are about authoring and measuring skills, and gnosis
