@@ -162,12 +162,12 @@ func TestEmptyNotNil(t *testing.T) {
 	}
 }
 
-// TestCoverageReportsWhatRan, not what SPEC 9.3 specifies. A caller reporting a
+// TestCoverageOfReportsWhatRan, not what SPEC 9.3 specifies. A caller reporting a
 // clean scan must be able to say which stages produced it, because "no hidden
 // characters" and "9.3 passed" are different claims and only one is available.
-func TestCoverageReportsWhatRan(t *testing.T) {
+func TestCoverageOfReportsWhatRan(t *testing.T) {
 	t.Parallel()
-	got := scan.TextCoverage()
+	got := scan.CoverageOf(scan.StageHidden)
 	if len(got.Ran) != 1 || got.Ran[0] != scan.StageHidden {
 		t.Errorf("Ran = %v, want only the implemented stage", got.Ran)
 	}
@@ -181,7 +181,7 @@ func TestCoverageReportsWhatRan(t *testing.T) {
 // four.
 func TestAnIncompleteScanSaysSo(t *testing.T) {
 	t.Parallel()
-	if scan.TextCoverage().Complete() {
+	if scan.CoverageOf(scan.StageHidden).Complete() {
 		t.Error("a scan running one stage of four reported itself complete")
 	}
 	full := scan.Coverage{Ran: []string{scan.StageHidden}}
