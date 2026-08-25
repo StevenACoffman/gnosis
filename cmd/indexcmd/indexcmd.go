@@ -39,6 +39,18 @@ type Result struct {
 	// how much the corpus says, and how much evidence it holds to say it with.
 	Sources int  `json:"sources"`
 	Wrote   bool `json:"wrote"`
+
+	// Digest is a content hash of every row the index holds (SPEC §18.3).
+	//
+	// It is reported because §4.6 makes the index **per-user**: two colleagues at
+	// one commit hold different files and must hold the same answers, and until
+	// this existed that was a claim with no way to check it. Comparing two digests
+	// settles whether a disagreement is about the corpus or about somebody's cache.
+	//
+	// It is a hash of content rather than of the file, because a SQLite file is not
+	// byte-stable — two builds of identical rows differ in page allocation — so a
+	// file hash would differ for reasons that say nothing about the corpus.
+	Digest string `json:"digest"`
 }
 
 // New registers the index command group under parent.
@@ -90,14 +102,14 @@ an index describing nothing, over the only artifact that showed what was there.
 // bundle, not merely the database). A --check that raced a rebuild would compare
 // against a schema being changed underneath it.
 func (c *Config) exec(ctx context.Context, _ []string) error {
-	lock, err := bundle.AcquireWriterLock(ctx, c.Bundle)
+	w, err := bundle.AcquireWriter(ctx, c.Bundle)
 	if err != nil {
 		if bundle.WriterBusy(err) {
 			return c.fail(root.ReasonWriterBusy, err)
 		}
 		return c.fail(root.ReasonNoBundle, err)
 	}
-	defer lock.Release()
+	defer w.Release()
 
 	db, err := bundle.OpenIndex(ctx, c.Bundle)
 	if err != nil {
@@ -117,24 +129,49 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	drift := len(bundle.Reconciled(docs, indexed))
 	result := Result{Documents: len(docs), Drifted: drift}
 
-	// The previously indexed count is the last count this corpus verified, so the
-	// floor needs no separate bookkeeping: it is len(indexed), already loaded.
-	if !c.CheckOnly && !c.Force {
-		floor, ferr := c.floorFraction()
-		if ferr != nil {
-			return c.fail(root.ReasonStandardsInvalid, ferr)
-		}
-		if index.FloorBreached(len(indexed), len(docs), floor) {
-			return c.refuse(len(indexed), len(docs))
-		}
+	if refusal := c.checkFloor(len(indexed), len(docs)); refusal != nil {
+		return refusal
 	}
 
 	if !c.CheckOnly {
-		if err := c.write(ctx, db, docs, &result); err != nil {
+		if err := c.write(ctx, w, db, docs, &result); err != nil {
 			return err
 		}
 	}
+
+	// Reported under --check too. A caller comparing their index against a
+	// colleague's is asking a read-only question, and making them write to get the
+	// answer would be the opposite of §4.5.
+	if result.Digest, err = db.Digest(ctx); err != nil {
+		return c.fail(root.ReasonIndexDrift, err)
+	}
 	return c.report(result, drift)
+}
+
+// checkFloor refuses a rebuild whose document count collapsed, or reports nil.
+//
+// Requires: was is the previously indexed count and now is what was found on disk.
+// Ensures: nil when the rebuild may proceed, and the refusal to return otherwise.
+//
+// The previously indexed count needs no separate bookkeeping: it is len(indexed),
+// which exec already loaded to compute drift.
+//
+// Extracted from exec because the linter reported the complexity when the digest
+// was added, and it was right — exec had come to hold lock acquisition, opening,
+// loading, drift, the floor, the write, the digest, and the report. This is the one
+// of those that is a policy decision rather than a step.
+func (c *Config) checkFloor(was, now int) error {
+	if c.CheckOnly || c.Force {
+		return nil
+	}
+	floor, err := c.floorFraction()
+	if err != nil {
+		return c.fail(root.ReasonStandardsInvalid, err)
+	}
+	if index.FloorBreached(was, now, floor) {
+		return c.refuse(was, now)
+	}
+	return nil
 }
 
 // write rebuilds both derived tables.
@@ -148,7 +185,8 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 // between them leaves an index that disagrees with the bundle, which is exactly the
 // state `--check` reports and a second rebuild repairs.
 func (c *Config) write(
-	ctx context.Context, db *index.DB, docs []bundle.Document, result *Result,
+	ctx context.Context, w *bundle.Writer, db *index.DB, docs []bundle.Document,
+	result *Result,
 ) error {
 	if err := db.Replace(ctx, bundle.Rows(docs), bundle.LinkRows(docs)); err != nil {
 		return c.fail(root.ReasonIndexDrift, err)
@@ -176,7 +214,7 @@ func (c *Config) write(
 	// Best-effort, like every other audit row: the rebuild happened, and reporting
 	// a bookkeeping failure as the operation's would tell a caller to retry
 	// something that succeeded.
-	if aErr := bundle.AuditVerified(c.Bundle, &audit.Row{
+	if aErr := w.Audit(&audit.Row{
 		At: time.Now().UTC(), Op: audit.OpRebuild, Actor: "check:index-rebuild",
 		Paths:   []string{".gnosis/index.db"},
 		Outcome: string(root.StatusOK),
@@ -259,6 +297,11 @@ func (c *Config) report(result Result, drift int) error {
 		_, _ = fmt.Fprintf(c.Stdout, "index matches the bundle (%d document(s))\n",
 			result.Documents)
 	}
+
+	// The digest goes to stderr, where a person reads it, and to Data for a machine.
+	// It is the answer to "do we hold the same index", and a field only `--jsonl`
+	// showed would be one nobody comparing notes over a terminal could use.
+	_, _ = fmt.Fprintf(c.Stderr, "digest %s\n", result.Digest)
 	return nil
 }
 

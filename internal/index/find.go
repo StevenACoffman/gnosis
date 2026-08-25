@@ -17,10 +17,20 @@ const idLength = 36
 
 // Detail is a document as `show` renders it.
 type Detail struct {
-	ID       string     `json:"id"`
-	Path     string     `json:"path"`
-	Title    string     `json:"title"`
-	Bytes    int        `json:"bytes"`
+	ID    string `json:"id"`
+	Path  string `json:"path"`
+	Title string `json:"title"`
+	Bytes int    `json:"bytes"`
+
+	// ContentHash is the document as the index last saw it.
+	//
+	// Carried so a reader can be told when the two copies disagree. `show` reads the
+	// file and `search` reads the indexed text, which are both defensible — the file
+	// is the truth, the index is what was searched — and a document edited since the
+	// last rebuild shows fresh text with a stale snippet. The column was already
+	// stored; nothing had asked for it.
+	ContentHash string `json:"content_hash,omitempty"`
+
 	Outbound []Resolved `json:"outbound"`
 	Inbound  []Resolved `json:"inbound"`
 }
@@ -46,8 +56,8 @@ func (db *DB) Find(ctx context.Context, ref string) (*Detail, error) {
 
 	var d Detail
 	err := db.sql.QueryRowContext(ctx,
-		`SELECT id, path, title, byte_size FROM documents WHERE id = ?`,
-		id.String()).Scan(&d.ID, &d.Path, &d.Title, &d.Bytes)
+		`SELECT id, path, title, byte_size, content_hash FROM documents WHERE id = ?`,
+		id.String()).Scan(&d.ID, &d.Path, &d.Title, &d.Bytes, &d.ContentHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, &errs.Error{
 			Code:    errs.ENOTFOUND,
