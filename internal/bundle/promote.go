@@ -20,7 +20,7 @@ import (
 
 // promote runs the gate over a quarantined document and, on approval, writes it.
 //
-// Requires: the writer lock is held; cmd has been validated.
+// Requires: cmd has been validated; w still holds the lock.
 // Ensures: the bytes the gate judged are the bytes written. There is exactly one
 // read of the candidate, and the gate's Candidate carries it — a re-read between
 // the verdict and the write is a defect, not an optimisation (§9.4), because it
@@ -29,7 +29,9 @@ import (
 // Preview and apply are the same code path down to the final branch. That is not
 // tidiness: it is what makes the diff guarantee a property of the data model
 // rather than a claim that two functions agree.
-func (c *Coordinator) promote(_ context.Context, cmd *command.Promote) (gnosis.Outcome, error) {
+func (c *Coordinator) promote(
+	_ context.Context, w *Writer, cmd *command.Promote,
+) (gnosis.Outcome, error) {
 	const op = "bundle.Coordinator.promote"
 
 	after, err := ReadQuarantined(c.Dir, cmd.Path)
@@ -45,11 +47,14 @@ func (c *Coordinator) promote(_ context.Context, cmd *command.Promote) (gnosis.O
 		return gnosis.Outcome{}, err
 	}
 
-	candidate := c.candidate(cmd.Path, before, after)
+	// The inputs come first because the candidate's §9.3 scan needs stage 4's
+	// bounds, which are part of them. The order was the other way round until stage
+	// 4 existed.
 	corpus, limits, err := c.gateInputs()
 	if err != nil {
 		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
 	}
+	candidate := c.candidate(cmd.Path, before, after, limits)
 
 	report := gate.Evaluate(candidate, corpus, limits)
 
@@ -65,10 +70,35 @@ func (c *Coordinator) promote(_ context.Context, cmd *command.Promote) (gnosis.O
 
 	carried, refusal, mayWrite := authorise(&report, cmd)
 	if !mayWrite {
-		return c.refuse(&report, cmd, refusal), nil
+		return c.refuse(w, &report, cmd, refusal), nil
+	}
+	if why := c.reused(&report, cmd); why != "" {
+		return c.refuse(w, &report, cmd, rationaleRefused(&report, cmd, why)), nil
 	}
 
-	return c.apply(op, cmd, candidate, &report, carried)
+	return c.apply(op, w, cmd, candidate, &report, carried)
+}
+
+// reused reports why this promotion's rationale may not be accepted, or "".
+//
+// Requires: w holds the lock, so the trail cannot grow between this read and the
+// write that follows; authorise has already allowed the write.
+// Ensures: "" for every promotion the gate approved on its own, whatever rationale
+// was supplied.
+//
+// **Only on the human path.** A rationale nobody required is not a gating field, and
+// refusing a promotion the gate approved because of one would be inventing a
+// requirement §9.5 does not state.
+//
+// **After authorise, not before.** `authorisedBy` names every unmet requirement at
+// once so one refusal tells a caller everything to fix; running this first would tell
+// somebody their rationale repeats the template while they had also forgotten the
+// approver — answering the smaller question and hiding the larger one.
+func (c *Coordinator) reused(report *gate.Report, cmd *command.Promote) string {
+	if report.Decide() != gate.DecisionNeedsHuman {
+		return ""
+	}
+	return reusedRationale(c.Dir, cmd.Path, cmd.Rationale, askedFor())
 }
 
 // preview answers "what would happen", without judging an authorisation nobody
@@ -98,9 +128,7 @@ func preview(report *gate.Report, cmd *command.Promote) gnosis.Outcome {
 	case gate.DecisionNeedsHuman:
 		data["approved"] = false
 		data["requires"] = []string{
-			"an approver who is a person, as --approver human:<id>",
-			"a rationale, as --rationale",
-			"typing the document's path when prompted",
+			willNeedApprover, willNeedRationale, willNeedConfirm,
 		}
 		return gnosis.Blocked(gnosis.ReasonNeedsHuman,
 			"every implemented signal passed; applying this would need a person to "+
@@ -151,12 +179,18 @@ func authorise(report *gate.Report, cmd *command.Promote) (
 // about the corpus that a successful-writes-only trail would not hold, and it is
 // the fact most worth having when somebody asks why a document never landed.
 func (c *Coordinator) refuse(
-	report *gate.Report, cmd *command.Promote, outcome gnosis.Outcome,
+	w *Writer, report *gate.Report, cmd *command.Promote, outcome gnosis.Outcome,
 ) gnosis.Outcome {
-	c.record(&audit.Row{
+	c.record(w, &audit.Row{
 		At: c.now(), Op: audit.OpPromote, Actor: string(cmd.Approver),
 		Paths: []string{cmd.Path}, Outcome: string(outcome.Status),
 		Detail: outcome.Message, Signals: unrunSignals(report),
+		// Recorded on a refusal, and deliberately *not* read back as a prior
+		// rationale: a withheld promotion adjudicated nothing. It is here because
+		// "we declined to promote this eleven times, and here is what was offered
+		// each time" is a fact about the corpus worth holding — see
+		// priorRationales for why reading it back was wrong.
+		Rationale: cmd.Rationale,
 	})
 	return outcome
 }
@@ -167,8 +201,8 @@ func (c *Coordinator) refuse(
 // second, so an interruption between them leaves a promoted document and a stale
 // draft — visible, and harmless to re-promote. The reverse would lose the content.
 func (c *Coordinator) apply(
-	op string, cmd *command.Promote, candidate *gate.Candidate, report *gate.Report,
-	carried []string,
+	op string, w *Writer, cmd *command.Promote, candidate *gate.Candidate,
+	report *gate.Report, carried []string,
 ) (gnosis.Outcome, error) {
 	full := filepath.Join(c.Dir, filepath.FromSlash(cmd.Path))
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
@@ -179,7 +213,7 @@ func (c *Coordinator) apply(
 	if err := atomicfile.WriteFile(full, candidate.After, 0o640); err != nil {
 		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
 	}
-	if err := Discard(c.Dir, cmd.Path); err != nil {
+	if err := w.Discard(cmd.Path); err != nil {
 		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
 	}
 	detail := "promoted from quarantine"
@@ -189,7 +223,7 @@ func (c *Coordinator) apply(
 		detail = "promoted from quarantine over unrun signals (" +
 			strings.Join(carried, ", ") + "): " + cmd.Rationale
 	}
-	c.record(&audit.Row{
+	c.record(w, &audit.Row{
 		At: c.now(), Op: audit.OpPromote, Actor: string(cmd.Approver),
 		Paths:      []string{cmd.Path},
 		HashBefore: hashOrEmpty(candidate.Before),
@@ -197,6 +231,10 @@ func (c *Coordinator) apply(
 		Outcome:    string(gnosis.StatusOK),
 		Detail:     detail,
 		Signals:    carried,
+		// Also in Detail, deliberately. Detail is the sentence a person reading the
+		// trail directly gets, and dropping the reason out of it to avoid saying it
+		// twice would make the readable half the useless half.
+		Rationale: cmd.Rationale,
 	})
 	return gnosis.OK(map[string]any{
 		"path": cmd.Path, "effect": cmd.Eff.String(),
@@ -224,6 +262,27 @@ func needsHuman(report *gate.Report, cmd *command.Promote, why string) gnosis.Ou
 		})
 }
 
+// rationaleRefused renders a promotion that was authorised and whose reason was not
+// accepted.
+//
+// It does not reuse `needsHuman`'s sentence, and running the command is what showed
+// why: that sentence says "a person must carry the signals that could not run", which
+// is a requirement this caller has already met. Told that, they would go looking for a
+// missing approver or an untyped path. The distinction is small and it is the whole
+// difference between a refusal somebody can act on and one they have to decode.
+func rationaleRefused(
+	report *gate.Report, cmd *command.Promote, why string,
+) gnosis.Outcome {
+	_, unchecked := report.Withheld()
+	return gnosis.Blocked(gnosis.ReasonNeedsHuman,
+		"this promotion is authorised and its rationale was not accepted: "+why,
+		map[string]any{
+			"path": cmd.Path, "effect": cmd.Eff.String(),
+			"decision": gate.DecisionNeedsHuman, "approved": false,
+			"unchecked": unchecked, "report": report,
+		})
+}
+
 // withheld renders a refusal, distinguishing what failed from what could not run.
 //
 // The two are separated because they call for opposite responses: a failure is
@@ -233,8 +292,17 @@ func needsHuman(report *gate.Report, cmd *command.Promote, why string) gnosis.Ou
 func withheld(report *gate.Report, cmd *command.Promote) gnosis.Outcome {
 	failed, unchecked := report.Withheld()
 
-	reason := gnosis.ReasonNeedsHuman
-	message := "the promote gate withheld approval"
+	// A refusal and an escalation must not share a reason token. §9.5.1's policy is
+	// that the human path opens for what could not be checked and stays shut for
+	// what was checked and failed — and while `authorise` enforces that, reporting
+	// both as needs_human made it invisible where a caller reads: the CLI prompted
+	// for a confirmation it would decline, which teaches somebody that typing the
+	// path is what unlocks a refusal. Found by running the command.
+	reason := gnosis.ReasonRefused
+	message := "the promote gate refused this document; " +
+		"a signal ran and failed, and no confirmation changes that. " +
+		"Fix the input and re-admit, then drop this draft with " +
+		"`gnosis quarantine --discard`"
 	switch {
 	case !report.Control.Held:
 		// The gate could not prove it discriminates, so no verdict below it means

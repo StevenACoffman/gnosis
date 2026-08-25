@@ -46,10 +46,43 @@ type Check struct {
 	// At is when. Unlike a fetch record this file is *about* time, so a timestamp
 	// here is the content rather than an accident of when somebody ran a sweep.
 	At time.Time `json:"at"`
+
+	// Revision is where the source stood in its own history when it was read —
+	// today a git commit, and empty for every other adapter.
+	//
+	// Drift is what the re-check concluded about the passages this corpus quotes
+	// from the source, or empty when no comparison was made.
+	//
+	// # Why an observation may carry what a record may not
+	//
+	// Both of these were reported once and stored nowhere, and the reason they end
+	// up *here* is a type argument rather than a convenience. A fetch record's name
+	// is the hash of its own content (§4.3.1), so a field varying with the
+	// repository's activity or with a comparison somebody ran would re-record
+	// unchanged bytes — tier 0 growing because somebody checked, which is exactly
+	// what that section forbids.
+	//
+	// An observation is the opposite shape. It is per-user, it is already
+	// timestamped, and its whole subject is "what I saw when I looked". A revision
+	// and a drift verdict are two more things this user saw at that moment, so
+	// carrying them costs the file nothing it was not already for.
+	//
+	// # Both are absent on every line written before they existed
+	//
+	// Absent means unknown, and the zero values already say so: an empty revision
+	// is "no revision, or not recorded", and an empty drift state is
+	// `drift-unchecked`, which §14.3.2 defines as neither of the other answers being
+	// assertable. There is no migration, and that is the test.
+	Revision string `json:"revision,omitempty"`
+	Drift    string `json:"drift,omitempty"`
 }
 
 // key is the identity of an observation: a source version, not a source.
-func (c Check) key() string { return c.URI + "\x00" + c.SourceSHA256 }
+//
+// A pointer receiver because the struct outgrew the copy: it now carries the
+// revision and the drift verdict as well, and passing 88 bytes by value to read two
+// strings is the waste `gocritic` names. Every caller has one to hand.
+func (c *Check) key() string { return c.URI + "\x00" + c.SourceSHA256 }
 
 // LoadChecks reads this user's check record.
 //
@@ -94,7 +127,7 @@ func LoadChecks(bundleDir string) (map[string]Check, error) {
 
 // RecordChecks notes that this user looked at these source versions now.
 //
-// Requires: the writer lock is held; at is the moment of the check.
+// Requires: at is the moment of the check.
 // Ensures: each observation replaces any earlier one for the same source version,
 // and the file is rewritten atomically in a stable order so two runs over one
 // state produce identical bytes.
@@ -109,13 +142,16 @@ func LoadChecks(bundleDir string) (map[string]Check, error) {
 // source version, so a 500-source corpus writes about 60 KB. That is cheaper than
 // the compaction pass an append-and-supersede design would eventually need, and it
 // removes the last-line-wins subtlety a reader would otherwise have to know about.
-func RecordChecks(bundleDir string, at time.Time, sources []Check) error {
-	const op = "bundle.RecordChecks"
+func (w *Writer) RecordChecks(at time.Time, sources []Check) error {
+	const op = "bundle.Writer.RecordChecks"
 
+	if err := w.held(op); err != nil {
+		return err
+	}
 	if len(sources) == 0 {
 		return nil
 	}
-	existing, err := LoadChecks(bundleDir)
+	existing, err := LoadChecks(w.dir)
 	if err != nil {
 		return err
 	}
@@ -128,7 +164,7 @@ func RecordChecks(bundleDir string, at time.Time, sources []Check) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(bundleDir, stateDir)
+	dir := filepath.Join(w.dir, stateDir)
 	if mkErr := os.MkdirAll(dir, 0o750); mkErr != nil {
 		return &errs.Error{Op: op, Err: mkErr}
 	}

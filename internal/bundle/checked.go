@@ -16,7 +16,20 @@ type checked struct {
 
 	// unsupported names claims whose quotations were looked for and not found.
 	// This is fabrication or corruption, and it blocks.
+	//
+	// Each entry is `describe`'s form — "claim 2: <text truncated>" — because its
+	// reader is a refusal message somebody is looking at now, and the position tells
+	// them which entry of the reply in front of them to fix.
 	unsupported []string
+
+	// withheld is the same claims as their own text, for the durable record.
+	//
+	// **Two slices because they have two readers and the difference is time.** The
+	// position in "claim 2" is meaningful while the reply is on screen and meaningless
+	// in a trail read next month, where the reply is gone and the numbering refers to
+	// nothing. Truncation is wrong there for the same reason: the record of what a
+	// source was found not to support is the assertion, not a preview of it.
+	withheld []string
 
 	// unchecked names claims whose quotations could not be checked at all —
 	// every passage shorter than MinPassageWords, or no archived text to check

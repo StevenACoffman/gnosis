@@ -37,7 +37,7 @@ type Pending struct {
 	Cached bool `json:"cached"`
 }
 
-// PromptOptions is what a caller is asking PromptsFor to do.
+// PromptOptions is what a caller is asking Writer.Prompts to do.
 type PromptOptions struct {
 	// Model is what will answer, and is part of every key.
 	Model relay.Model
@@ -52,10 +52,10 @@ type PromptOptions struct {
 	CacheOnly bool
 }
 
-// PromptsFor renders one extraction prompt per archived source and reports which
+// Prompts renders one extraction prompt per archived source and reports which
 // already have answers.
 //
-// Requires: the writer lock is held, since prompts are written under .gnosis/.
+// Requires: nothing beyond holding the lock, which the receiver is.
 // Ensures: one Pending per source, ordered by URI so two runs over one corpus
 // produce the same sequence. A prompt whose reply is cached is **not written**:
 // re-emitting a question that is already answered would invite an agent to answer
@@ -66,10 +66,13 @@ type PromptOptions struct {
 // argument applies directly: a prompt built from a page nobody kept would produce
 // quotations nobody can verify, so every claim it yielded would be unverifiable by
 // construction rather than by accident.
-func PromptsFor(bundleDir string, opts *PromptOptions) ([]Pending, error) {
-	const op = "bundle.PromptsFor"
+func (w *Writer) Prompts(opts *PromptOptions) ([]Pending, error) {
+	const op = "bundle.Writer.Prompts"
 
-	records, err := recordsByURI(op, bundleDir)
+	if err := w.held(op); err != nil {
+		return nil, err
+	}
+	records, err := recordsByURI(op, w.dir)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +86,7 @@ func PromptsFor(bundleDir string, opts *PromptOptions) ([]Pending, error) {
 				Message: op + ": " + uri + " has no fetch record; run `gnosis fetch` first",
 			}
 		}
-		pending, pErr := renderPending(op, bundleDir, opts, &rec)
+		pending, pErr := w.renderPending(op, opts, &rec)
 		if pErr != nil {
 			return nil, pErr
 		}
@@ -95,8 +98,8 @@ func PromptsFor(bundleDir string, opts *PromptOptions) ([]Pending, error) {
 
 // renderPending renders and, when the answer is not already known, writes one
 // prompt.
-func renderPending(
-	op, bundleDir string,
+func (w *Writer) renderPending(
+	op string,
 	opts *PromptOptions,
 	rec *archive.Record,
 ) (Pending, error) {
@@ -110,7 +113,7 @@ func renderPending(
 				"; there is no archived text to extract from",
 		}
 	}
-	text, err := os.ReadFile(filepath.Join(bundleDir, filepath.FromSlash(rec.ArchivePath)))
+	text, err := os.ReadFile(filepath.Join(w.dir, filepath.FromSlash(rec.ArchivePath)))
 	if err != nil {
 		return Pending{}, &errs.Error{Op: op, Err: err}
 	}
@@ -122,7 +125,7 @@ func renderPending(
 		Model:      opts.Model,
 	})
 
-	_, cached, err := LoadCached(bundleDir, prompt.Key)
+	_, cached, err := LoadCached(w.dir, prompt.Key)
 	if err != nil {
 		return Pending{}, err
 	}
@@ -141,12 +144,12 @@ func renderPending(
 		SourceHash:  rec.SourceSHA256,
 		ArchivePath: rec.ArchivePath,
 	}
-	if err := StorePromptMeta(bundleDir, &meta); err != nil {
+	if err := w.StorePromptMeta(&meta); err != nil {
 		return Pending{}, err
 	}
 
-	rel := filepath.ToSlash(filepath.Join(stateDir, promptDir, prompt.Key+".md"))
-	full := filepath.Join(bundleDir, filepath.FromSlash(rel))
+	rel := promptPath(prompt.Key)
+	full := filepath.Join(w.dir, filepath.FromSlash(rel))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
 		return Pending{}, &errs.Error{Op: op, Err: mkErr}
 	}

@@ -7,6 +7,29 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gate"
 )
 
+// The sentences the tool puts in front of somebody carrying a promotion.
+//
+// They are constants in one place because they have three readers — the refusal that
+// names an unmet requirement, the preview that lists what will be needed, and
+// §10.6.4's check for a rationale that is a copy of them — and the third only works
+// if it sees all of them. Adding an instruction here makes it template text without
+// anybody remembering that the check exists, which is the property a fourth copy of
+// these strings would have destroyed.
+const (
+	askApprover = "the approver must be a person (human:<id>); " +
+		"this promotion cannot be self-granted by an agent"
+	askConfirm   = "confirm by typing the document's path exactly: "
+	askRationale = "state why you are promoting a candidate the gate could not " +
+		"fully check"
+
+	// The preview's wording of the same three. It names what will be needed rather
+	// than what is missing, which is the difference between a tool that tells you
+	// what is required and one that tells you what you did wrong.
+	willNeedApprover  = "an approver who is a person, as --approver human:<id>"
+	willNeedRationale = "a rationale, as --rationale"
+	willNeedConfirm   = "typing the document's path when prompted"
+)
+
 // authorisedBy reports why a human may not carry this promotion, or "" when they
 // may.
 //
@@ -31,19 +54,34 @@ import (
 func authorisedBy(cmd *command.Promote) string {
 	var missing []string
 	if !cmd.Approver.IsHuman() {
-		missing = append(missing, "the approver must be a person (human:<id>); "+
-			"this promotion cannot be self-granted by an agent")
+		missing = append(missing, askApprover)
 	}
 	if cmd.Confirmation != cmd.Path {
-		missing = append(missing, "confirm by typing the document's path exactly: "+cmd.Path)
+		missing = append(missing, askConfirm+cmd.Path)
 	}
 	if strings.TrimSpace(cmd.Rationale) == "" {
-		missing = append(
-			missing,
-			"state why you are promoting a candidate the gate could not fully check",
-		)
+		missing = append(missing, askRationale)
 	}
 	return strings.Join(missing, "; ")
+}
+
+// askedFor is every phrase this tool showed the author, for §10.6.4's template
+// check.
+//
+// Requires: nothing.
+// Ensures: all six instruction sentences, whether or not this command satisfied
+// them. Pure.
+//
+// All six, not the unmet ones. A rationale is typed after reading the screen, and
+// what was on the screen is the whole list — so restricting this to what is still
+// missing would leave the phrases the author actually copied out of the check's
+// reach. The confirmation phrase is included without its path, because the path is
+// the part that varies and a rationale containing it is not thereby boilerplate.
+func askedFor() []string {
+	return []string{
+		askApprover, askConfirm, askRationale,
+		willNeedApprover, willNeedRationale, willNeedConfirm,
+	}
 }
 
 // unrunSignals names the signals a promotion is being carried over, for the audit

@@ -45,17 +45,20 @@ func promptMetaPath(key string) string {
 
 // StorePromptMeta records what a prompt was about.
 //
-// Requires: meta.Key is set; the writer lock is held.
+// Requires: meta.Key is set.
 // Ensures: written atomically, so an interrupted ingest never leaves a meta file
 // that describes half a prompt.
-func StorePromptMeta(bundleDir string, meta *PromptMeta) error {
-	const op = "bundle.StorePromptMeta"
+func (w *Writer) StorePromptMeta(meta *PromptMeta) error {
+	const op = "bundle.Writer.StorePromptMeta"
 
+	if err := w.held(op); err != nil {
+		return err
+	}
 	data, err := json.Marshal(meta)
 	if err != nil {
 		return &errs.Error{Op: op, Err: err}
 	}
-	full := filepath.Join(bundleDir, filepath.FromSlash(promptMetaPath(meta.Key)))
+	full := filepath.Join(w.dir, filepath.FromSlash(promptMetaPath(meta.Key)))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
 		return &errs.Error{Op: op, Err: mkErr}
 	}

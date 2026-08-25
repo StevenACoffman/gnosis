@@ -30,24 +30,30 @@ func (l *lostRowError) Error() string { return l.err.Error() }
 
 func (l *lostRowError) Unwrap() error { return l.err }
 
-// AuditVerified appends a row and confirms it landed.
+// Audit appends a row and confirms it landed.
 //
-// Requires: bundleDir is writable; the writer lock is held if one is in use.
+// Requires: nothing beyond holding the lock, which the receiver is.
 // Ensures: nil when the row is on disk. Otherwise an error, and **the two failures
 // are distinguishable by AuditLost**, because they call for opposite handling: an
 // append that reported failure is a known gap the caller may warn about and carry
 // on from, and a row the append claimed to write and that is not there is the one
 // failure no other signal reveals.
 //
-// This exists because `init` and `index rebuild` write rows without going through
-// the coordinator — they predate it — so verifying only inside Execute would make
-// "a mutation verifies its own row" true of two mutations out of four. A claim that
-// holds for half its subjects is the kind of half-truth §15 is about.
-func AuditVerified(bundleDir string, row *audit.Row) error {
-	if err := appendRow(bundleDir, row); err != nil {
+// This is the only exported way to append. `init` and `index rebuild` write rows
+// without going through the coordinator — they predate it — so verifying only
+// inside Execute would make "a mutation verifies its own row" true of two
+// mutations out of four. A claim that holds for half its subjects is the kind of
+// half-truth §15 is about.
+func (w *Writer) Audit(row *audit.Row) error {
+	const op = "bundle.Writer.Audit"
+
+	if err := w.held(op); err != nil {
 		return err
 	}
-	if err := verifyAudit(bundleDir, row); err != nil {
+	if err := appendRow(w.dir, row); err != nil {
+		return err
+	}
+	if err := verifyAudit(w.dir, row); err != nil {
 		return &lostRowError{err: err}
 	}
 	return nil

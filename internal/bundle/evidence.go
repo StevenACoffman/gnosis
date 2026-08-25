@@ -33,7 +33,7 @@ type Stored struct {
 // StoreEvidence writes a fetch record and its archived text, if they are not
 // already there.
 //
-// Requires: bundleDir exists and is writable; out came from archive.Decide.
+// Requires: out came from archive.Decide.
 // Ensures: idempotent. A re-fetch of unchanged bytes produces the same paths,
 // finds them present, and writes nothing — reported as Wrote false, which is what
 // §9.2 means by a no-op. Both files are written atomically, so an interrupted
@@ -44,9 +44,12 @@ type Stored struct {
 // differing bytes there is corruption rather than an update; silently replacing it
 // would erase the evidence, and silently accepting it would report a corrupt corpus
 // as unchanged. See writeOnce.
-func StoreEvidence(bundleDir string, out *archive.Outcome) (Stored, error) {
-	const op = "bundle.StoreEvidence"
+func (w *Writer) StoreEvidence(out *archive.Outcome) (Stored, error) {
+	const op = "bundle.Writer.StoreEvidence"
 
+	if err := w.held(op); err != nil {
+		return Stored{}, err
+	}
 	recordPath, err := out.Record.Path()
 	if err != nil {
 		return Stored{}, &errs.Error{Op: op, Err: err}
@@ -62,13 +65,13 @@ func StoreEvidence(bundleDir string, out *archive.Outcome) (Stored, error) {
 	// orphan is inert; a dangling record is a claim of evidence that cannot be
 	// produced.
 	if out.Content != nil {
-		wrote, err := writeOnce(op, bundleDir, out.Record.ArchivePath, out.Content)
+		wrote, err := writeOnce(op, w.dir, out.Record.ArchivePath, out.Content)
 		if err != nil {
 			return Stored{}, err
 		}
 		stored.Wrote = wrote
 	}
-	wrote, err := writeOnce(op, bundleDir, recordPath, canonical)
+	wrote, err := writeOnce(op, w.dir, recordPath, canonical)
 	if err != nil {
 		return Stored{}, err
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/gnosis/internal/scan"
 	"github.com/StevenACoffman/skillet/errs"
 )
 
@@ -33,6 +34,20 @@ type Coordinator struct {
 	// `cmd` supplies its own stderr, because a note that exists only in a JSON
 	// field is a note nobody running the tool in a terminal will see.
 	Warn io.Writer
+
+	// Rules is §9.3's stage 2 and 3 ruleset, used to scan a candidate document.
+	//
+	// A nil Rules degrades the scan to stage 1 and **reports the reduced coverage**,
+	// so the `security` signal moves toward `unchecked` rather than toward a clean
+	// pass. That is the opposite failure direction from `archive.Gates.ScanText`,
+	// whose nil means no scan at all and therefore fails open — a wart that entry is
+	// filed against. Here a caller who forgets gets more blocking, not less.
+	//
+	// It is a field rather than something loaded here because the ruleset is
+	// immutable, safe to share, and expensive enough to compile that rebuilding it
+	// per candidate would be waste — and because a scanner that loaded its own rules
+	// could not be handed a ruleset of two in a test.
+	Rules *scan.Ruleset
 
 	// Now is the clock the audit trail stamps rows with. A nil Now uses
 	// time.Now, so a caller that does not care need not supply one.
@@ -90,16 +105,16 @@ func (c *Coordinator) Execute(ctx context.Context, cmd command.Command) (gnosis.
 		return gnosis.BadUsage(err.Error()), nil
 	}
 
-	lock, err := AcquireWriterLock(ctx, c.Dir)
+	w, err := AcquireWriter(ctx, c.Dir)
 	if err != nil {
 		if WriterBusy(err) {
 			return writerBusyOutcome(c.Dir), nil
 		}
 		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
 	}
-	defer lock.Release()
+	defer w.Release()
 
-	outcome, err := c.dispatch(ctx, cmd)
+	outcome, err := c.dispatch(ctx, w, cmd)
 
 	// The unread-row failure joins the returned error rather than the outcome. A
 	// caller must not be able to read this as success, and the outcome is still
@@ -144,15 +159,20 @@ func (c *Coordinator) withAuditNote(outcome gnosis.Outcome) gnosis.Outcome {
 //
 // It is separate from Execute so that the preconditions every command shares —
 // validated, lock held — are established in one place and cannot be skipped by a
-// handler added later.
-func (c *Coordinator) dispatch(ctx context.Context, cmd command.Command) (gnosis.Outcome, error) {
+// handler added later. The lock is now carried rather than assumed: a handler
+// receives the Writer, and a handler that did not receive one cannot write.
+func (c *Coordinator) dispatch(
+	ctx context.Context, w *Writer, cmd command.Command,
+) (gnosis.Outcome, error) {
 	const op = "bundle.Coordinator.dispatch"
 
 	switch v := cmd.(type) {
 	case *command.Promote:
-		return c.promote(ctx, v)
+		return c.promote(ctx, w, v)
 	case *command.Admit:
-		return c.admit(ctx, v)
+		return c.admit(ctx, w, v)
+	case *command.Discard:
+		return c.discard(ctx, w, v)
 	default:
 		// Not a usage error: the caller constructed something this build does not
 		// implement, which is a fault in the pairing of caller and binary.

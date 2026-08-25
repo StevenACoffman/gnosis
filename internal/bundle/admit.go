@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,7 +19,7 @@ import (
 
 // admit consumes an agent's reply and writes the resulting document to quarantine.
 //
-// Requires: the writer lock is held; cmd has been validated.
+// Requires: cmd has been validated; w still holds the lock.
 // Ensures: the reply is cached whatever happens next, because a model call already
 // happened and discarding the answer would make the caller pay for it again to
 // learn the same thing. The document reaches quarantine only when every claim is
@@ -28,7 +29,9 @@ import (
 // sentence carrying two assertions gets one verdict otherwise, so a quotation
 // validating only its first half reports the whole sentence supported — a silent
 // false pass in the check the corpus most depends on.
-func (c *Coordinator) admit(_ context.Context, cmd *command.Admit) (gnosis.Outcome, error) {
+func (c *Coordinator) admit(
+	_ context.Context, w *Writer, cmd *command.Admit,
+) (gnosis.Outcome, error) {
 	const op = "bundle.Coordinator.admit"
 
 	// What this key was a question about, before anything else. A key naming no
@@ -44,7 +47,7 @@ func (c *Coordinator) admit(_ context.Context, cmd *command.Admit) (gnosis.Outco
 	}
 
 	reply, parseErr := relay.ParseReply([]byte(cmd.Reply))
-	if cErr := c.cacheReply(op, cmd, &meta); cErr != nil {
+	if cErr := c.cacheReply(op, w, cmd, &meta); cErr != nil {
 		return gnosis.Outcome{}, cErr
 	}
 	if parseErr != nil {
@@ -65,9 +68,16 @@ func (c *Coordinator) admit(_ context.Context, cmd *command.Admit) (gnosis.Outco
 	}
 	if len(checked.unsupported) > 0 || len(checked.unchecked) > 0 {
 		outcome := checked.outcome(cmd)
-		c.record(&audit.Row{
+		c.record(w, &audit.Row{
 			At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),
-			Outcome: string(outcome.Status), Detail: outcome.Message,
+			// The archived text the quotations were checked against, so the row says
+			// *which* source the claims were not supported by. Without it the record
+			// would be "somebody once asserted this and it did not hold", which is a
+			// fact about nobody.
+			Paths:       []string{meta.ArchivePath},
+			Outcome:     string(outcome.Status),
+			Detail:      outcome.Message,
+			Unsupported: checked.withheld,
 		})
 		return outcome, nil
 	}
@@ -77,7 +87,7 @@ func (c *Coordinator) admit(_ context.Context, cmd *command.Admit) (gnosis.Outco
 			"claims": len(checked.claims), "would_quarantine": true,
 		}), nil
 	}
-	return c.quarantineReply(op, cmd, &reply, checked)
+	return c.quarantineReply(op, w, cmd, &reply, checked)
 }
 
 // cacheReply stores the answer under its key.
@@ -87,8 +97,10 @@ func (c *Coordinator) admit(_ context.Context, cmd *command.Admit) (gnosis.Outco
 // again to receive the same unusable answer, and §6.1's promise is that a second
 // run over unchanged inputs makes no model calls — not that it makes none when the
 // first run went well.
-func (c *Coordinator) cacheReply(op string, cmd *command.Admit, meta *PromptMeta) error {
-	if err := StoreCached(c.Dir, &CachedReply{
+func (c *Coordinator) cacheReply(
+	op string, w *Writer, cmd *command.Admit, meta *PromptMeta,
+) error {
+	if err := w.StoreCached(&CachedReply{
 		Key: cmd.Key, URI: meta.URI, Reply: cmd.Reply,
 	}); err != nil {
 		return &errs.Error{Op: op, Err: err}
@@ -110,13 +122,17 @@ func (c *Coordinator) checkReply(
 	}
 	sources := []quotecheck.Source{{Name: meta.ArchivePath, Text: string(body)}}
 
+	// Read once, outside the loop: the words are the same for every claim in the
+	// reply, and reading them per claim would put file I/O inside a fold.
+	markers := dependentMarkers(c.Dir)
+
 	out := &checked{}
 	for i := range reply.Claims {
 		rc := &reply.Claims[i]
 		rc.ID = "claim-" + strconv.Itoa(i+1)
 		// Segment first. A reply's "one claim" is whatever the model decided one
 		// claim was, and §9.4 does not take its word for it.
-		parts := segment.Claims(rc.Text)
+		parts := segment.Claims(rc.Text, markers)
 		out.claims = append(out.claims, parts...)
 
 		findings := quotecheck.Check(rc.Quotes, sources)
@@ -127,6 +143,7 @@ func (c *Coordinator) checkReply(
 			out.unchecked = append(out.unchecked, describe(i, rc.Text))
 		default:
 			out.unsupported = append(out.unsupported, describe(i, rc.Text))
+			out.withheld = append(out.withheld, rc.Text)
 		}
 	}
 	return out, nil
@@ -173,7 +190,7 @@ func allUnchecked(findings []quotecheck.Finding) bool {
 
 // quarantineReply renders the document and writes it to tier 1.
 func (c *Coordinator) quarantineReply(
-	op string, cmd *command.Admit, reply *relay.Reply, k *checked,
+	op string, w *Writer, cmd *command.Admit, reply *relay.Reply, k *checked,
 ) (gnosis.Outcome, error) {
 	id, err := gnosis.NewID()
 	if err != nil {
@@ -182,20 +199,45 @@ func (c *Coordinator) quarantineReply(
 	rel := "c/" + id.String() + "-" + gnosis.SlugFrom(reply.Title).String() + ".md"
 
 	content := renderQuarantined(id, reply, k)
-	if _, err = Quarantine(c.Dir, rel, content); err != nil {
+	if _, err = w.Quarantine(rel, content); err != nil {
 		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
 	}
-	c.record(&audit.Row{
+	c.record(w, &audit.Row{
 		At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),
 		Paths:     []string{rel},
 		HashAfter: hashOrEmpty(content),
 		Outcome:   string(gnosis.StatusOK),
 		Detail:    "quarantined from reply " + cmd.Key,
 	})
+	c.spend(w, cmd.Key)
 	return gnosis.OK(map[string]any{
 		"key": cmd.Key, "effect": cmd.Eff.String(),
 		"path": rel, "claims": len(k.claims), "quarantined": true,
 	}), nil
+}
+
+// spend removes the prompt this reply answered.
+//
+// **Here rather than where the reply is cached, and the entry's own wording is what
+// this corrects.** "Once the reply is cached" is the wrong trigger: caching happens
+// before the reply is even parsed, and a malformed or unsupported reply leaves the
+// agent expected to submit another one under the same key — which `admit` can only
+// accept while the metadata is still there. Removing it then would turn "fix the YAML
+// and re-run" into "this key no longer exists". So the prompt is spent when the
+// document is filed, which is the one outcome after which nothing more will be
+// admitted under that key.
+//
+// A preview keeps its prompt for the same reason, structurally: it never reaches here.
+//
+// Best-effort, and it does not become the operation's failure. The reply is cached and
+// the document is quarantined; telling a caller to retry that because a file could not
+// be unlinked would be a worse report than a note. Warn is where it goes, because a
+// note that exists only in a JSON field is one nobody in a terminal reads.
+func (c *Coordinator) spend(w *Writer, key string) {
+	if err := w.SpendPrompt(key); err != nil && c.Warn != nil {
+		_, _ = fmt.Fprintf(c.Warn,
+			"warning: the reply was filed but its prompt was not removed: %v\n", err)
+	}
 }
 
 // describe names a claim in a message, truncated so a report stays readable.

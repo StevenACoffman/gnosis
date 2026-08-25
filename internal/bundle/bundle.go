@@ -72,7 +72,26 @@ type Document struct {
 // know which claim named which archived file and nothing else, and a wider type
 // would invite a check to start judging evidence, which is the gate's job.
 type DocClaim struct {
-	ID           string
+	ID string
+
+	// Anchor is the span of the body this claim addresses (§5.5.1). The
+	// claim-anchor check needs it to say whether the address still resolves, which
+	// is a question about the document rather than about the evidence.
+	Anchor string
+
+	// Subject is the surface phrase naming what this claim is about (§5.5.1), as
+	// the author wrote it — an alias is resolved by the checks, not here. Empty for
+	// a claim declaring none, which is a review signal on some types and silence on
+	// others (§5.8.3).
+	//
+	// **It is deliberately not on gate.Claim.** The backlog entry asked for both
+	// readers, and that would hand the promote gate a field §5.8.3 forbids it to act
+	// on: a claim with no subject is reported for review and never blocked, because
+	// blocking would make the corpus refuse ordinary knowledge. The comment on
+	// docClaims already gives the general form of this — sharing a type would give a
+	// check the fields to start judging.
+	Subject string
+
 	ArchivePaths []string
 }
 

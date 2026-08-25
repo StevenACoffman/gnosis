@@ -44,13 +44,19 @@ func Snapshot(fsys fs.FS, idx IndexState, fresh FreshnessState) (*lint.Snapshot,
 	if err != nil {
 		return nil, err
 	}
+	recorded, err := recordedPaths(fsys)
+	if err != nil {
+		return nil, err
+	}
 
 	return &lint.Snapshot{
 		Documents:     documents(docs),
 		ArchivedText:  archived,
+		RecordedText:  recorded,
 		SourceChecks:  fresh.Checks,
 		StalenessDays: fresh.StalenessDays,
 		Links:         links(docs),
+		Vocabulary:    vocabulary(fsys),
 		Resolutions:   gnosis.Reconcile(Observed(docs), idx.Rows),
 		SchemaVersion: gnosis.SchemaVersion,
 		LogLines:      logLines,
@@ -82,7 +88,10 @@ func claimRefs(claims []DocClaim) []lint.Claim {
 	out := make([]lint.Claim, 0, len(claims))
 	for i := range claims {
 		out = append(out, lint.Claim{
-			ID: claims[i].ID, ArchivePaths: claims[i].ArchivePaths,
+			ID:           claims[i].ID,
+			Anchor:       claims[i].Anchor,
+			Subject:      claims[i].Subject,
+			ArchivePaths: claims[i].ArchivePaths,
 		})
 	}
 	return out
@@ -114,6 +123,35 @@ func archivedPaths(fsys fs.FS) (map[string]bool, error) {
 	})
 	if err != nil {
 		return nil, &errs.Error{Op: op, Err: err}
+	}
+	return out, nil
+}
+
+// recordedPaths is the set of archive paths tier 0's fetch records name.
+//
+// Requires: fsys is rooted at the bundle.
+// Ensures: one entry per distinct archive path any record names, and an empty set
+// for a bundle with no records rather than an error — a corpus that has fetched
+// nothing has nothing to account for.
+//
+// A `referenced` record names no archive path and contributes nothing, which is
+// correct: it stored no text, so there is no file for it to account for. That is why
+// this reads the records rather than counting them.
+//
+// Walked through the same fs.FS as the documents, so the closure check never touches
+// a disk and a caller testing with an fstest.MapFS gets the same answers as one
+// reading a bundle.
+func recordedPaths(fsys fs.FS) (map[string]bool, error) {
+	const op = "bundle.recordedPaths"
+
+	out := map[string]bool{}
+	err := walkRecords(op, fsys, func(rec *archive.Record) {
+		if rec.ArchivePath != "" {
+			out[rec.ArchivePath] = true
+		}
+	})
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }

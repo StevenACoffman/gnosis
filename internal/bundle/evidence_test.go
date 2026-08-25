@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
-	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/skillet/errs"
 )
 
@@ -18,6 +17,7 @@ func outcomeFor(t *testing.T, body string) archive.Outcome {
 		URI: "https://example.org/a.md", Bytes: []byte(body), Extension: ".md",
 	}, archive.Gates{
 		Allowlist: []string{".md"}, PerFileCap: 262144, EmbeddedPayloadCap: 8192,
+		ScanText: archive.NoScan,
 	})
 	if out.Record.Disposition != archive.Archived {
 		t.Fatalf("fixture was not archived: %q", out.Record.RejectReason)
@@ -32,8 +32,9 @@ func TestStoringTwiceIsANoOp(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	out := outcomeFor(t, "stable text\n")
+	w := writerFor(t, dir)
 
-	first, err := bundle.StoreEvidence(dir, &out)
+	first, err := w.StoreEvidence(&out)
 	if err != nil {
 		t.Fatalf("first store: %v", err)
 	}
@@ -41,7 +42,7 @@ func TestStoringTwiceIsANoOp(t *testing.T) {
 		t.Error("the first store wrote nothing")
 	}
 
-	second, err := bundle.StoreEvidence(dir, &out)
+	second, err := w.StoreEvidence(&out)
 	if err != nil {
 		t.Fatalf("a re-store of identical bytes errored: %v", err)
 	}
@@ -58,7 +59,8 @@ func TestDifferentBytesAtOnePathIsCorruption(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	out := outcomeFor(t, "the real text\n")
-	if _, err := bundle.StoreEvidence(dir, &out); err != nil {
+	w := writerFor(t, dir)
+	if _, err := w.StoreEvidence(&out); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 
@@ -69,7 +71,7 @@ func TestDifferentBytesAtOnePathIsCorruption(t *testing.T) {
 		t.Fatalf("rewrite: %v", err)
 	}
 
-	_, err := bundle.StoreEvidence(dir, &out)
+	_, err := w.StoreEvidence(&out)
 	if err == nil {
 		t.Fatal("a path holding different bytes stored cleanly")
 	}
@@ -91,8 +93,9 @@ func TestACorruptRecordIsAlsoCaught(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	out := outcomeFor(t, "some text\n")
+	w := writerFor(t, dir)
 
-	stored, err := bundle.StoreEvidence(dir, &out)
+	stored, err := w.StoreEvidence(&out)
 	if err != nil {
 		t.Fatalf("store: %v", err)
 	}
@@ -101,7 +104,7 @@ func TestACorruptRecordIsAlsoCaught(t *testing.T) {
 		t.Fatalf("rewrite: %v", err)
 	}
 
-	if _, err = bundle.StoreEvidence(dir, &out); err == nil {
+	if _, err = w.StoreEvidence(&out); err == nil {
 		t.Fatal("a corrupted fetch record stored cleanly")
 	}
 }
@@ -112,7 +115,8 @@ func TestCorruptionDoesNotOverwrite(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	out := outcomeFor(t, "the real text\n")
-	if _, err := bundle.StoreEvidence(dir, &out); err != nil {
+	w := writerFor(t, dir)
+	if _, err := w.StoreEvidence(&out); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 
@@ -121,7 +125,7 @@ func TestCorruptionDoesNotOverwrite(t *testing.T) {
 	if err := os.WriteFile(full, []byte(tampered), 0o600); err != nil {
 		t.Fatalf("rewrite: %v", err)
 	}
-	if _, err := bundle.StoreEvidence(dir, &out); err == nil {
+	if _, err := w.StoreEvidence(&out); err == nil {
 		t.Fatal("expected a conflict")
 	}
 

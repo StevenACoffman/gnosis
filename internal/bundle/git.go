@@ -35,12 +35,13 @@ func (f *Fetcher) fetchGit(ctx context.Context, uri string) ([]archive.Candidate
 	// the next fetch would find the directory non-empty and fail differently.
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	if _, err = git.PlainCloneContext(ctx, dir, &git.CloneOptions{
+	repo, err := git.PlainCloneContext(ctx, dir, &git.CloneOptions{
 		URL:          uri,
 		Depth:        1,
 		SingleBranch: true,
 		Tags:         git.NoTags,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, &errs.Error{Op: op, Message: op + ": clone " + uri, Err: err}
 	}
 
@@ -48,10 +49,30 @@ func (f *Fetcher) fetchGit(ctx context.Context, uri string) ([]archive.Candidate
 	if err != nil {
 		return nil, err
 	}
+	revision := headRevision(repo)
 	for i := range candidates {
 		candidates[i].URI = repoURI(uri, dir, candidates[i].URI)
+		candidates[i].Revision = revision
 	}
 	return candidates, nil
+}
+
+// headRevision is the commit the clone landed on.
+//
+// Requires: repo is a freshly cloned repository.
+// Ensures: a full hex commit hash, or empty when it could not be read.
+//
+// **Empty rather than an error, and that is the whole of the judgement here.** The
+// revision is provenance a person may find useful; the bytes are the evidence. A
+// clone that produced a working tree and an unreadable HEAD has delivered the
+// evidence, and failing the fetch over the annotation would discard what the command
+// was for. Empty is honest — it says the same thing every non-git adapter says.
+func headRevision(repo *git.Repository) string {
+	head, err := repo.Head()
+	if err != nil {
+		return ""
+	}
+	return head.Hash().String()
 }
 
 // repoURI rewrites a path inside the clone into a reference to the remote.

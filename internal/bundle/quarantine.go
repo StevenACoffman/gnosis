@@ -26,8 +26,7 @@ const quarantineDir = "quarantine"
 
 // Quarantine writes a candidate document to tier 1.
 //
-// Requires: bundleDir exists and is writable; rel is a bundle-relative path with
-// no parent traversal.
+// Requires: rel is a bundle-relative path with no parent traversal.
 // Ensures: the document lands at .gnosis/quarantine/<rel>, mirroring the bundle
 // layout so a promotion is a move rather than a translation. Written atomically,
 // so an interrupted admit leaves no half-document for the gate to judge.
@@ -36,10 +35,13 @@ const quarantineDir = "quarantine"
 // and re-admitting a corrected reply is the ordinary case; tier 0's
 // never-overwrite rule exists because a record's path is the hash of its content,
 // and this path is not.
-func Quarantine(bundleDir, rel string, content []byte) (string, error) {
-	const op = "bundle.Quarantine"
+func (w *Writer) Quarantine(rel string, content []byte) (string, error) {
+	const op = "bundle.Writer.Quarantine"
 
-	full, err := quarantinePath(op, bundleDir, rel)
+	if err := w.held(op); err != nil {
+		return "", err
+	}
+	full, err := quarantinePath(op, w.dir, rel)
 	if err != nil {
 		return "", err
 	}
@@ -115,10 +117,13 @@ func Quarantined(bundleDir string) ([]string, error) {
 // Requires: rel is a bundle-relative path.
 // Ensures: removing something absent is not an error — a promotion that already
 // cleared the draft and a caller retrying both arrive here, and neither is wrong.
-func Discard(bundleDir, rel string) error {
-	const op = "bundle.Discard"
+func (w *Writer) Discard(rel string) error {
+	const op = "bundle.Writer.Discard"
 
-	full, err := quarantinePath(op, bundleDir, rel)
+	if err := w.held(op); err != nil {
+		return err
+	}
+	full, err := quarantinePath(op, w.dir, rel)
 	if err != nil {
 		return err
 	}

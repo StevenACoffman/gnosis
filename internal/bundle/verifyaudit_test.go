@@ -153,7 +153,7 @@ func TestAuditLostSeparatesTheTwoFailures(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(dir, ".gnosis", "audit.jsonl"), 0o750); err != nil {
 			t.Fatalf("wedge: %v", err)
 		}
-		err := bundle.AuditVerified(dir, aRow())
+		err := writerFor(t, dir).Audit(aRow())
 		if err == nil {
 			t.Skip("this platform appended to a directory")
 		}
@@ -171,7 +171,7 @@ func TestAuditLostSeparatesTheTwoFailures(t *testing.T) {
 
 	t.Run("a successful append is not a lost row", func(t *testing.T) {
 		t.Parallel()
-		if err := bundle.AuditVerified(t.TempDir(), aRow()); err != nil {
+		if err := writerFor(t, t.TempDir()).Audit(aRow()); err != nil {
 			t.Errorf("an ordinary append failed: %v", err)
 		}
 	})
@@ -182,7 +182,7 @@ func TestAuditLostSeparatesTheTwoFailures(t *testing.T) {
 func TestAuditVerifiedWritesTheRow(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	if err := bundle.AuditVerified(dir, aRow()); err != nil {
+	if err := writerFor(t, dir).Audit(aRow()); err != nil {
 		t.Fatalf("append: %v", err)
 	}
 	trail, err := bundle.AuditTrail(dir)

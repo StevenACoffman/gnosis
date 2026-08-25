@@ -11,6 +11,14 @@ import (
 // (§5.5.1). Each entry carries an id, an anchor, and the evidence offered for it.
 const claimsKey = "gnosis_claims"
 
+// subjectKey names what a claim is about, per claim rather than per document.
+//
+// §5.5.1 puts it here rather than at document level, and refused an inherited
+// default: editing one would silently re-subject every claim that did not override,
+// which is the failure the vocabulary layer exists to catch arriving through a
+// convenience.
+const subjectKey = "subject"
+
 // claimsOf reads a document's claims out of frontmatter.
 //
 // §5.5.1 requires a claim's identity and address to be recoverable from the
@@ -68,6 +76,8 @@ func docClaims(doc *okf.Document) []DocClaim {
 		}
 		out = append(out, DocClaim{
 			ID:           firstString(m, "id", "anchor", strconv.Itoa(i)),
+			Anchor:       stringOr(m, "anchor"),
+			Subject:      stringOr(m, subjectKey),
 			ArchivePaths: stringsOf(m, "archive_paths"),
 		})
 	}
