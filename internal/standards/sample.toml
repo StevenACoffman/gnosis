@@ -1,0 +1,35 @@
+# The seed for every reproducible draw. See SPEC §6.2.1, §10.5, and §14.3.1.
+#
+# The same two rules as standards/archive.toml govern edits here.
+#
+#   1. Every value carries a `rationale`, and the loader rejects one that does
+#      not. Say why the number is the number.
+#   2. A value moved in the loosening direction is reported and MUST be recorded
+#      in log.md (SPEC §6.2).
+#
+# This file holds one value, which by the reasoning that moved
+# `rebuild_floor_fraction` out of archive.toml is one value too few to earn a
+# file — except that the alternative is worse. The seed does not belong in
+# archive.toml, which is about what enters tier 0, nor in promote.toml, which is
+# about what leaves quarantine. Sampling is neither, and filing it under either
+# would make every future reader ask why.
+
+[seed]
+value = 20260822
+rationale = """
+An arbitrary constant, and it is important that it is arbitrary: the seed's only
+job is to make a draw repeatable, and any value does that equally well. It is
+recorded rather than hardcoded because §18.3 requires a draw to be reproducible
+and §6.2.1 requires the *specific* draw to be inspectable — a reader who thinks the
+random conflict pass got a lucky sample must be able to see which seed produced it
+and to change it deliberately.
+
+Changing it is not a loosening and not a tightening. It draws a different sample of
+the same size, which is why nothing here reports a direction: there is no such thing
+as a seed that finds fewer findings on purpose. What a change *does* mean is that
+results before and after it are not comparable, so a change belongs in log.md for
+that reason rather than for §6.2's.
+
+The digits are the date this value was first written down, so a reader can tell at a
+glance that nobody tuned it.
+"""

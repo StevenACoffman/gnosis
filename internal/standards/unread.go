@@ -32,6 +32,21 @@ const (
 // Reading classifies what reads a declared standards value.
 type Reading int
 
+// Declaration is one tunable as this binary declares it: the Go field, the TOML key
+// it decodes from, and what reads it.
+//
+// It exists so the classification can be checked against the source rather than
+// against a second copy of itself. `Unread` and `Pinned` answer "which values", which
+// a test can only compare to a literal list — and two lists about one fact agree by
+// construction and neither is evidence. The Go field name is what a scan of the
+// repository can look for, so exporting it turns this file's static map into a claim
+// the compiler's own symbols can contradict.
+type Declaration struct {
+	Field string
+	Key   string
+	Reads Reading
+}
+
 // reading reports what reads a declared value, and naming this switch is the
 // point of the file. Nothing at runtime can discover which values are branched
 // on, so the knowledge is static and lives here, one function away from the
@@ -47,7 +62,12 @@ func reading(k string) Reading {
 	switch k {
 	case "allowlist", "per_file_cap", "corpus_budget", "corpus_warn_fraction",
 		"embedded_payload_cap", "staleness_days", "hedging_max",
-		"rebuild_floor_fraction":
+		"rebuild_floor_fraction", "seed":
+		// `seed` is consumed by `gnosis debt --sample`, which is the first of the
+		// three draws §6.2.1, §10.5, and §14.3.1 specify to be built. It is recorded
+		// here as consumed rather than unread because it has a reader today — the
+		// point of this file is that the answer is about this binary, not about what
+		// the spec eventually wants.
 		return ReadingConsumed
 	case "html_extractor", "html_extractor_version":
 		return ReadingPinned
@@ -60,6 +80,41 @@ func reading(k string) Reading {
 		// unbuilt. Reported instead.
 		return ReadingUnread
 	}
+}
+
+// String renders a reading for a diagnostic.
+func (r Reading) String() string {
+	switch r {
+	case ReadingConsumed:
+		return "consumed"
+	case ReadingPinned:
+		return "pinned"
+	case ReadingUnread:
+		return "unread"
+	default:
+		return "invalid"
+	}
+}
+
+// Declarations is every declared tunable with its Go field and its classification.
+//
+// Requires: nothing.
+// Ensures: one entry per exported field of every standards struct, in declaration
+// order, which is a property of this binary and identical for every corpus. Pure.
+func Declarations() []Declaration {
+	var out []Declaration
+	for _, cfg := range []any{Archive{}, Promote{}, Sample{}} {
+		t := reflect.TypeOf(cfg)
+		for i := range t.NumField() {
+			f := t.Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			k := key(&f)
+			out = append(out, Declaration{Field: f.Name, Key: k, Reads: reading(k)})
+		}
+	}
+	return out
 }
 
 // Unread names every declared value that no code branches on.
@@ -104,7 +159,7 @@ func Pinned() []string {
 // which is the half of the second-place problem that can be automated.
 func declared() []string {
 	var out []string
-	for _, cfg := range []any{Archive{}, Promote{}} {
+	for _, cfg := range []any{Archive{}, Promote{}, Sample{}} {
 		t := reflect.TypeOf(cfg)
 		for i := range t.NumField() {
 			f := t.Field(i)

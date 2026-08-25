@@ -1,0 +1,34 @@
+# Retrieval cases (SPEC §11.0.2): labelled queries this corpus must answer.
+#
+# This file ships EMPTY and that is deliberate. §11.0.2 says cases are "authored
+# when a real query disappoints, never invented up front", and the reason is the
+# one §6.2 gives for thresholds: a case somebody made up to have coverage tells you
+# nothing about whether retrieval works, and it is the first case deleted when it
+# fails. An empty suite reports that it examined nothing, which is honest.
+#
+# Add a case the moment a search disappoints you, while you still remember what you
+# were looking for. That memory is the whole value and it does not survive the day.
+#
+# There is no score. A case holds or it does not; §17 forbids presenting a count as
+# health, and a retrieval pass rate is the most tempting such count there is —
+# because it looks like progress and can be raised by deleting the cases that fail.
+#
+#   [[case]]
+#   query  = "retry budget"
+#   titles = ["Retry Budget"]
+#   why    = "searched for this after the incident and got the deploy runbook first"
+#
+# A case whose correct answer is that the corpus holds nothing is written with
+# `nothing = true`, and §11.0.2 asks for these by name. They are the half a search
+# suite usually omits: a corpus that answers every query with its best guess cannot
+# say "we do not know", which is the answer §14.3's whole vocabulary exists to make
+# expressible.
+#
+#   [[case]]
+#   query   = "kubernetes ingress annotations"
+#   nothing = true
+#   why     = "we deliberately hold nothing about cluster config; §11.0 scope"
+#
+# `why` is required. A case with no account of the disappointment that produced it
+# is one a later reader deletes when it fails, because they cannot tell a real
+# expectation from an invented one.

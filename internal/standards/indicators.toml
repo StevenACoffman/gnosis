@@ -1,0 +1,122 @@
+# Indicator words: the closed lexical class that marks a clause as a reason or a
+# conclusion. See SPEC §9.4.1.
+#
+# This is not standards/operators.toml and the distinction matters. An operator
+# pattern parses a *quantity* out of prose — "at most 3", "under 400ms" — and
+# lands with conflict detection. An indicator classifies a *clause*, and its
+# reader exists today: segmentation.
+#
+# ## The words gate a cut; they never make one
+#
+# A clause introduced by a reason marker is not a place to split. It is a signal
+# that a split proposed nearby must be withdrawn, because cutting there produces
+# a claim whose truth conditions changed — "the cache is cleared when the process
+# restarts" split at *when* yields "the cache is cleared", which is false as
+# stated.
+#
+# So a false positive here refuses a cut and leaves one coarser claim whose
+# evidence must cover more of it. Under-segmentation is a claim harder to
+# support; over-segmentation is a claim nobody made. Only one is recoverable, and
+# the errors fall on that side by construction.
+#
+# ## Roles, and which one has a reader
+#
+# `reason` rows are read by internal/segment today.
+#
+# `conclusion` rows have no reader yet. §17.4's `lead` check is theirs, and it
+# waits on extraction to write `claims.lead` — frontmatter carries no lead, so
+# there is nothing for that check to check. They are here anyway because this is
+# one closed lexical class and authoring half of it guarantees a second pass over
+# the same evidence. An unused row is not a dead one.
+#
+# ## Editing
+#
+# Lower case; matching is fold-normalised, so case and whitespace runs do not
+# matter. Longest match wins, which is why "for the reason that" and "for" can
+# both appear.
+#
+# Add a word when a real sentence was segmented wrongly and this would have
+# stopped it — the same discipline standards/retrieval-cases.toml asks for, and
+# for the same reason: a word somebody invented to be thorough tells you nothing
+# about whether segmentation works.
+
+[[indicator]]
+word = "because"
+role = "reason"
+
+[[indicator]]
+word = "since"
+role = "reason"
+
+[[indicator]]
+word = "as indicated by"
+role = "reason"
+
+[[indicator]]
+word = "for the reason that"
+role = "reason"
+
+[[indicator]]
+word = "owing to"
+role = "reason"
+
+[[indicator]]
+word = "due to"
+role = "reason"
+
+[[indicator]]
+word = "given that"
+role = "reason"
+
+[[indicator]]
+word = "inasmuch as"
+role = "reason"
+
+# `when`, `while`, `although`, `unless` and `if` are subordinators that are not
+# strictly reason-givers, and they are here because the rule they serve is about
+# dependence rather than about causation: each makes one clause's truth
+# conditional on the other's, which is exactly what a cut must not break.
+[[indicator]]
+word = "when"
+role = "reason"
+
+[[indicator]]
+word = "while"
+role = "reason"
+
+[[indicator]]
+word = "although"
+role = "reason"
+
+[[indicator]]
+word = "unless"
+role = "reason"
+
+[[indicator]]
+word = "if"
+role = "reason"
+
+# Conclusion markers. No reader yet; see the note above.
+[[indicator]]
+word = "therefore"
+role = "conclusion"
+
+[[indicator]]
+word = "thus"
+role = "conclusion"
+
+[[indicator]]
+word = "hence"
+role = "conclusion"
+
+[[indicator]]
+word = "it follows that"
+role = "conclusion"
+
+[[indicator]]
+word = "consequently"
+role = "conclusion"
+
+[[indicator]]
+word = "so"
+role = "conclusion"
