@@ -27,6 +27,7 @@ type Type struct {
 	Desc           string         `toml:"desc"`
 	Normative      bool           `toml:"normative"`
 	ExpectsSubject bool           `toml:"expects_subject"`
+	Episodic       bool           `toml:"episodic"`
 	Template       string         `toml:"template"`
 	Aliases        []string       `toml:"aliases"`
 	Rejected       []Rejection    `toml:"rejected"`
@@ -161,13 +162,20 @@ func (o *Ontology) ResolveSubject(s gnosis.Surface) (gnosis.SubjectKey, bool) {
 //
 // Requires: nothing.
 // Ensures: compares only what a type actually drives — whether limitations are
-// required, whether a missing subject is flagged, and which template applies.
-// Descriptions and aliases are excluded deliberately: differing prose is not a
-// behavioural difference, and treating it as one would preserve every duplicate
-// somebody bothered to describe differently.
+// required, whether a missing subject is flagged, whether the staleness window
+// applies, and which template applies. Descriptions and aliases are excluded
+// deliberately: differing prose is not a behavioural difference, and treating it as
+// one would preserve every duplicate somebody bothered to describe differently.
+//
+// **Every behavioural flag must appear here, and a new one that does not is a silent
+// defect rather than a loud one.** Two types differing only in the omitted flag would
+// compare identical, and §5.8.2's re-declaration rule would then merge a type whose
+// behaviour differs into one whose behaviour does not. The test enumerates the flags
+// against this function for exactly that reason.
 func Identical(a, b *Type) bool {
 	return a.Normative == b.Normative &&
 		a.ExpectsSubject == b.ExpectsSubject &&
+		a.Episodic == b.Episodic &&
 		a.Template == b.Template
 }
 
