@@ -20,8 +20,10 @@ var logDateHeading = regexp.MustCompile(`^## \d{4}-\d{2}-\d{2}\s*$`)
 // so a "stricter" conformance check would make gnosis non-conformant.
 func conformanceCheck() Check {
 	return Check{
-		Name:    "conformance",
-		Applies: always,
+		Name:       "conformance",
+		Categories: []string{"conformance"},
+		Actions:    []finding.Action{finding.ActionGuided},
+		Applies:    always,
 		Run: func(snap *Snapshot) []finding.Diagnostic {
 			out := make([]finding.Diagnostic, 0)
 			for i := range snap.Documents {
@@ -70,8 +72,10 @@ func indexRelative(k gnosis.Kind) bool {
 // somebody's work, so it must stop a caller that gates on blocking findings.
 func identityCheck() Check {
 	return Check{
-		Name:    "identity",
-		Applies: always,
+		Name:       "identity",
+		Categories: []string{"identity"},
+		Actions:    []finding.Action{finding.ActionGuided, finding.ActionHuman},
+		Applies:    always,
 		Run: func(snap *Snapshot) []finding.Diagnostic {
 			return diagnoseResolutions(snap.Resolutions, false)
 		},
@@ -85,7 +89,9 @@ func identityCheck() Check {
 // reader to ignore the check rather than to run `gnosis index rebuild`.
 func indexDriftCheck() Check {
 	return Check{
-		Name: "index-drift",
+		Name:       "index-drift",
+		Categories: []string{"index-drift"},
+		Actions:    []finding.Action{finding.ActionGuided},
 		Applies: func(snap *Snapshot) (bool, string) {
 			if !snap.HasIndex {
 				return false, "the bundle has no index yet; run `gnosis index rebuild`"
@@ -161,8 +167,10 @@ func diagnoseResolution(r gnosis.Resolution) finding.Diagnostic {
 // gap worth surfacing and never a defect worth blocking on.
 func brokenLinkCheck() Check {
 	return Check{
-		Name:    "broken-link",
-		Applies: hasInternalLinks,
+		Name:       "broken-link",
+		Categories: []string{"broken-link"},
+		Actions:    []finding.Action{finding.ActionHuman},
+		Applies:    hasInternalLinks,
 		Run: func(snap *Snapshot) []finding.Diagnostic {
 			byID := documentPaths(snap)
 			out := make([]finding.Diagnostic, 0)
@@ -191,8 +199,10 @@ func brokenLinkCheck() Check {
 // than information.
 func orphanCheck() Check {
 	return Check{
-		Name:    "orphan",
-		Applies: hasInternalLinks,
+		Name:       "orphan",
+		Categories: []string{"orphan"},
+		Actions:    []finding.Action{finding.ActionHuman},
+		Applies:    hasInternalLinks,
 		Run: func(snap *Snapshot) []finding.Diagnostic {
 			linked := make(map[gnosis.ID]bool, len(snap.Links))
 			for _, l := range snap.Links {
@@ -225,7 +235,9 @@ func orphanCheck() Check {
 // finding. Only a log that exists is examined.
 func logFormatCheck() Check {
 	return Check{
-		Name: "log-format",
+		Name:       "log-format",
+		Categories: []string{"log-format"},
+		Actions:    []finding.Action{finding.ActionGuided},
 		Applies: func(snap *Snapshot) (bool, string) {
 			if !snap.HasLog {
 				return false, "the bundle has no log.md, which OKF §9 permits"

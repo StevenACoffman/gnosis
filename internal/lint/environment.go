@@ -38,6 +38,18 @@ type Environment struct {
 	// IndexDocPresent reports whether the OKF §8 entry point exists.
 	IndexDocPresent bool `json:"index_doc_present"`
 
+	// SchemaDocPresent reports whether the agent-facing schema document exists
+	// (§5.7).
+	//
+	// It is reported rather than scaffolded by `init`, and the two were alternatives.
+	// `AGENTS.md` is *generated*: `init` seeds the hand-editable files and leaves the
+	// generated ones to the command that makes them, as it already does for
+	// `index.db`. A scaffolded copy would also be rendered from an ontology `init`
+	// had only just written, so it would be stale the first time anybody edited the
+	// vocabulary — with nothing saying so, because a scaffolded file makes this check
+	// dead.
+	SchemaDocPresent bool `json:"schema_doc_present"`
+
 	// StateIgnored reports whether .gitignore excludes the derived state
 	// directory.
 	StateIgnored bool `json:"state_ignored"`
@@ -93,11 +105,42 @@ type Environment struct {
 	// in the corpus actually has.
 	MispinnedStandards []string `json:"mispinned_standards,omitempty"`
 
+	// GateSources says where each standards file's values come from: the bundle's
+	// own file, or the embedded seed and the version that shipped it.
+	//
+	// **Reported rather than diagnosed, and §6.2.2 is why it exists at all.** A
+	// value's prior reading comes from the file at a git revision, falling back to
+	// the running binary's seed when the file was not there — so for a corpus that
+	// never edited the file, both readings are the same values and no loosening can
+	// be reported. A release that loosens a seed changes the effective gates
+	// everywhere with nothing saying so. Naming the source is what lets a reader find
+	// the entry in gnosis's own log.md.
+	//
+	// It is not a finding. "Your gates come from the seed" is true of every corpus on
+	// its first day, and a warning true of everything teaches a reader to skip the
+	// category — the same argument diagnoseUnread already lost once.
+	GateSources []GateSource `json:"gate_sources,omitempty"`
+
 	// SchemaMissing and SchemaUnexpected are the difference between the schema
 	// the database has and the schema the migrations describe. Empty when the
 	// index is absent, since there is nothing to compare.
 	SchemaMissing    []string `json:"schema_missing,omitempty"`
 	SchemaUnexpected []string `json:"schema_unexpected,omitempty"`
+}
+
+// GateSource is where one standards file's values came from.
+type GateSource struct {
+	// File is the bundle-relative path the values would be read from.
+	File string `json:"file"`
+
+	// Origin is "bundle" when the file is present, or "seed" when it is not and the
+	// embedded default is in force.
+	Origin string `json:"origin"`
+
+	// Version is the gnosis version whose seed is in force, and is empty when the
+	// bundle carries its own file. It is what a reader needs to find the log entry
+	// recording a seed change.
+	Version string `json:"version,omitempty"`
 }
 
 // diagnoseStandards reports a standards file that exists and cannot be read.
@@ -225,7 +268,20 @@ func diagnoseVocabulary(env *Environment) []finding.Diagnostic {
 
 // diagnoseBundleFiles reports on the files OKF and git hygiene expect.
 func diagnoseBundleFiles(env *Environment) []finding.Diagnostic {
-	out := make([]finding.Diagnostic, 0, 2)
+	out := make([]finding.Diagnostic, 0, 3)
+	if !env.SchemaDocPresent {
+		out = append(out, finding.Diagnostic{
+			Severity: finding.SeverityWarning,
+			Category: "bundle",
+			Path:     "AGENTS.md",
+			Message: "no schema document; §5.7 expects one and an agent arriving " +
+				"has no account of this corpus's conventions — run `gnosis schema`",
+			// Automatic: the fix is a command, which is what that action means. It
+			// is not `guided`, because there is nothing for a person to decide —
+			// the content is derived from the ontology and the binary.
+			Action: finding.ActionAutomatic,
+		})
+	}
 	if !env.IndexDocPresent {
 		out = append(out, finding.Diagnostic{
 			Severity: finding.SeverityWarning,

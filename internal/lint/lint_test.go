@@ -281,3 +281,97 @@ func skipped(report lint.Report, check string) bool {
 func testNow() time.Time {
 	return time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
 }
+
+// TestEveryCheckDeclaresValidActions is half of what makes the Actions field
+// evidence: a declaration that is empty, or that names something `finding` does not
+// define, would put a word in §12.1's table that no reader could act on.
+func TestEveryCheckDeclaresValidActions(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range lint.Checks(time.Now()) {
+		if len(c.Actions) == 0 {
+			t.Errorf("%s declares no actions", c.Name)
+		}
+		for _, a := range c.Actions {
+			if !a.Valid() {
+				t.Errorf("%s declares %q, which finding does not define", c.Name, a)
+			}
+		}
+	}
+}
+
+// TestEveryEmittedActionWasDeclared is the other half, and its limit is worth
+// stating: it is only as complete as the snapshot below makes checks fire.
+//
+// That is the same partial guarantee `Categories` has, for the same reason — an action
+// is a field inside a `Run` body, so nothing can enumerate it without running the
+// check. What this rules out is the drift that actually happens: somebody changes a
+// diagnostic's action and leaves the declaration, so §12.1's table says a tool could
+// fix something a person now has to.
+func TestEveryEmittedActionWasDeclared(t *testing.T) {
+	t.Parallel()
+
+	checks := lint.Checks(time.Now())
+	declared := map[string]map[finding.Action]bool{}
+	for _, c := range checks {
+		for _, category := range c.Categories {
+			set := map[finding.Action]bool{}
+			for _, a := range c.Actions {
+				set[a] = true
+			}
+			declared[category] = set
+		}
+	}
+
+	report := lint.Run(brokenCorpus(), checks)
+	if len(report.Diagnostics) == 0 {
+		t.Fatal("the fixture fired no checks, so this test asserts nothing")
+	}
+	for _, d := range report.Diagnostics {
+		set, known := declared[d.Category]
+		if !known {
+			// A category emitted and not declared: the Categories test's subject,
+			// asserted here too because this loop is where it becomes visible.
+			t.Errorf("%q was emitted and no check declares it", d.Category)
+			continue
+		}
+		if !set[d.Action] {
+			t.Errorf("%q emitted action %q, which its check does not declare",
+				d.Category, d.Action)
+		}
+	}
+}
+
+// brokenCorpus is a snapshot arranged to trip as many checks as one snapshot can.
+//
+// Deliberately not a realistic corpus: every field here is set to whatever makes a
+// check fire, which is the opposite of a fixture that demonstrates ordinary use. Its
+// only job is to produce diagnostics whose actions can be compared against what was
+// declared.
+func brokenCorpus() *lint.Snapshot {
+	return &lint.Snapshot{
+		Documents: []lint.Document{
+			// No type: conformance. An empty section: empty-section.
+			{ID: idA, Path: "c/a.md", Title: "A", Body: "# A\n\n## Empty\n"},
+			// An unfilled template marker: placeholder. `{{NAME}}` rather than a
+			// "TODO", because that is the form the check looks for — the first
+			// version of this fixture wrote TODO and fired nothing.
+			{
+				ID: idB, Path: "c/b.md", Title: "B", Type: "Reference",
+				Body: "# B\n\nSee {{OWNER}} for details.\n",
+			},
+		},
+		// Supplied directly rather than derived: `Resolutions` is `gnosis.Reconcile`'s
+		// output and the snapshot is a value, so nothing computes it here. The
+		// duplicate is the case worth covering — `identity` is the only check
+		// declaring two actions, and the duplicate is the one that escalates to a
+		// person.
+		Resolutions: []gnosis.Resolution{
+			{Kind: gnosis.KindDuplicate, ID: idA, Paths: []string{"c/a.md", "c/b.md"}},
+			{Kind: gnosis.KindUpdatePath, ID: idB, Paths: []string{"c/b.md"}},
+		},
+		Links:    []lint.Link{{FromID: idA, Href: "/c/gone.md"}},
+		LogLines: []string{"# Update Log", "", "## not-a-date", "* something"},
+		HasLog:   true,
+	}
+}
