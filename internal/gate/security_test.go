@@ -90,8 +90,8 @@ func TestAPartialScanCannotApproveButCanEscalate(t *testing.T) {
 	t.Parallel()
 	c := admissible()
 	c.Scan = gate.Scan{
-		StagesRun:     scan.TextCoverage().Ran,
-		StagesMissing: scan.TextCoverage().Missing,
+		StagesRun:     scan.CoverageOf(scan.StageHidden).Ran,
+		StagesMissing: scan.CoverageOf(scan.StageHidden).Missing,
 	}
 	report := evaluate(&c)
 
@@ -123,7 +123,10 @@ func TestARealScanFeedsTheSignal(t *testing.T) {
 		rendered = append(rendered, string(f.Class)+" "+f.Rune)
 	}
 
-	got := securityOf(t, gate.Scan{Findings: rendered, StagesRun: scan.TextCoverage().Ran})
+	got := securityOf(
+		t,
+		gate.Scan{Findings: rendered, StagesRun: scan.CoverageOf(scan.StageHidden).Ran},
+	)
 	if got.Verdict != gate.VerdictFail {
 		t.Errorf("verdict = %q, want fail", got.Verdict)
 	}

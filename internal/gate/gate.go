@@ -73,6 +73,22 @@ type Limits struct {
 	// MinPassageWords is the shortest run of words a quotation is checked at.
 	// Below it, quotecheck reports Unchecked rather than Found.
 	MinPassageWords int
+
+	// PerFileCap and EmbeddedPayloadCap are §9.3 stage 4's bounds, from
+	// `standards/archive.toml`. Zero disables the stage, which is what a caller
+	// that has not loaded standards holds.
+	//
+	// They are the *archive's* declared caps applied to a candidate document, and
+	// that is deliberate rather than convenient. §9.3 stage 4 wants a bound "with
+	// the bound in `standards/`"; the archive already has one, justified for prose;
+	// and inventing a second number for the candidate is what §6.5 exists to
+	// prevent. Two artifacts, one declared threshold.
+	//
+	// They live on Limits rather than being threaded separately because the
+	// `security` signal needs them to say whether stage 4 ran, which makes them a
+	// threshold the gate depends on — stated as data exactly as the two above are.
+	PerFileCap         int64
+	EmbeddedPayloadCap int64
 }
 
 // Result is one signal's conclusion.
