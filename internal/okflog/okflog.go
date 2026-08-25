@@ -36,6 +36,11 @@ import (
 // dateLayout is OKF §9's heading form.
 const dateLayout = "2006-01-02"
 
+// codeIndent is where Markdown stops reading a line as prose and starts reading it
+// as an indented code block. A `## …` at or past this column is an example of a
+// heading rather than one.
+const codeIndent = 4
+
 // Entry is one dated section of the log.
 type Entry struct {
 	// Date is the section's heading date.
@@ -76,7 +81,22 @@ func Parse(src string) (preamble []string, entries []Entry) {
 }
 
 // headingDate reports the date of an OKF §9 entry heading.
+//
+// **An indented line is not a heading, and the first version of this thought it
+// was.** `log.md`'s own seed explains the format by showing it, in an indented code
+// block — so `    ## 2026-01-31` was parsed as a real entry, and the first command
+// to write to a fresh log re-emitted it at column zero: the file's explanation of
+// itself became a fabricated entry dated January. Nothing caught it because nothing
+// wrote to log.md until a discard did, and the seed is what every new bundle starts
+// from.
+//
+// Four spaces is Markdown's own boundary — three or fewer still make an ATX heading,
+// four make an indented code block — so this is the rule the format already has
+// rather than one chosen here.
 func headingDate(line string) (string, bool) {
+	if indent := len(line) - len(strings.TrimLeft(line, " \t")); indent >= codeIndent {
+		return "", false
+	}
 	rest, found := strings.CutPrefix(strings.TrimSpace(line), "## ")
 	if !found {
 		return "", false
