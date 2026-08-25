@@ -85,59 +85,35 @@ ______________________________________________________________________
   so the layout is expensive to change once real evidence exists. `log.md` has the
   same shape but is expected to conflict and is human-resolvable, so it stays as
   OKF §9 specifies.
-- [ ] **The write-coordinator transport is undecided, and is now the smaller half
-  of that question.** §4.6.2 settles the shape: writes are command *values*, one
-  type per operation, carrying their own gating fields, and a transport serialises
-  one. That removed the part that would have been expensive to get wrong —
-  review-gating is a property of the type, so every transport inherits it, and
-  §9.4's diff guarantee follows from preview and apply being one command rather
-  than two code paths.
-  What remains open: **which transport**, and it is deliberately not urgent. A Unix
-  socket carrying the §8.0 envelope is the likely answer — the path is its own
-  discovery, filesystem permissions are the right authorization for a local daemon,
-  and the seam is an `io.ReadWriter`. HTTP is not a competitor but a second
-  transport over the same interface, needed anyway for §13's viewer; MCP likewise,
-  when an agent runtime is the primary caller. What genuinely cannot be predicted
-  from here is whether preview and apply are one call or two, and Phase 2's real
-  writers will say.
-  **The interim step has a visible ceiling.** An advisory `flock` on
-  `.gnosis/writer.lock` satisfies everything `init` and `index rebuild` need and
-  commits to no protocol — but a lock cannot carry a command, so it can never
-  provide §9.4's guarantee. The command type should therefore exist before the
-  second writer does, even if the transport does not.
-  **REVIEWED 2026-08-22: the deferral is right and two of this entry's own claims are
-  stale. Kept open, with a trigger that can fire.**
-  **The command type now exists** — `internal/command` has the `Command` interface
-  (`Op`/`Effect`/`Validate`), `Promote`, `Admit`, and a compile-time assertion — so the
-  "should exist before the second writer" clause is satisfied. The interface comment
-  carries the property that makes the transport small: *a transport that deserialises into
-  a Command still has to hand it to something that calls Validate.*
-  **And the stated unknown is half-answered by §4.6.2, which this entry cites.** That
-  section already settles preview-versus-apply *as a type question*: **one command
-  differing in one field**, so *"the same handler receives the same input, computes the
-  same diff, and `Effect` decides only whether the final write happens."* `Effect` is built
-  and fails closed. What remains open is the **protocol** question, which is different and
-  smaller: whether a remote caller previews, receives a diff, and then sends a *second*
-  command to apply.
-  **That distinction matters because §4.6.2's argument has a premise a two-round-trip
-  transport can break.** "They cannot diverge" holds because the handler receives *the same
-  input*. Across two round trips the bundle can change in between, and then the diff the
-  gate approved is not the diff that lands — precisely what §9.4 forbids. In-process today
-  the writer lock spans compute-and-write so the premise holds for free. A served
-  coordinator would need what the manifesto already names: **a lock plus an expected
-  revision, so a stale writer is rejected rather than merely queued.** That is the actual
-  prerequisite for a two-call protocol, and it is not recorded anywhere as an item.
-  **Replacement trigger, because "Phase 2's real writers will say" has expired — Phase 2 is
-  complete and every writer is in-process:** the first writer that is **not in this
-  process**. Concretely, §13's served viewer (Phase 5) or an agent runtime calling `admit`
-  directly. Until one exists the `flock` is not a compromise, it is the correct answer, and
-  this entry should read as a deferral rather than as debt.
-  **Preference when it fires, unchanged and recorded so it is not re-derived:** a Unix
-  socket carrying the §8.0 envelope — the path is its own discovery, filesystem permissions
-  are the authorization the bundle already uses, and the seam is an `io.ReadWriter` that a
-  pipe can test. HTTP arrives anyway with §13 and is a second transport over that seam, not
-  a competitor; MCP likewise if an agent runtime becomes the primary caller. The choice is
-  reversible precisely because the gating lives in the type.
+- [ ] **The write-coordinator transport is decided; building it waits on a trigger.**
+  *Decided 2026-08-24 (§4.6.2.2), and mostly by reading §13 rather than by choosing.
+  `gnosis serve` already carries the coordinator and the viewer in one process — two
+  servers would be two authorities over one bundle — and that server is authenticated
+  `net/http` with reverse-proxy auth as a first-class mode. So HTTP is required, not a
+  candidate.*
+  **One protocol carrying the §8.0 envelope, two listeners.** A Unix socket for the
+  local single-user case, where filesystem permissions are the right guard and no port
+  or credential configuration should be needed to replace a `flock`; TCP behind the
+  proxy for the shared case. Same handler, same command values. MCP is a third listener
+  over the same seam if an agent runtime becomes the primary caller.
+  **The socket-only preference this entry carried is withdrawn, and the reason inverts
+  its own argument.** Filesystem permissions were its appeal, but peer credentials
+  identify a *process*, not a person, and cannot tell a user from an agent runtime
+  running as them — the exact distinction §9.5's refusal of a self-granted approval
+  turns on. §4.6.2.1's rule that the transport supplies the actor is what makes that
+  decisive.
+  **Apply is one call, and the "one or two" question dissolved.** `EffectApply` gates
+  and writes under one hold of the writer lock, so §9.4's guarantee is structural. A
+  preview is advisory by definition; a caller that needs it binding sends the revision
+  it previewed against and the apply is refused when the corpus moved — required on the
+  escalated path, optional elsewhere. There was never an ordinary two-call flow.
+  **What remains is building it, and the trigger is unchanged:** the first writer that
+  is **not in this process** — §13's served viewer, or an agent runtime calling `admit`
+  directly. Until one exists the `flock` is not a compromise, it is the correct answer,
+  and this entry is a deferral rather than debt.
+  **The expected revision now has a name and an owner.** It is the same object as
+  §4.6.2.1's diff-bound token, which §13's review queue needs anyway, so it lands with
+  the queue rather than as a separate prerequisite nobody had recorded.
 - [x] **The writer lock's contract is a type now, and one caller was not honouring it.**
   *`bundle.Writer` is obtainable only by taking the lock, and every write is a method
   on it — `Audit`, `StoreEvidence`, `StoreCached`, `RecordChecks`, `Prompts`,
@@ -474,38 +450,34 @@ ______________________________________________________________________
   in the doing: `stale_after` governs the *claim* and `staleness_days` governs the
   *check* (§14.3.0), and never-checked is deliberately **not** a finding, because it
   is true of every document in a corpus that has just started fetching.
-- [ ] **`init` does not scaffold `standards/`.** Deliberate for now — an absent
-  file falls back to the embedded seed, so a seed improvement reaches every
-  existing bundle, which scaffolding would prevent. Worth revisiting if the values
-  become something people are expected to tune per corpus.
-- [x] **A refused source reports every finding.** *`bundle.ScanFindings` renders the
-  whole set and `fetch` carries it on the payload and in the human output, for the three
-  reasons the scan produces — an extension refusal is not a scan finding and re-scanning
-  it would say nothing.*
-  Two decisions worth keeping. **No `--explain` flag**, which this entry suggested: the
-  set is bounded by construction, one entry per character class and one per matching
-  rule, so there is nothing long enough to gate and a knob nobody needs is what §6.5 is
-  about. And it renders through `scan.Describe`, **the same renderer the candidate scan
-  uses** — a second one would let `fetch` and the promote gate describe one problem two
-  ways, so an author seeing a finding from each would have to work out they were the
-  same. Original: `archive` reduces it to one
-  `RejectReason`, which is right for a disposition and loses the detail: a source
-  carrying three classes reports one. A `doctor` or `fetch --explain` view wants
-  `scan.Hidden`'s findings with their offsets.
-- [x] **`archive.Gates.ScanText` fails closed on nil.** *A nil now refuses with
-  `ReasonUnscanned`; a caller that means not to scan says so with `archive.NoScan`,
-  which is grep-able where a nil was invisible. Five `Gates` literals each had to
-  declare which they meant, and that churn was the point.*
-  **What made it decidable was the candidate path being built the other way.** A nil
-  ruleset there degrades toward *more* blocking, reports the stages it could not run,
-  and routes the document to a person. Two halves of one security stage failing in
-  opposite directions is worse than either choice made twice — which is a sharper
-  argument than the one this entry had, and it only became available once the second
-  half existed. Original: Documented and tested as
-  deliberate, because the alternative makes every caller carry a stub. It means the
-  wiring is a property one test asserts rather than one the type guarantees, and if
-  a second shell ever builds Gates that test is what stands between it and no scan.
-- [x] **`rebuild_floor_fraction` moved to `standards/promote.toml`.**
+- [x] **`init` does not scaffold `standards/`, and now that is decided rather than
+  pending.** *§6.2.2 records it: the seed is a live default, so a corrected threshold
+  reaches every existing corpus where a scaffolded copy would freeze each bundle at its
+  birth values. §6.2's mechanism never needed scaffolding — a corpus's first edit is
+  diffed against the seed like any other change.*
+  **The entry's condition can now be tested rather than guessed.** No corpus has edited
+  any of the three policy files, so tuning is not an expectation. `retrieval-cases.toml`
+  is the exception and is not what this is about: its cases are queries about a
+  particular corpus's content, it ships empty, and it has no default to improve.
+  **The fallback has one hole, and scaffolding is not its fix.** `archiveAtRef` falls
+  back to the *running binary's* seed, so for a corpus that never edited the file both
+  readings are identical and nothing can be reported. A release that loosens a seed
+  changes the effective gates everywhere with no report and no `log.md` entry — §6.2
+  bypassed by an install rather than by a commit. Scaffolding would make the mirror
+  image permanent: a *tightened* seed would leave old bundles loose forever.
+  **Revisit when a corpus edits three of the four files.** One edit is a corrected
+  default; three is tuning having become an expectation.
+- [x] **`doctor` names the source of each gate set.** *§6.2.2's second rule.
+  `lint.Environment` carries `GateSources`, and the human report says which standards
+  files fell back to the embedded seed and which gnosis version's seed is in force —
+  which is what locates the entry in gnosis's own `log.md` recording a seed change.*
+  **Reported, never diagnosed.** "Your gates come from the seed" is true of every corpus
+  on its first day, and a warning true of everything teaches a reader to skip the
+  category. The version comes from `debug.ReadBuildInfo` rather than a constant, because
+  a constant is a second place to remember and the one that goes stale silently.
+  **The first version printed four identical lines** — every file falls back on a fresh
+  corpus — which is the same grouping defect `type-unused` had been fixed for an hour
+  earlier. One line whatever the mix.
 - [ ] **No `--resume` and no crash-resumable queue.** §9.2 wants the ingest queue
   SQLite-backed so a killed process resumes rather than restarting. Prompts are
   currently emitted in one pass and a crash halfway through leaves some written and
@@ -764,135 +736,108 @@ ______________________________________________________________________
   in the other direction once: an instrument was named that could not measure the thing
   claimed, and the correction was a data file authored from real disappointments rather
   than a cleverer metric.
-  **The blocker is harder than calibration, measured 2026-08-23.** Claims carry no
-  `subject` in frontmatter — `claimsOf` reads id, anchor, evidence and archive paths and
-  nothing else — and **nothing writes the `claims` or `claim_subjects` tables**: a grep
-  for `INSERT INTO claims` returns nothing, and only `digest.go` reads them, for the
-  digest. The claim-level index is scaffolding for Phase 3. So the *report* the previous
-  revision of this entry promised — claims per subject with their sources — has no join
-  to make either. Two things must exist before any of this: a `subject` on a claim, and
-  a writer for `claim_subjects`.
-  **The trigger, so this stops being re-litigable:** the first subject key carrying
-  claims from two documents whose evidence sets are disjoint. That is observable with no
-  threshold, it is the shape the failure actually takes, and it is the population a
-  detector would have to be calibrated against. Until one exists the instrument to build
-  is the *report* — claims per subject with their sources — and not the detector.
-- [ ] **Indicator words as an operator pattern.** *since, because, for, for the
-  reason that, as indicated by* introduce a reason; *therefore, thus, so, hence, it
-  follows that* introduce a conclusion. Lexical, closed, language-specific — held as
-  data with a test corpus, never a regex in Go. Gives the `lead` check (§17.4) and
-  segmentation something concrete without a model. Needs the test corpus before the
-  code; the failure mode is a "because" inside a quotation.
-  **Blocked: it has no consumer, and a previous priority listing of mine called it
-  unblocked without checking.** `grep -rn '"lead"' internal/lint` returns nothing —
-  §12.1 lists eleven enforced checks and `lead` is not among them — and
-  `internal/segment` has its own `conjunctions()` list and splits on coordination, not
-  on reason-giving. So the data file would ship with nothing reading it, which is the
-  mistake this project has now recorded twice (a stored revision nobody read, a stored
-  drift verdict nobody read).
-  **What must exist first:** §17.4's `lead` check, or a segmentation rule that cuts at a
-  reason rather than at a conjunction. Either one gives the data a reader; until then the
-  test corpus would be authored against nothing.
-- [x] **`gnosis audit --gained` reports what the corpus gained.** *`bundle.Gained` is a
-  pure fold over the trail — the fourth in that family — counting documents promoted,
-  replies admitted, sources archived, and drafts a reader declined.*
-  **The entry's premise was wrong and the correction made it cheaper.** There is no
-  `lint --since`, so this was never a second column on an existing comparison; the gains
-  were already in the trail three reports read.
-  **`ok`, always.** Exiting non-zero on good news would be the asymmetry this corrects,
-  arriving through the exit code. **A window, and no rate**: a total since the beginning
-  only grows and says nothing, and a rate invites a target which invites the padding this
-  exists to stop rewarding. **A declined draft counts as a gain** — the corpus holds a
-  judgement it did not hold before, and counting only additions would make
-  deciding-against invisible. Original: Hamming's
-  rating dynamic: "if everyone starts out at 95% there is little a person can do to
-  raise their rating but much which will lower it; hence the obvious strategy is to
-  play things safe." A corpus whose only visible signal is *problems found* rewards
-  contributing less and claiming less. `lint --since` already reports what a change
-  made worse; it should equally report claims admitted, evidence added, and
-  conflicts closed. A second column, not a score.
-  **The premise is wrong: there is no `lint --since`.** Measured 2026-08-23 — the only
-  `--since` flags in the tool are on `standards check` and `log`. So this is not a
-  second column on an existing comparison; it needs the baseline mechanism first, which
-  is what `standards check --since REV` already does for thresholds and nothing does for
-  findings. Hamming's argument stands and the cost is larger than the entry implies.
-- [x] **`claim-anchor` is built, with the collision half.**
-  *Two findings: `anchor-absent` — §12's own row for this check — and
-  `anchor-collision`, two claims in one document with `Fold`-equal anchors. Building
-  only the second would have left the check misnamed against the table §12.1 now makes
-  self-checking.*
-  Three decisions worth keeping. Comparison uses `textnorm.Fold` and **not**
-  `Surface.Fold`, so case is preserved: an anchor locates a quotation, where case
-  carries meaning, which is the opposite of the choice `duplication` makes for a title.
-  Collisions are within a document only — two documents quoting one sentence is
-  ordinary, and only the scope of the comparison tells them apart. And one finding per
-  colliding group rather than per claim, so a report about three claims on one passage
-  is about the passage.
-  `anchor-absent` cannot yet tell a fabricated anchor from a drifted source, and the
-  finding **says so** rather than implying it knows. That is TODO:596's two-signal
-  cross and stays filed. Original: Claim ids are
-  UUIDv7 so they never collide, but two users adding claims to one document can
-  independently anchor different ids to the same text, and the merge is clean.
-  Detectable as an `anchor_hash` collision within a document; a cheap addition to
-  `claim-anchor` (§12). Phase 2, since nothing writes claims yet.
-- [x] **Bundle closure is checked, in both directions.** *`archive-closure`:
-  `archive-orphan` for archived text no record names, a **warning** because nothing is
-  lost and the corpus is merely carrying weight it cannot account for;
-  `archive-unrecorded` for a record naming an absent file, an **error** because the
-  ledger claims evidence tier 0 does not hold and §9.4's invariant then has nothing to
-  check a quotation against.*
-  **This entry and "Nothing checks that `evidence/text` has no orphans" were one
-  mechanism filed twice.** One argued from bundle closure — VAC fails a bundle holding
-  a file its manifest does not list — and one from a crash leaving inert text; they are
-  the same file in the same state. Worth recording as a shape: two entries reasoning
-  from different failure stories to one predicate read as two items for months, and the
-  thing that separated them was the story rather than the check.
-  Distinct from `archive-path`, which reports a *claim* naming a missing file — that is
-  a claim that cannot be verified, where this is the store and the ledger disagreeing
-  about what tier 0 holds. Original: §12's `archive-orphan` reports an
-  `evidence/` file no claim cites. VAC's `unlisted-file` also fails a bundle
-  containing a file the manifest does not list, and `qvr sync` does the same from
-  the other end — anything in an agent directory not in the lock is hidden from the
-  agent. The missing half here: an archived file that **no `fetch.jsonl` row
-  records** is unaccounted for regardless of whether anything cites it.
-- [x] **`skillet/finding.Category` is an untyped string.** *Settled in skillet
-  2026-08-22: it stays untyped, and the shared question was the wrong one.* Original:
-  `Severity` and `Action`
-  are typed while `Category` is a bare `string` with `omitempty`, so nothing stops
-  two gnosis checks spelling one failure differently. VAC enumerates nineteen named
-  reasons and never free prose; §8.0's `reason` vocabulary does this for the
-  envelope but not for findings. Cross-repo — recorded against `skillet` as the
-  shared question.
-  **What the measurement found.** Across the family's thirty category values there is
-  **not one same-word-different-meaning collision** — the risk this entry names has
-  zero instances. The one real defect is its opposite: exegesis and canonizer spelled
-  the *same* failure two ways (`skilllens-softening` versus `softening`) from the same
-  `skilllens.SofteningPhrases` call. A closed enum was refused as a union of private
-  vocabularies that would make every new check a kernel release; a registration seam was
-  refused because it would not have caught that defect, both spellings being validly
-  registered in their own repos.
-  **The rule instead: where the kernel owns the detector, the kernel owns the name.**
-  `skilllens` now exports its three category constants, unprefixed. Nothing changes for
-  gnosis — its eighteen categories are its own domain vocabulary, which is exactly the
-  case the rule leaves alone, and `reasonFor`'s switch on `identity` / `index-drift` /
-  `conformance` is unaffected.
-  **One thing worth taking from it here.** gnosis sets `Category` two ways — string
-  literals and the derived `resolutionCategory(kind)` — and a grep for literals misses
-  the two derived values. That is a live wrinkle for §12's check table and for anyone
-  auditing the vocabulary: **it is not enumerable by inspection.** A test that walks the
-  registry and asserts the emitted set matches what §12 documents would close it, and is
-  the gnosis-side analogue of what skillet solved with constants.
-- [x] **Both transcript adapters are read.** *`engineering-notebook` surveyed in
-  manifesto.md ("Transcript Adapters"). What transfers is one file: a single parser
-  for both formats that discriminates from the first record rather than from a
-  caller-supplied flag, and an exclusion list — thinking blocks, `tool_use`,
-  `tool_result`, compact summaries, Codex's `AGENTS.md` preamble — that is the actual
-  interface to a session transcript. What does not: it skips malformed lines
-  silently, which is right for a journal and is the failure this project keeps
-  refusing for evidence; it truncates every message to its first line, useless as a
-  source of quotations; and its summarizer calls a model from inside the tool. It and
-  `skillopt_sleep` agree on the seam and disagree on the output — outcomes versus
-  narrative — which is what §9.6 already decided.*
+  **The blocker was measured 2026-08-23 and decided 2026-08-24, and the decision splits
+  this entry in two.** Claims carried no `subject` in frontmatter and nothing writes the
+  `claims` or `claim_subjects` tables, so the *report* an earlier revision promised had no
+  join to make. §5.5.1 and §10.2.1 now settle both halves:
+
+  - **A claim's `subject` is declared per claim**, inside a `gnosis_claims` entry, not at
+    document level — which is where §5.4 wrongly had it. An inherited document-level
+    default was refused because editing it would silently re-subject every claim that did
+    not override, which is this entry's own failure mode arriving through a convenience.
+  - **`claim_subjects` gets one writer, at index-rebuild time, writing the declared and
+    derived halves together**, when the operator patterns exist. Half-filled rows would
+    leave `derived` and `pattern_id` meaning neither parsed nor pinned.
+
+  **The report is built; the detector is not.** *`gnosis audit --subjects` (§5.8.2.1)
+  reports per declared key: claims, documents, the distinct surface phrases authors
+  actually wrote, and whether two documents about that key read nothing in common.*
+  `ok` always — a population looks like coverage and can be raised by declaring subjects
+  nobody uses, so exiting non-zero would turn the instrument into a target.
+  **The disjointness column is the recorded trigger, made observable.** One guard
+  decides whether it is a signal at all: a document citing nothing is excluded, because
+  two empty evidence sets are disjoint by the letter of it and counting them would make
+  the condition true of every hand-written corpus — which is indistinguishable from
+  never firing.
+
+  **The detector still waits, and still on §6.2 rather than on effort. It is not
+  unblocked and a priority listing of mine called it Tier 1 on 2026-08-24 anyway** —
+  "the report is built" is not "the detector is buildable", and making the trigger
+  *observable* did not make it fire. Every signal
+  named above needs a threshold, and the population to calibrate one against is what the
+  report produces. **The trigger:** the first subject key carrying claims from two
+  documents whose evidence sets are disjoint — observable with no threshold, and the
+  shape the failure actually takes.
+- [x] **The lint snapshot carries the vocabulary, and the three checks it blocked are
+  built.** *`lint.Snapshot` gained `Vocabulary` — `ontology.toml` flattened by the shell
+  to what the checks compare against — and `subject-missing`, `subject-unknown` and
+  `ontology` are registered, in §12.1's enforced table, and asserted by `spec_test.go`
+  in both directions.*
+  **The layering was the design decision, and it is a rule rather than taste.**
+  `go list -deps ./internal/lint` showed exactly one internal import, `internal/gnosis`.
+  Importing `internal/ontology` would have been the first parser→parser edge in the
+  tree, so the shell flattens instead — the same shape every other snapshot field has.
+  A `SubjectResolver` interface was considered and rejected: as complex as its body, and
+  it would stop a `Snapshot` being built from a literal, which every check test relies
+  on.
+  **One instruction in this entry was wrong and was not followed.** It asked for
+  `subject` in `claimsOf` *and* `docClaims`. `claimsOf` builds the promote gate's shape,
+  and giving the gate a subject hands it a field §5.8.3 forbids it to act on — a claim
+  with no subject is reported for review, never blocked. It went on `DocClaim` only.
+  **Two noise defects, both found by running the binary rather than the suite.** The
+  starter vocabulary ships five types and a new bundle uses one, so `type-unused`
+  reported per type would have been the loudest check in the tool on the day a corpus is
+  created; it is one grouped finding, and silent when the corpus uses no types at all.
+  And the starter declares *no subjects*, only a commented example, so `subject-unknown`
+  would have fired on the first claim anybody wrote a subject on — teaching people to
+  stop writing subjects. It now skips with a reason until the vocabulary declares one.
+  Also two subject-verb disagreements ("1 document declare", "1 claim name") that no
+  substring assertion sees and one run shows.
+- [ ] **`standards/operators.toml` and its test corpus.** *Scheduled 2026-08-24
+  (§10.2.2.1): they land **with §10.2's conflict detection**, which is their only
+  consumer. Not sooner.* Building earlier would leave a parser nothing reads, and a test
+  corpus authored from somebody's imagination of how people phrase a constraint — which is
+  §11.0.2's warning about an instrument that cannot measure the thing claimed.
+  **The reason to wait is that the evidence survives waiting, and that is the reusable
+  part.** Retrieval cases needed the instrument *first*, because a disappointing query is
+  ephemeral. A mis-parsed claim is durable: it is on disk, and §10.2.1's regenerability
+  means an improved pattern set fixes every affected claim retroactively on the next
+  reindex. The question to ask of the next artifact of this shape is not "is the data
+  authorable yet" but **"does the evidence survive waiting"**.
+  **§10.2.3's coverage loop maintains this and cannot start it.** With no patterns,
+  coverage is zero on every key and cannot distinguish its two causes — no quantity
+  present, versus a phrasing the patterns miss. The trigger is conflict detection
+  beginning, not a coverage figure.
+  **Nothing is pre-positioned:** no seed file, and no direct import of the units library,
+  which is already an indirect dependency — so there is nothing to reserve and the
+  unused-dependency rule applies. Inversions are still the first cases when it is written.
+  **One part must ship with the first pattern rather than after it**: §10.2.2's rule that
+  a finding derived from a parse *shows the parse*. It looks cosmetic and is not — "a
+  false conflict that shows its reasoning is dismissible in seconds; one that shows only a
+  verdict erodes trust in the whole queue."
+  **What this blocks, exactly:** conflict detection, `constraint-coverage`,
+  `constraint-drift`, and the *detector* half of the definition-drift entry. It does not
+  block `claims`, claim-level search, or claim-level link attribution — see those entries.
+- [x] **Indicator words ship, and they refuse a cut rather than making one.**
+  *`standards/indicators.toml` with both roles, `standards.LoadIndicators`, and
+  `segment.Claims(text, dependent)` taking the reason words as a parameter. §9.4.1 has
+  the argument.*
+  **The consumer was a repair, not an addition.** The measured defect closed:
+  `"The retry budget is three, and because the SLA is 400ms."` used to emit
+  `"Because the SLA is 400ms."` as an independent claim — a fragment whose main clause
+  is in its sibling, accepted because `standsAlone` looks for a copula and a fragment
+  like that has one. The test asserts the defect still reproduces with no word list, so
+  the fixture cannot rot into a tautology.
+  **The words are a parameter, not an import**, for the same reason the vocabulary is:
+  `internal/segment` must not import `internal/standards`. The shell reads them once
+  per reply, outside the fold.
+  **A malformed indicator file does not stop an admission.** Segmentation then behaves
+  exactly as it did before the file existed — coarser only where the words would have
+  helped — which is a coarser corpus rather than a wrong one. `doctor` reports the
+  broken file.
+  **Both roles ship; only `reason` has a reader.** The conclusion rows wait on §17.4's
+  `lead` check, which waits on extraction. The file says so, so an unused row is not
+  read as a dead one.
 - [ ] **Surface definitions where terms are used.** `glossary-18F` is a small
   accessible panel resolving `data-term` attributes inline, as shipped on FEC.gov. A
   glossary nobody opens is not an ontology. Phase 5, with the viewer.
@@ -1055,6 +1000,22 @@ gnosis's.
   claim containing a link, which is Phase 3 — and nothing writes the `claims` table at
   all. Document-level reliance already exists and is called `orphan`; what is missing is
   claim-level, and it needs a claim-level link writer first.
+  **Corrected 2026-08-24: this is not behind the operator patterns, and saying it was
+  was my own over-statement.** The foreign key runs from `claim_subjects` to `claims`, not
+  the reverse, so `claims` is not coupled to the parser at all (§10.2.2.1). What this
+  actually needs is three small things and none of them is a constraint: the link
+  extractor reporting **byte offsets** — `LinkRow` carries none today — `claims.pos` from
+  the anchors `claim-anchor` already fold-matches, and containment. Then the report.
+  **Corrected again 2026-08-24: there is a fourth prerequisite and my previous correction
+  elided it.** `grep -rn 'INSERT INTO claims' internal/` returns **test files only**.
+  Nothing writes the `claims` table, so `claims.pos` presupposes rows that do not exist,
+  and "three small things" was three things plus a writer nobody had named.
+  **The writer is deliberately not built here.** §10.2.1 decided `claim_subjects` gets
+  one writer at index-rebuild time with both halves together; a `claims` writer landing
+  separately, filling `pos` and leaving `lead`, `title` and `description` NULL for
+  extraction to backfill, is the half-filled-row shape that decision exists to prevent.
+  So this is **blocked on the claims writer**, which lands with extraction (Phase 3) —
+  not unblocked, as this entry said for a day.
 - [x] **The scripted-model fixture is built; the real-model run is not.** *§18.6.1.
   "A local server speaking the model protocol" needed translating, because gnosis
   speaks no model protocol: it writes a prompt file and reads a reply file, so the
@@ -1260,12 +1221,50 @@ published results — the grader diverges from the paper's, and §11.0 now says 
   but "we decline this, and here is roughly what declining costs on an adjacent
   benchmark" is a stronger and more honest section than the one there now, which
   argues entirely from principle. Revise §11.0 to state the trade.
-- [ ] **Nothing holds an *experience*.** *Shape recorded 2026-08-23: it is a `type` in
-  the ontology with different accretion rules, not a field. A standard is superseded by
-  a better standard; an episode is not superseded by a later episode — both happened —
-  so what differs is how the two **age**, which is §10's supersession machinery rather
-  than a frontmatter key. That makes it Phase 3, alongside the rest of §10, and it needs
-  the type vocabulary to carry per-type accretion rules, which today it does not.*
+- [ ] **Nothing holds an *experience*.** *Decided 2026-08-24 (§5.8.3.1), and the
+  "per-type accretion rules" this entry waited on are **not** what gets built. The type
+  vocabulary carries one more fact about the kind of knowledge — `episodic`, meaning its
+  claims assert what happened at a moment rather than what holds in general — and three
+  behaviours are derived from it rather than declared.*
+  *Working out what an `Episode` needed is what produced that. Three of its four
+  requirements are already met: `normative = false` covers prescribing nothing,
+  `expects_subject` covers being about something, and a commit hash as evidence is tier
+  0's git adapter. The fourth is the real one, and it is not accretion:* **two episodes
+  must not be adjudicated against each other.** *"We set retry to 3 in March" and "we set
+  it to 5 in June" present to §10.2's interval detector as one subject with disjoint
+  values, and adjudicating that is the corpus adjudicating its own history.*
+  **A `supersedable` flag is refused.** It would put policy in a vocabulary file — the
+  existing flags describe the knowledge, that one would describe what the tool may do to
+  it — and the ontology is per-corpus and editable, so a bundle could mark `Rule`
+  unsupersedable and disable §10.4 by editing a data file, with no check able to tell
+  that from a vocabulary choice. Deriving it from `normative` does not work either:
+  `Reference` is `normative = false` and emphatically supersedable, because a fact can be
+  corrected.
+  **The first of the two steps is done.** *`ontology.Type` carries `episodic`, and the
+  `stale` check exempts an episodic type from the staleness **window**.* Its evidence is
+  a commit hash, so "re-run `gnosis fetch` on them" is advice nobody can act on and the
+  finding never clears — and a finding that cannot be cleared teaches a reader that the
+  category is permanent background.
+  **The exemption is half the check, not the whole of it, and that split is the part
+  worth keeping.** A declared `stale_after` still applies to an episode: that date is
+  the author's own statement about their claim, and a person may legitimately ask for an
+  episode to be revisited. The exemption is about evidence that cannot change, not about
+  silencing somebody who asked a question.
+  **`Identical` had to learn the flag too, and that is the trap in this step.** It
+  compares field by field, so a behavioural flag omitted there makes two types whose
+  behaviour differs compare as one — and §5.8.2 would then merge them silently. The test
+  now enumerates Type's bool fields by reflection rather than listing them, so the next
+  flag is covered before it is written.
+  **Conflict ineligibility (§10.2) lands with the detector, so the second step is not
+  buildable** — it is behind `standards/operators.toml`, which is scheduled with conflict
+  detection. Listed Tier 1 on 2026-08-24, which was wrong for the same reason the drift
+  detector was: one step done is not the entry unblocked.
+  Supersession then never fires as a consequence rather than a rule.
+  **The type itself does not ship in the starter vocabulary yet**, on §10.6's attenuation
+  argument: a starter entry nothing uses is a dead knob in a different file. It is worth
+  adding when a corpus has an episode to file.
+  **No longer blocked on a decision** — the flag and the staleness derivation are ordinary
+  work.
   Original: a standard and an episode are different
   knowledge with different evidence: "React 19 prohibits X" versus "the team applied
   this here and approved it." The second is arguably the tribal knowledge this
@@ -1707,26 +1706,116 @@ and `PLAN.md` §5.6. What remains open is here.
   human-written prose for review**. That is the finer and more survivable version,
   because the common case is an agent refreshing a page a person has edited, and we
   currently resolve it by gating the whole rewrite.
-  **The blocker is gone: the marker contract is the way to mark regions** (§5.7.1), and
-  `AGENTS.md` is the first document using it — a `schema` run rewrites what the machine
-  wrote and preserves a person's prose byte for byte.
-  **Concept documents do not adopt it yet, and that is a separate decision rather than
-  the rest of this one.** A marker inside a concept document interacts with anchors
-  (§5.5.1), with quotation validation, and with the index, so it is a §5.5 change
-  wearing a §6.3 hat. **The trigger:** the first agent refresh of a document a person
-  has edited — which needs the refresh path to exist, and that is Phase 3.
+  **Decided 2026-08-24: reserved root files adopt the contract, concept documents do
+  not, and the rule the entry was working around is now written down** (§5.7.1, §6.3.1).
+  **The boundary is measured rather than editorial.** `bundle.Load` walks `c/` only and
+  skips reserved names, so a root-level file is never parsed as a concept, never indexed,
+  never anchor-matched and never segmented — a marker there costs nothing, which is why
+  `AGENTS.md` already uses it. In `c/` the same marker is read as prose by four things:
+  the FTS body, `Snippet`, `segment.Claims`, and the fold `claim-anchor` searches.
+  Nothing in this codebase strips HTML comments.
+  **Three reasons for the refusal.** It would protect the least defensible content in the
+  document — a concept body is rendered from an admitted reply, so every paragraph is a
+  quotation-backed claim with an id and an anchor, and prose typed in afterwards has none
+  of those. §5.3 says the bundle format is OKF "unextended where possible" and frontmatter
+  is where gnosis extends; a marker in a *body* extends the document format itself.
+  And §6.3's `synthesize` gate already protects the thing worth protecting, better: a
+  region preserves paragraphs, the gate preserves **evidence**.
+  **`index.md` is where the contract goes next.** §12 specifies `index-drift` as
+  "`index.md` differs from what would be generated", nothing generates it, and its
+  content is explicitly the curated part beside a derivable list. It is at the root, so
+  the contract is free there.
+  **The trigger to revisit, so this is not re-litigated on taste:** a real `synthesize`
+  diff a reviewer cannot read — one where a preserved paragraph is indistinguishable from
+  a rewritten one. The prediction is that it will not arise, because a diff whose evidence
+  must survive it is a small diff.
+  **What remains open is not this decision, and it is two unlike things rather than
+  one — which is most of why this entry has stayed open.** `synthesize` (§6.3) needs the
+  relay and a model round trip, so it is Phase 3 work. An `index.md` generator is a pure
+  fold over loaded documents and is buildable today; §12 already specifies `index-drift`
+  as "`index.md` differs from what would be generated", and nothing generates it. Split
+  below so the small half is not held hostage to the large one.
+  Neither is blocked on anything recorded here — but `synthesize` needs the relay and a
+  model round trip, so it is Phase 3 rather than available work.
 
-- [ ] **Graded conformance rather than a boolean.** `akbp` runs "level 3
-  conformance". §11's OKF conformance is pass/fail, so a producer cannot state how
-  far it conforms and a consumer cannot require a level. Worth defining if gnosis
-  ever exports bundles other tools consume — and `cq-gitstore` and `expo-llm-wiki`
-  suggest that is where OKF is heading.
+- [ ] **`ingest` does not append evidence, and §6.3 says it does.** SPEC §6.3: "`gnosis
+  ingest` appends `gnosis_evidence` entries and updates `sources` mechanically. No model,
+  no body rewrite. This alone keeps the corpus current on facts." `ingest` writes prompts;
+  nothing appends evidence to an existing concept.
+  **This is the mechanical half of accretion — the half §6.3 says needs no model — and it
+  is unbuilt and was not recorded as unbuilt.** Found 2026-08-24 while measuring whether
+  the machine-owned-regions entry had a buildable half.
+  **What it needs, and why it is not built yet:** a reply carrying a claim about an
+  *existing* concept rather than a new one. `admit` creates a quarantined document; there
+  is no path that adds a validated quotation to a page that already exists. That seam is
+  the relay's shape, and inventing an interface for it from this side would be designing
+  Phase 3's boundary from outside it.
+  The spec is right about what should exist; this entry records that it does not.
 
-- [ ] **Review-gated writes as a protocol property, not a command.** `akbp` puts
-  `dry_run` / `approved` / `approval_required` on every write call; our promote gate
-  is a command someone runs. Theirs is harder to bypass. Relevant when §4.6's write
-  coordinator gets its API — that is the moment to decide, and after it the answer
-  is baked in.
+- [x] **`index.md` carries a generated listing, and this entry's premise was false.**
+  *`schema.IndexRegions`, `bundle.PlanIndexDoc`, and `gnosis schema` maintaining both
+  marked root files. §5.7.1 has the contract; §12's stale row is corrected.*
+  **`index-drift` never "compared against nothing".** It reconciles the derived
+  **database** against the bundle and works — which is what §12.1's enforced row has
+  always said. The stale row was §12's specified list, describing an intent no check has
+  and sending a reader after a checker that does not exist. The generated region is
+  `gnosis schema --check`'s business, not a lint check's.
+  **One command for both documents**, because the marker contract is a property of the
+  *class* of reserved root files: a second command would re-implement the fail-closed
+  rule, the sibling file, the unterminated-marker refusal and `--check`. `SchemaDoc`
+  became `MarkedDoc` at the same time — once the type carries `Path: "index.md"` its old
+  name was a lie.
+  **The seeded prose argued against this and was half right.** "Keep it a map, not a
+  mirror" is right about what a person writes and wrong about where the derived list
+  belongs: §5.7's argument is that an agent reads *files*, so a listing reachable only by
+  running `gnosis search` is not reachable by the reader `index.md` exists for.
+  **Two defects, both found by running it.** `init` seeded `index.md` unmarked, so every
+  `gnosis schema` on every bundle would have reported a finding and exited non-zero from
+  the day the corpus was created — the fourth instance this week of a signal firing
+  hardest when there is least to say; `init` now generates it. And the type grouping
+  compared each document against the previous one starting from `""`, so the **untyped**
+  group — the one that most needs labelling, because `conformance` reports it — was the
+  one rendered with no heading.
+
+- [x] **Graded conformance declined, and the consumer contract written instead.**
+  *`akbp` runs "level 3 conformance"; §11's is pass/fail, and this entry made defining
+  levels conditional on gnosis "ever exporting bundles other tools consume". §5.3.1 now
+  holds the answer.*
+  **The condition is already met and required nothing.** A bundle is a directory of
+  markdown in a git repository; another tool consumes it by cloning one. The derived
+  state lives in a gitignored `.gnosis/`, so a clone carries exactly the portable part.
+  There was never an export step to build or to decline.
+  **A grade has nothing to grade.** Required frontmatter is `type` alone, §18.5.1 pins
+  OKF §11 including the negative requirements, and a level published today would always
+  read *full* — a dial with one position. A level structure defined by the only
+  implementation certifies itself, which is §6.2's invented threshold wearing a number.
+  **What a consumer actually lacked was a boundary, not a number**, so §5.3.1 states the
+  three tiers instead: the markdown and OKF fields are a contract, `gnosis_` keys and
+  `evidence/` and `standards/` are readable and unowned, and `.gnosis/` is not for
+  reading at all.
+  **The trigger, and it is the opposite direction from the one this entry named:** a
+  second OKF producer whose bundle gnosis *reads* and cannot fully parse. A grade
+  describes somebody else's corpus, which `lint`'s `conformance` check already computes
+  for this one. Same shape as `Skip{Check, Reason}` — sole holder now, general when
+  there are two.
+
+- [x] **Review-gated writes: decided, and the premise was backwards.** *`akbp` puts
+  `dry_run` / `approved` / `approval_required` on every write call, and this entry read
+  that as harder to bypass than a command someone runs. Measured against
+  `internal/command`, it is the reverse — §4.6.2.1 now holds the comparison.*
+  **The dichotomy had a third answer, already built.** Gating is a property of the
+  command *value*, which binds wire callers and the in-process ones a protocol never
+  sees. `EffectUnset` is rejected where `dry_run: false` means *write*; `Approver` is a
+  typed actor where `approved` is a bool; and `approval_required` is the one row that
+  settles it — `akbp` lets the party being gated declare whether it is gated, while the
+  gate's `NeedsHuman` is computed by the coordinator from the report.
+  **One defect found while checking, and fixed: `Promote.RequiresRationale` had no
+  writer.** `Validate` checked it, the tests set it, no caller ever did — the real
+  requirement is derived in `authorisedBy` from the gate's decision. Deleted. Fourth
+  time this project has recorded stored state nobody writes.
+  **What the comparison did expose is on `:88`, not here**: two gating fields are
+  caller-asserted, which is sound for a person at their own terminal and not over a
+  wire.
 
 - [x] **`okf` (skosovsky) evaluated and declined, with the measurement.** *Fetched
   `v0.2.1` and read its `bundle` package against `internal/okf`. Three reasons, and the
@@ -1847,9 +1936,28 @@ ______________________________________________________________________
   **The admission rules were the part worth doing early, and they are done** — see the
   fold-and-compare refusal above, already shipped on `command.Promote.Rationale`, which
   Phase 3's warrant inherits. So the remaining work is the artifact, not its enforcement.
-  **Decided 2026-08-23: it waits for `gnosis_warrant`, and the reason is not effort.**
-  The role belongs on the warrant, as an attribute of the decision. Putting it anywhere
-  reachable today — a flag on `promote`, a field on the audit row — creates a second
-  home that has to be migrated when the warrant lands, and §10.6.4 already records that
-  the warrant's shape is load-bearing outside this repository. A field invented in the
-  wrong place first is the cost that section warns about, arriving through convenience.
+  **Decided 2026-08-24, and the entry asked for two things: §10.6.2.1.** The earlier
+  decision here — "the role belongs on the warrant" — is **withdrawn**. Reading §10.6.2
+  properly showed it had already settled how authority enters this system, and that the
+  two use cases named above want different answers.
+  - *"Noticing that a rule about deployment was adjudicated by nobody who works on it"* is
+    **already answered**: §10.6.2 computes domain history from `gnosis_warrant` and a
+    claim's `subject`, needing no roster, and shows it in the review queue. That answer is
+    better than a role field because it cannot be gamed into authority — there is nothing
+    to acquire.
+  - *"Filtering to the rules a team is accountable for"* becomes an optional **`owner` on
+    the subject declaration**, at the same per-subject grain `requires_capability` uses.
+  **A `role` on the warrant is refused for three reasons**, and the third is the one that
+  would be hard to undo. It would be *self-asserted*, so it records a claim about
+  authority rather than authority — a permission check that has given up on verification,
+  which is what §10.6.4's rationale bet exists to avoid. It answers the wrong question: a
+  platform engineer adjudicating a docs claim does not make it a platform rule. And its
+  non-gating guarantee would be a **convention**: `gate.Candidate` already carries the
+  parsed document, so only a comment would keep a warrant field out of a permission
+  decision, whereas the ontology is in neither `gate.Candidate` nor `gate.Corpus` and
+  reading a subject's owner would require visibly widening the gate's inputs.
+  **What remains, and what it waits for.** `owner` is one optional key on a subject
+  declaration plus its display. Its reader is §13's review queue, beside the domain
+  history — and adding the key before something displays it would repeat the mistake this
+  project has recorded three times. So this is **no longer blocked on the warrant**; it is
+  blocked on the queue.
