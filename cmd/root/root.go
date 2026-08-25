@@ -6,6 +6,8 @@ import (
 	"io"
 
 	"github.com/peterbourgon/ff/v4"
+
+	"github.com/StevenACoffman/gnosis/internal/scan"
 )
 
 // ExitError is returned by commands that want a specific non-zero exit code
@@ -31,6 +33,21 @@ type Config struct {
 	// Bundle is the knowledge base root. Defaults to the working directory, so
 	// the common case needs no flag.
 	Bundle string
+
+	// Rules is SPEC §9.3's stage 2 and 3 ruleset, loaded once per process by the
+	// dispatcher after parsing and inherited by every command through embedding.
+	//
+	// It is a shared dependency rather than a per-command load for the reason
+	// Pattern B gives for API clients and database handles: four commands need it,
+	// the ruleset is immutable and safe to share, and compiling it four times per
+	// process would be waste. It is deliberately **not** a flag — §9.3's argument
+	// for why an admission scan may block is that its rules are not arguable, and a
+	// flag that swapped them would be a flag that turns the gate off.
+	//
+	// Nil when the ruleset failed to load, which is a build defect a test pins. The
+	// commands degrade to stage 1 and report the reduced coverage rather than a
+	// clean scan, so a nil here makes the gate stricter and never quieter.
+	Rules *scan.Ruleset
 }
 
 func (e ExitError) Error() string { return fmt.Sprintf("exit status %d", int(e)) }

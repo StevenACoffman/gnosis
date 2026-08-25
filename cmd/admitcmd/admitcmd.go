@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -32,6 +33,14 @@ type Config struct {
 	// different concerns and this is where they meet.
 	DryRun bool
 
+	// FromStdin reads the reply from standard input instead of a file.
+	//
+	// Named for the flag and not for the stream, because `Stdin` is already the
+	// embedded root.Config's reader: a bool called Stdin here would shadow it, and
+	// the shadowing would compile — `c.Stdin` would silently mean the flag in one
+	// method and the reader in another.
+	FromStdin bool
+
 	Flags   *ff.FlagSet
 	Command *ff.Command
 }
@@ -45,9 +54,10 @@ func New(parent *root.Config) *Config {
 	cfg.Flags.StringVar(&cfg.Submitter, 's', "submitter", "",
 		"who supplied the reply, as <kind>:<id>")
 	cfg.Flags.BoolVar(&cfg.DryRun, 'n', "dry-run", "check the reply without writing")
+	cfg.Flags.BoolVar(&cfg.FromStdin, 0, "stdin", "read the reply from stdin instead of a file")
 	cfg.Command = &ff.Command{
 		Name:      "admit",
-		Usage:     "gnosis admit --key <key> --submitter <actor> <reply-file>",
+		Usage:     "gnosis admit --key <key> --submitter <actor> (<reply-file>|--stdin)",
 		ShortHelp: "check an agent's reply and write it to quarantine",
 		LongHelp: `Consume a reply to an extraction prompt.
 
@@ -75,7 +85,13 @@ the way is ` + "`gnosis promote`" + `, behind the promote gate.
 
 A reply is rejected whole or accepted whole. A partially applied reply would put
 content into quarantine that neither the agent nor a reader believes they
-approved, and quarantine is one gate away from the corpus.`,
+approved, and quarantine is one gate away from the corpus.
+
+--stdin reads the reply from standard input instead of a file, which closes the
+relay's round trip: an agent can pipe its answer in without a temporary file. That
+is the whole of the chaining §8.2 offers — one invocation emits the prompt, the
+next consumes the reply, and the process exiting is the message boundary, so
+nothing here needs a wire format.`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
 	}
@@ -85,8 +101,8 @@ approved, and quarantine is one gate away from the corpus.`,
 
 // exec is the imperative shell: read the reply, build the command, execute.
 func (c *Config) exec(ctx context.Context, args []string) error {
-	if len(args) != 1 {
-		return c.usage(errors.New("admit needs exactly one reply file"))
+	if err := c.checkReplySource(args); err != nil {
+		return c.usage(err)
 	}
 	if strings.TrimSpace(c.Key) == "" {
 		return c.usage(errors.New(
@@ -98,7 +114,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 			"--submitter must be <kind>:<id>, kind one of human, agent, check"))
 	}
 
-	reply, err := os.ReadFile(args[0])
+	reply, err := c.readReply(args)
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
 	}
@@ -106,7 +122,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 	// Warn goes to stderr rather than nowhere: an audit row that could not be
 	// written is also reported in the envelope, and a person running this in a
 	// terminal reads neither the JSON nor a field.
-	coordinator := bundle.Coordinator{Dir: c.Bundle, Warn: c.Stderr}
+	coordinator := bundle.Coordinator{Dir: c.Bundle, Warn: c.Stderr, Rules: c.Rules}
 	outcome, err := coordinator.Execute(ctx, &command.Admit{
 		Key:       c.Key,
 		Reply:     string(reply),
@@ -130,6 +146,75 @@ func effect(dryRun bool) command.Effect {
 		return command.EffectPreview
 	}
 	return command.EffectApply
+}
+
+// checkReplySource reports whether the caller named exactly one place to read from.
+//
+// Requires: args is what was left after flags.
+// Ensures: an error naming both alternatives when neither or both were given. Pure.
+//
+// Both mistakes are worth their own sentence. A caller with no reply source has
+// probably forgotten to redirect; a caller with both has probably scripted one and
+// typed the other, and reading either silently would file a reply they did not choose.
+func (c *Config) checkReplySource(args []string) error {
+	switch {
+	case c.FromStdin && len(args) > 0:
+		return errors.New(
+			"--stdin and a reply file are alternatives; give one or the other")
+	case c.FromStdin:
+		return nil
+	case len(args) != 1:
+		return errors.New("admit needs exactly one reply file, or --stdin")
+	default:
+		return nil
+	}
+}
+
+// readReply reads the reply from stdin or from the named file.
+//
+// Requires: checkReplySource has approved args.
+// Ensures: the reply's bytes, or an error naming what could not be read.
+//
+// # What §8.2's "--relay chaining" actually needed, and why this is a flag
+//
+// The entry behind this reads `adh run --relay` as one invocation that emits a prompt
+// on stdout and blocks reading the reply on stdin. It is not: adh emits and *stops*,
+// and a second invocation resumes with `--response <file>`, where `-` means stdin.
+// gnosis already has that shape — `ingest` emits, `admit` resumes — so the chaining was
+// never missing. Reading the reply from a pipe was.
+//
+// The difference matters because the first reading would have needed a framing
+// protocol. A caller cannot know a prompt has finished arriving on a pipe that is about
+// to block, so something would have to delimit it — and inventing a wire format for a
+// tool whose whole design is that it never speaks to a model is a large cost for one
+// round trip. Two invocations need no delimiter: the process exits, which is the only
+// end-of-message marker that cannot be misread.
+//
+// **It is `--stdin` rather than adh's `-` because this CLI cannot spell `-`.** ff
+// treats a bare dash as the end-of-flags terminator — `case arg == "-": // - == --` —
+// so it never reaches the command as an argument. A flag says the same thing, and
+// saying it explicitly has one advantage over the convention: `gnosis admit --key K`
+// with nothing on stdin fails immediately instead of blocking on a terminal.
+func (c *Config) readReply(args []string) ([]byte, error) {
+	if !c.FromStdin {
+		reply, err := os.ReadFile(args[0])
+		if err != nil {
+			return nil, fmt.Errorf("read the reply: %w", err)
+		}
+		return reply, nil
+	}
+	reply, err := io.ReadAll(c.Stdin)
+	if err != nil {
+		return nil, fmt.Errorf("read the reply from stdin: %w", err)
+	}
+	if len(reply) == 0 {
+		// An empty stdin is almost always a pipeline whose earlier stage produced
+		// nothing, and naming it here names the cause. Passed through, it would
+		// surface as "the reply is not valid YAML", which sends the reader to
+		// inspect a reply that does not exist.
+		return nil, errors.New("the reply on stdin is empty")
+	}
+	return reply, nil
 }
 
 // fail and usage adapt root's reporting to this command's name.

@@ -4,6 +4,7 @@ package doctorcmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/peterbourgon/ff/v4"
 
@@ -88,6 +89,9 @@ func (c *Config) render(result *Result) error {
 			d.Severity, d.Category, d.Path, d.Message)
 	}
 	env := result.Environment
+	if line := seededGates(env.GateSources); line != "" {
+		_, _ = fmt.Fprintln(c.Stderr, line)
+	}
 	_, _ = fmt.Fprintf(c.Stderr,
 		"%s: %d document(s), %d indexed, %d type(s), schema %d/%d; %d finding(s)\n",
 		env.Bundle, env.Documents, env.IndexedRows, env.Types,
@@ -130,4 +134,34 @@ func reasonFor(ds []finding.Diagnostic) string {
 		}
 	}
 	return root.ReasonNeedsHuman
+}
+
+// seededGates says which standards files fell back to the embedded seed, or "".
+//
+// Requires: sources came from the environment.
+// Ensures: one line whatever the mix, naming the version once. Pure.
+//
+// **One line rather than one per file**, which the first version got wrong in the
+// most predictable way: every file falls back on a fresh corpus, so it printed four
+// identical sentences differing only in a filename. That is the same defect the
+// `type-unused` finding was grouped to avoid, made twice in one afternoon — which is
+// the argument for the rule rather than against the reviewer.
+func seededGates(sources []lint.GateSource) string {
+	var seeded []string
+	version := ""
+	for _, g := range sources {
+		if g.Origin == "seed" {
+			seeded = append(seeded, g.File)
+			version = g.Version
+		}
+	}
+	switch {
+	case len(seeded) == 0:
+		return ""
+	case len(seeded) == len(sources):
+		// The ordinary state, said in a way that does not read as a problem.
+		return "standards/: no file written; every gate from the " + version + " seed"
+	default:
+		return "from the " + version + " seed: " + strings.Join(seeded, ", ")
+	}
 }

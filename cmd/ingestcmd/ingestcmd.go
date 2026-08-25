@@ -89,16 +89,16 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 		return c.usage(errors.New("--model is required; it is part of the cache key"))
 	}
 
-	lock, err := bundle.AcquireWriterLock(ctx, c.Bundle)
+	w, err := bundle.AcquireWriter(ctx, c.Bundle)
 	if err != nil {
 		if bundle.WriterBusy(err) {
 			return c.fail(root.ReasonWriterBusy, err)
 		}
 		return c.fail(root.ReasonNoBundle, err)
 	}
-	defer lock.Release()
+	defer w.Release()
 
-	pending, err := bundle.PromptsFor(c.Bundle, &bundle.PromptOptions{
+	pending, err := w.Prompts(&bundle.PromptOptions{
 		Model:     relay.Model{Name: c.Model, Version: c.ModelVersion},
 		URIs:      args,
 		CacheOnly: c.CacheOnly,

@@ -23,7 +23,17 @@ const defaultLimit = 20
 // Config holds the configuration for the search command.
 type Config struct {
 	*root.Config
-	Limit   int
+	Limit int
+
+	// Cases grades the corpus against standards/retrieval-cases.toml instead of
+	// running one query (§11.0.2).
+	//
+	// A flag on `search` rather than its own command, because it *is* a search — the
+	// same index, the same ranking, the same limit. A separate command would be a
+	// second path to the same query, and the two could then disagree about what the
+	// corpus answers, which is the one thing a retrieval suite must not do.
+	Cases bool
+
 	Flags   *ff.FlagSet
 	Command *ff.Command
 }
@@ -40,9 +50,11 @@ func New(parent *root.Config) *Config {
 	cfg.Config = parent
 	cfg.Flags = ff.NewFlagSet("search").SetParent(parent.Flags)
 	cfg.Flags.IntVar(&cfg.Limit, 'n', "limit", defaultLimit, "maximum results to return")
+	cfg.Flags.BoolVar(&cfg.Cases, 0, "cases",
+		"grade the corpus against standards/retrieval-cases.toml instead of querying")
 	cfg.Command = &ff.Command{
 		Name:      "search",
-		Usage:     "gnosis search <QUERY>",
+		Usage:     "gnosis search <QUERY> | gnosis search --cases",
 		ShortHelp: "find documents by full text",
 		LongHelp: `Find documents whose text matches an FTS5 query, best first.
 
@@ -55,7 +67,21 @@ forces a fresh search to follow a link reproduces the defect associative indexin
 was invented to fix.
 
 Phase 1 searches documents. Claim-level search arrives with extraction, because
-identifying a claim needs more than the text can supply on its own.`,
+identifying a claim needs more than the text can supply on its own.
+
+--cases grades the corpus against standards/retrieval-cases.toml: labelled queries
+with the titles that must come back, **including cases whose correct answer is that
+the corpus holds nothing**. A corpus that answers every query with its best guess
+cannot say "we do not know", which is the answer §14.3's whole vocabulary exists to
+make expressible.
+
+There is no pass rate. A case holds or it does not, and §17 forbids presenting a
+count as health — a retrieval percentage is the most tempting such number there is,
+because it looks like progress and rises when a failing case is deleted.
+
+The file ships empty. §11.0.2 says cases are authored when a real query disappoints,
+never invented up front, so an empty suite reports that it examined nothing rather
+than reporting success.`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
 	}
@@ -66,6 +92,16 @@ identifying a claim needs more than the text can supply on its own.`,
 // exec is the imperative shell: open the index, query, render.
 func (c *Config) exec(ctx context.Context, args []string) error {
 	query := strings.TrimSpace(strings.Join(args, " "))
+	if c.Cases {
+		if query != "" {
+			return c.usage(errors.New(
+				"--cases grades the whole suite and takes no query"))
+		}
+		if c.Limit < 1 {
+			return c.usage(fmt.Errorf("--limit must be positive, got %d", c.Limit))
+		}
+		return c.cases(ctx)
+	}
 	if query == "" {
 		return c.usage(errors.New("search needs a query; try `gnosis search retry budget`"))
 	}

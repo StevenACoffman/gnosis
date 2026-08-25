@@ -40,20 +40,63 @@ func committedBundle(t *testing.T) string {
 
 	for _, args := range [][]string{
 		{"init", "--initial-branch", "main"},
-		{"config", "user.email", "test@example.org"},
-		{"config", "user.name", "Test"},
 		{"add", "."},
 		{"commit", "-m", "seed standards"},
 	} {
-		//nolint:gosec // G204: args comes from the literal table above it; no
-		// value from outside this file reaches the command line.
-		c := exec.CommandContext(t.Context(), "git", args...)
-		c.Dir = dir
-		if out, err := c.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
+		runGit(t, dir, args...)
 	}
 	return dir
+}
+
+// runGit runs one git command in dir, isolated from the developer's configuration.
+//
+// **The environment is the substance, and one setting is not the point.** An earlier
+// version of this fixture ran `git config commit.gpgsign false`, because on a machine
+// that signs commits `git commit` blocked on the GPG agent and the test hung for two
+// minutes — passing or failing depending on whose laptop it was. That fixed the
+// setting that happened to bite. `core.hooksPath`, a global `pre-commit`,
+// `commit.template`, `gpg.format=ssh` and `init.defaultBranch` are all in the same
+// position, and each would have needed its own line.
+//
+// Nulling both config files closes the class instead, and the identity moves into the
+// environment so the fixture needs no `git config` step at all — three subprocesses
+// where there were six. `GIT_TERMINAL_PROMPT=0` is the same reasoning applied to the
+// one thing a config file cannot cause: a prompt that blocks forever.
+//
+// It is duplicated in the other test package that builds a repository rather than
+// shared. rules.md §10 prefers a flat self-contained test and says to abstract "only
+// when it is truly universal"; two callers is not universal, and the shared form would
+// be a package importing `testing` into the production build. If a third fixture
+// appears, that trade changes.
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+
+	//nolint:gosec // G204: args comes from a literal table at the call site; no
+	// value from outside this file reaches the command line.
+	c := exec.CommandContext(t.Context(), "git", args...)
+	c.Dir = dir
+	c.Env = []string{
+		// Neither config file is read, so nothing the reader has configured
+		// globally reaches this repository.
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_CONFIG_NOSYSTEM=1",
+		// The identity, which is otherwise the only thing the config steps were for.
+		"GIT_AUTHOR_NAME=Test",
+		"GIT_AUTHOR_EMAIL=test@example.org",
+		"GIT_COMMITTER_NAME=Test",
+		"GIT_COMMITTER_EMAIL=test@example.org",
+		// Nothing may block waiting for input.
+		"GIT_TERMINAL_PROMPT=0",
+		// PATH and HOME are passed through: git needs PATH to find its own
+		// helpers, and some subcommands still want HOME even with the config
+		// nulled.
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + os.Getenv("HOME"),
+	}
+	if out, err := c.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
 }
 
 func write(t *testing.T, dir, rel string, body []byte) {
@@ -228,11 +271,6 @@ func TestAnUnknownRevisionIsRefused(t *testing.T) {
 func commit(t *testing.T, dir string) {
 	t.Helper()
 	for _, args := range [][]string{{"add", "."}, {"commit", "-m", "second"}} {
-		//nolint:gosec // G204: args comes from the literal table above it.
-		c := exec.CommandContext(t.Context(), "git", args...)
-		c.Dir = dir
-		if out, err := c.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
+		runGit(t, dir, args...)
 	}
 }

@@ -15,11 +15,7 @@ import (
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/okflog"
-	"github.com/StevenACoffman/skillet/atomicfile"
 )
-
-// logFile is the corpus history, at the bundle root and committed.
-const logFile = "log.md"
 
 // Config holds the configuration for the log command.
 type Config struct {
@@ -82,7 +78,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 
 // read renders the log, or the part of it the caller asked for.
 func (c *Config) read() error {
-	src, err := os.ReadFile(filepath.Join(c.Bundle, logFile))
+	src, err := os.ReadFile(filepath.Join(c.Bundle, bundle.LogFile))
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Not an error. OKF §9 makes log.md optional, and a corpus that has
@@ -101,23 +97,16 @@ func (c *Config) read() error {
 // processes appending at once would interleave — and SPEC §4.6 states the rule
 // this follows from: the writer owns the bundle, not merely the database.
 func (c *Config) add(ctx context.Context) error {
-	lock, err := bundle.AcquireWriterLock(ctx, c.Bundle)
+	w, err := bundle.AcquireWriter(ctx, c.Bundle)
 	if err != nil {
 		if bundle.WriterBusy(err) {
 			return c.fail(root.ReasonWriterBusy, err)
 		}
 		return c.fail(root.ReasonNoBundle, err)
 	}
-	defer lock.Release()
+	defer w.Release()
 
-	full := filepath.Join(c.Bundle, logFile)
-	src, err := os.ReadFile(full)
-	if err != nil && !os.IsNotExist(err) {
-		return c.fail(root.ReasonNoBundle, err)
-	}
-
-	updated := okflog.Add(string(src), time.Now().UTC().Format(time.DateOnly), c.Add)
-	if wErr := atomicfile.WriteFile(full, []byte(updated), 0o640); wErr != nil {
+	if wErr := w.Log(time.Now().UTC(), c.Add); wErr != nil {
 		return c.fail(root.ReasonNoBundle, wErr)
 	}
 	if c.JSONL {

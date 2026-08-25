@@ -18,19 +18,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/ontology"
+	"github.com/StevenACoffman/gnosis/internal/schema"
 )
-
-// indexDoc is the OKF §8 entry point. It carries no frontmatter because it is a
-// reserved navigational file rather than a concept (OKF §3.1).
-const indexDoc = `# Index
-
-The entry point to this knowledge base. It is written for a reader — or an agent
-— arriving with a question and no idea where to look.
-
-Keep it a map, not a mirror. A generated list of every document is available from
-` + "`gnosis search`" + ` and ` + "`gnosis graph`" + `; what belongs here is the
-handful of paths through the corpus that a newcomer actually needs.
-`
 
 // logDoc seeds OKF §9's update log with no entries. Entry headings must be
 // "## YYYY-MM-DD", so seeding one would mean stamping today's date into a file
@@ -116,11 +105,11 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	if err := os.MkdirAll(c.Bundle, 0o750); err != nil {
 		return c.fail(err)
 	}
-	lock, err := bundle.AcquireWriterLock(ctx, c.Bundle)
+	w, err := bundle.AcquireWriter(ctx, c.Bundle)
 	if err != nil {
 		return c.fail(err)
 	}
-	defer lock.Release()
+	defer w.Release()
 
 	for _, dir := range []string{".", "c"} {
 		if err := os.MkdirAll(filepath.Join(c.Bundle, dir), 0o750); err != nil {
@@ -128,16 +117,22 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 		}
 	}
 
-	for _, f := range scaffold() {
-		created, err := writeIfAbsent(filepath.Join(c.Bundle, f.path), f.content)
-		if err != nil {
-			return c.fail(err)
-		}
-		if created {
-			result.Created = append(result.Created, f.path)
-		} else {
-			result.Existing = append(result.Existing, f.path)
-		}
+	if err := c.seed(&result); err != nil {
+		return err
+	}
+
+	// The schema document is *generated* rather than scaffolded, and the distinction
+	// is what makes it belong here at all. `init` seeds the hand-editable files and
+	// leaves the derived ones to whatever derives them — which is why it opens the
+	// index below rather than shipping a database. A scaffolded `AGENTS.md` would be
+	// a stale copy from the first vocabulary edit; a generated one is what
+	// `gnosis schema` would write this second, and `doctor` reports it if it ever
+	// goes missing.
+	//
+	// It runs after the scaffold loop because it reads `ontology.toml`, which that
+	// loop has just written.
+	if sErr := c.writeGenerated(w, &result); sErr != nil {
+		return sErr
 	}
 
 	// Opening the index creates .gnosis/ and applies the schema, so a freshly
@@ -162,7 +157,7 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	// The actor is a check because the tool caused the write, per §5.5's reasoning
 	// for `findings.opened_by`. Best-effort, and the warning goes to stderr where a
 	// person running the command will see it.
-	if aErr := bundle.AuditVerified(c.Bundle, &audit.Row{
+	if aErr := w.Audit(&audit.Row{
 		At: time.Now().UTC(), Op: audit.OpInit, Actor: "check:init",
 		Paths:   result.Created,
 		Outcome: string(root.StatusOK),
@@ -212,7 +207,6 @@ func (c *Config) fail(cause error) error {
 func scaffold() []file {
 	return []file{
 		{path: ontology.FileName, content: ontology.Starter()},
-		{path: "index.md", content: []byte(indexDoc)},
 		{path: "log.md", content: []byte(logDoc)},
 		{path: ".gitignore", content: []byte(gitignore)},
 	}
@@ -239,4 +233,97 @@ func writeIfAbsent(path string, content []byte) (bool, error) {
 		return false, fmt.Errorf("close %s: %w", path, err)
 	}
 	return true, nil
+}
+
+// seed writes the hand-editable files a new bundle starts with.
+//
+// Extracted from exec because the linter reported its complexity and was right: exec
+// had come to hold directory creation, a lock, two write loops and an audit row. The
+// split is by kind — this writes the files somebody will edit, and the generated ones
+// have their own step.
+func (c *Config) seed(result *Result) error {
+	for _, f := range scaffold() {
+		created, err := writeIfAbsent(filepath.Join(c.Bundle, f.path), f.content)
+		if err != nil {
+			return c.fail(err)
+		}
+		if created {
+			result.Created = append(result.Created, f.path)
+		} else {
+			result.Existing = append(result.Existing, f.path)
+		}
+	}
+	return nil
+}
+
+// writeGenerated generates the two marked root documents init does not scaffold.
+//
+// **`index.md` is generated rather than seeded, and that changed on 2026-08-24.**
+// `init` used to write it as prose with no markers, which made every later
+// `gnosis schema` report it as unmarked and exit with findings — on every bundle, from
+// the day it was created. A scaffolded copy of generated text is also stale the moment
+// anybody adds a document, with nothing saying so. It is the same argument that stopped
+// `AGENTS.md` being scaffolded, arriving one file later.
+func (c *Config) writeGenerated(w *bundle.Writer, result *Result) error {
+	if err := c.writeSchemaDoc(w, result); err != nil {
+		return err
+	}
+	return c.writeIndexDoc(w, result)
+}
+
+// writeIndexDoc generates index.md, or leaves one that is already there.
+//
+// Requires: w holds the lock.
+// Ensures: idempotent, like every other file init writes — a corpus whose index.md
+// somebody has curated is never overwritten.
+func (c *Config) writeIndexDoc(w *bundle.Writer, result *Result) error {
+	if _, err := os.Stat(filepath.Join(c.Bundle, bundle.IndexFile)); err == nil {
+		result.Existing = append(result.Existing, bundle.IndexFile)
+		return nil
+	}
+	doc, err := bundle.PlanIndexDoc(c.Bundle)
+	if err != nil {
+		return c.fail(err)
+	}
+	if wErr := w.WriteMarkedDoc(&doc); wErr != nil {
+		return c.fail(wErr)
+	}
+	result.Created = append(result.Created, bundle.IndexFile)
+	return nil
+}
+
+// writeSchemaDoc generates AGENTS.md from the vocabulary init has just written.
+//
+// Requires: w holds the lock; ontology.toml exists.
+// Ensures: the file is created and recorded in result, or left alone when it is
+// already there — `init` is idempotent and must not overwrite a document somebody has
+// edited, which is the same rule `writeIfAbsent` applies to every other file here.
+//
+// The command list comes from the registered tree, so the binary describes itself
+// (§5.7.1). A generation failure fails the init: an initialised bundle missing the one
+// file §5.7 says an agent reads is not initialised, and reporting success would leave
+// the caller to discover it from `doctor`.
+func (c *Config) writeSchemaDoc(w *bundle.Writer, result *Result) error {
+	if _, err := os.Stat(filepath.Join(c.Bundle, bundle.SchemaFile)); err == nil {
+		result.Existing = append(result.Existing, bundle.SchemaFile)
+		return nil
+	}
+	doc, err := bundle.PlanSchemaDoc(c.Bundle, commandEntries(c.Config.Command.Subcommands))
+	if err != nil {
+		return c.fail(err)
+	}
+	if wErr := w.WriteMarkedDoc(&doc); wErr != nil {
+		return c.fail(wErr)
+	}
+	result.Created = append(result.Created, bundle.SchemaFile)
+	return nil
+}
+
+// commandEntries projects the registered command tree into what the generator needs.
+func commandEntries(subs []*ff.Command) []schema.CommandEntry {
+	out := make([]schema.CommandEntry, 0, len(subs))
+	for _, sub := range subs {
+		out = append(out, schema.CommandEntry{Name: sub.Name, Help: sub.ShortHelp})
+	}
+	return out
 }

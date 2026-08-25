@@ -50,10 +50,10 @@ func (c *Config) report(found []bundle.Loosened) error {
 		_, _ = fmt.Fprintf(c.Stderr, "  %s\n", found[i].LogEntry())
 	}
 	if result.Logged {
-		_, _ = fmt.Fprintf(c.Stdout, "\nfiled in %s\n", logFile)
+		_, _ = fmt.Fprintf(c.Stdout, "\nfiled in %s\n", bundle.LogFile)
 	} else {
 		_, _ = fmt.Fprintf(c.Stderr,
-			"\nrecord these in %s (SPEC §6.2), or re-run with --log\n", logFile)
+			"\nrecord these in %s (SPEC §6.2), or re-run with --log\n", bundle.LogFile)
 	}
 	return root.ExitError(root.CodeFindings)
 }
