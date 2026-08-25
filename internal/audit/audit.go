@@ -102,6 +102,42 @@ type Row struct {
 	// that never landed may have been blocked by a check nobody has built.
 	Signals []string `json:"signals,omitempty"`
 
+	// Unsupported are the claims this write was refused for: text a reply asserted
+	// and the archived source did not support.
+	//
+	// **It is the record of what an ingestion did *not* authorize**, which nothing
+	// held. A corpus keeps what a source supports and had no trace of what it was
+	// explicitly found not to support — the same asymmetry as discarding a rejected
+	// alias, one level up. The claims are the content of the refusal, so unlike a
+	// refused rationale (which adjudicates nothing and is deliberately not read back)
+	// these are the point of the row.
+	//
+	// Only *unsupported* claims, never *unchecked* ones. `quotecheck` separates "sought
+	// in the archive and not there" from "nobody looked", and only the first is a
+	// statement about the source. Recording the second here would put "this source does
+	// not support X" in the trail on the strength of a passage too short to check,
+	// which is the accusation §9.4 goes to some trouble not to make.
+	//
+	// Not a finding id, which is why this is its own field rather than `Findings`: that
+	// one means the finding ids a write turned on, and a claim's text is not an id.
+	Unsupported []string `json:"unsupported,omitempty"`
+
+	// Rationale is the reason a person gave for carrying a write the tool would
+	// not have made on its own (§9.5, §10.6.4). Empty for every write nobody had
+	// to justify, which is most of them.
+	//
+	// **Structural rather than folded into Detail, and that is the whole reason it
+	// exists as a field.** `humanpath.go` calls it "the one artifact that survives
+	// into the audit trail as an explanation rather than a fact", and it was
+	// arriving as a clause inside a sentence — so the only way to read it back was
+	// to parse gnosis's own prose, and the only way to compare two of them was not
+	// to. §10.6.4's fold-and-compare refusal needs the rationales already
+	// recorded, and a field is what makes them a value rather than a substring.
+	//
+	// A row written before this field existed carries its rationale in Detail. A
+	// reader wanting both should say so rather than guessing; `Debt` does.
+	Rationale string `json:"rationale,omitempty"`
+
 	// Detail is one sentence for a person reading the trail directly.
 	Detail string `json:"detail,omitempty"`
 }
