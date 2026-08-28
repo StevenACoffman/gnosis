@@ -151,7 +151,7 @@ func TestNothingToCompareSkipsRatherThanPasses(t *testing.T) {
 func TestBoundsAloneAreEnoughToRun(t *testing.T) {
 	t.Parallel()
 	snap := &lint.Snapshot{
-		Bounds: map[string]lint.Bound{
+		Bounds: map[string]*lint.Bound{
 			"c1": {SubjectKey: "retry.max_attempts", Dimension: "count", Op: "<=", Value: 3},
 		},
 		Documents: []lint.Document{{

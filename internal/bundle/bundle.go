@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/StevenACoffman/gnosis/internal/constraint"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/okf"
@@ -103,6 +104,20 @@ type DocClaim struct {
 	// automated pass must stay distinguishable. Expanding a page-level list one level
 	// down destroys that distinction wholesale.
 	Verified []Verification
+
+	// Pin is a `gnosis_constraint` reading stated in frontmatter, and Pinned reports
+	// whether there was one (§10.2.1).
+	//
+	// **Comma-ok rather than a zero Constraint**, which would assert a bound of zero.
+	//
+	// A pin exists for the case where a precise value is real but unreachable by the
+	// prose parser — a number in a table, a code fence, or a figure caption. It takes
+	// precedence over the derived reading and is then checked against the prose, which
+	// is the only reason the two can ever disagree (§10.2.1). It is never required:
+	// requiring one would hand a model-generated number authority over the
+	// human-readable text, which is what making the prose authoritative was for.
+	Pin    constraint.Constraint
+	Pinned bool
 
 	// Subject is the surface phrase naming what this claim is about (§5.5.1), as
 	// the author wrote it — an alias is resolved by the checks, not here. Empty for

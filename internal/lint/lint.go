@@ -75,7 +75,7 @@ type Snapshot struct {
 
 	// Bounds maps a claim id to the reading its prose parses to (§10.2.1). Empty for a
 	// corpus whose claims name no declared subject.
-	Bounds map[string]Bound
+	Bounds map[string]*Bound
 
 	// Sources maps an archived file to the source and version it holds, from tier 0's
 	// records. Empty for a corpus that has fetched nothing.
@@ -291,6 +291,7 @@ func Checks(now time.Time) []Check {
 		coverageCheck(),
 		rungCheck(),
 		dimensionDriftCheck(),
+		constraintDriftCheck(),
 		constraintCoverageCheck(),
 		commandCheck(),
 		evidenceCheck(),

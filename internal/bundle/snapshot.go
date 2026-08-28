@@ -183,20 +183,30 @@ func recordedPaths(fsys fs.FS) (map[string]bool, error) {
 //
 // **Read through the fs.FS like the vocabulary and the strength markers**, so a caller
 // testing with an fstest.MapFS gets the same answers as one reading a disk.
-func claimBounds(fsys fs.FS, docs []Document) map[string]lint.Bound {
-	out := map[string]lint.Bound{}
+func claimBounds(fsys fs.FS, docs []Document) map[string]*lint.Bound {
+	out := map[string]*lint.Bound{}
 	o := ontologyFrom(fsys)
 	if o == nil {
 		return out
 	}
 	for id, cs := range ClaimConstraints(docs, o, operatorPatternsFrom(fsys)) {
-		b := lint.Bound{SubjectKey: cs.SubjectKey, Dimension: cs.Dimension}
-		if cs.Parsed {
-			b.Op, b.Value = string(cs.Constraint.Op), cs.Constraint.Value
-			b.Raw, b.PatternID = cs.Constraint.Raw, cs.Constraint.PatternID
-			if written, ok := ontology.DimensionWritten(cs.Constraint.Raw); ok {
+		b := &lint.Bound{
+			SubjectKey: cs.SubjectKey,
+			Dimension:  cs.Dimension,
+			Pinned:     cs.Pinned,
+		}
+		if effective, ok := cs.Effective(); ok {
+			b.Op, b.Value = string(effective.Op), effective.Value
+			b.Raw, b.PatternID = effective.Raw, effective.PatternID
+			if written, ok := ontology.DimensionWritten(effective.Raw); ok {
 				b.Written = string(written)
 			}
+		}
+		// Only a pinned claim's text is normalised: it is the only text anything
+		// compares a value against, and normalising the corpus would put every
+		// claim's rewritten wording in the snapshot beside the author's own.
+		if b.Pinned {
+			b.ProseText = constraint.NormalizeNumbers(anchorOf(docs, id))
 		}
 		out[id] = b
 	}
@@ -412,3 +422,19 @@ func ClaimRefsForTest(claims []DocClaim) []lint.Claim { return claimRefs(claims)
 // does: this seam is where a declared field goes missing silently, and asserting through
 // Snapshot would need a bundle on disk to check one assignment list.
 func DocumentsForTest(docs []Document) []lint.Document { return documents(docs) }
+
+// anchorOf returns one claim's anchor, or empty when the claim is gone.
+//
+// A linear walk rather than an index: it runs once per *pinned* claim, and §10.2.1 keeps
+// pins opt-in precisely so most claims never carry one. Building a map to serve a handful
+// of lookups would be the more expensive answer on every corpus that has none.
+func anchorOf(docs []Document, claimID string) string {
+	for i := range docs {
+		for j := range docs[i].Claims {
+			if docs[i].Claims[j].ID == claimID {
+				return docs[i].Claims[j].Anchor
+			}
+		}
+	}
+	return ""
+}

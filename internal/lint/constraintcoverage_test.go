@@ -9,7 +9,7 @@ import (
 
 // covered builds a corpus of claims on one subject, some parsed and some not.
 func covered(ops ...string) *lint.Snapshot {
-	snap := &lint.Snapshot{Bounds: map[string]lint.Bound{}}
+	snap := &lint.Snapshot{Bounds: map[string]*lint.Bound{}}
 	doc := lint.Document{Path: "c/a.md", Type: "Rule"}
 	for i, op := range ops {
 		id := string(rune('a' + i))
@@ -18,7 +18,7 @@ func covered(ops ...string) *lint.Snapshot {
 		if op != "" {
 			b.Op, b.Value = op, 3
 		}
-		snap.Bounds[id] = b
+		snap.Bounds[id] = &b
 	}
 	snap.Documents = []lint.Document{doc}
 	return snap

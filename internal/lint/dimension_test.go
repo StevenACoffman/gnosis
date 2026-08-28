@@ -9,9 +9,9 @@ import (
 
 // bounds builds a snapshot from readings alone, which is all this check reads.
 func bounds(bs ...lint.Bound) *lint.Snapshot {
-	snap := &lint.Snapshot{Bounds: map[string]lint.Bound{}}
-	for i, b := range bs {
-		snap.Bounds[string(rune('a'+i))] = b
+	snap := &lint.Snapshot{Bounds: map[string]*lint.Bound{}}
+	for i := range bs {
+		snap.Bounds[string(rune('a'+i))] = &bs[i]
 	}
 	return snap
 }

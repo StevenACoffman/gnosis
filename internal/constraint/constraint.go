@@ -63,6 +63,22 @@ type Constraint struct {
 	Raw string
 }
 
+// Valid reports whether k is one of the three operators.
+//
+// Requires: nothing.
+// Ensures: false for OpUnset, which is what makes a pin stating no operator readable as
+// "there is no pin" rather than as a bound the zero value would otherwise assert. Pure.
+func (k OpKind) Valid() bool {
+	switch k {
+	case OpAtMost, OpAtLeast, OpExactly:
+		return true
+	case OpUnset:
+		return false
+	default:
+		return false
+	}
+}
+
 // Parse reads a constraint out of prose.
 //
 // Requires: patterns are lower-cased; text is a claim's anchor.
@@ -265,4 +281,17 @@ func trimUnit(field string) string {
 		return field
 	}
 	return field[:end]
+}
+
+// NormalizeNumbers rewrites spelled-out numbers in text as numerals (§7.3).
+//
+// Requires: text is a claim's anchor.
+// Ensures: the same normalisation Parse applies before reading a quantity, so a caller
+// comparing a rendered value against prose compares it against the text Parse saw. Pure.
+//
+// Exported for the shell to hand `constraint-drift` a claim's text with "three" already
+// "3": §10.2.1's drift mechanism is to look for the pinned value in the prose, and
+// `internal/lint` takes values rather than importing a parser (PLAN §0.1).
+func NormalizeNumbers(text string) string {
+	return numwords.ParseString(spacePunctuation(text))
 }

@@ -48,8 +48,8 @@ func dimensionDriftCheck() Check {
 // point: "3" is what every dimension's value looks like when the author omitted the unit,
 // so a silent pass and a clean result would be indistinguishable (§12).
 func someBoundCarriesAUnit(snap *Snapshot) (bool, string) {
-	for _, b := range snap.Bounds {
-		if b.Written != "" {
+	for id := range snap.Bounds {
+		if snap.Bounds[id].Written != "" {
 			return true, ""
 		}
 	}
@@ -69,7 +69,8 @@ func driftedDimensions(snap *Snapshot) []finding.Diagnostic {
 		written  map[string]int
 	}
 	bySubject := map[string]*drift{}
-	for _, b := range snap.Bounds {
+	for id := range snap.Bounds {
+		b := snap.Bounds[id]
 		if b.Written == "" || b.Dimension == "" || b.Written == b.Dimension {
 			continue
 		}

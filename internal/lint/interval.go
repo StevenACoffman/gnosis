@@ -14,7 +14,10 @@ type boundedClaim struct {
 	Path    string
 	ClaimID string
 	Anchor  string
-	Bound   Bound
+
+	// Bound points into the snapshot rather than copying it. The value grew past the
+	// size where copying it per claim is free, and nothing here mutates it.
+	Bound *Bound
 }
 
 // Bound is a claim's parsed reading, as the predicates compare them.
@@ -45,6 +48,28 @@ type Bound struct {
 	// the value.** The declared dimension above comes from the subject; this comes
 	// from the prose, and the whole signal is the two disagreeing.
 	Written string
+
+	// Pinned reports that this reading came from `gnosis_constraint` rather than from
+	// the prose (§10.2.1).
+	//
+	// **Only the flag travels, not a second parse.** §10.2.1's drift check renders the
+	// pinned value and looks for it in the claim's *text* under fold — it does not
+	// compare two parses — so the claim's anchor, which the snapshot already carries,
+	// is the other half. Carrying a prose reading here as well would be a second
+	// representation held for a comparison nobody makes.
+	Pinned bool
+
+	// ProseText is the claim's anchor with spelled-out numbers normalised (§7.3),
+	// filled **only for a pinned claim** because it is the only one anything compares
+	// against text.
+	//
+	// Normalised by the shell rather than here: §10.2.1's mechanism is "normalize
+	// spelled-out numbers in the claim text, render the constraint through the same
+	// library, and look for it under fold", and the library is a parser this package
+	// does not import (PLAN §0.1). Normalising the whole corpus to check a handful of
+	// pins would also put every claim's rewritten text in the snapshot beside the
+	// author's own.
+	ProseText string
 
 	// Raw and PatternID are what the finding shows, so an adjudicator sees the parse
 	// beside the claim rather than only a verdict (§10.2.2).
@@ -158,7 +183,7 @@ func disjointPairs(claims []boundedClaim) []finding.Diagnostic {
 	out := make([]finding.Diagnostic, 0)
 	for i := range claims {
 		for j := i + 1; j < len(claims); j++ {
-			if overlaps(&claims[i].Bound, &claims[j].Bound) {
+			if overlaps(claims[i].Bound, claims[j].Bound) {
 				continue
 			}
 			out = append(out, conflictFinding(&claims[i], &claims[j]))

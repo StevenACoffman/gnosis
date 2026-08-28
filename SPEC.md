@@ -3330,6 +3330,14 @@ prose for comparison — so the requirement would hand a model-generated number
 authority over the human-readable text, which is exactly what making the prose
 authoritative was for.
 
+**The pin path was specified for two phases and unbuildable for both**, which is worth
+recording where the rule is stated rather than only in a backlog entry. Nothing parsed
+`gnosis_constraint`, `DocClaim` carried no field for one, and the row builder hard-coded
+`derived = 1` — so the two columns whose whole purpose is telling a parsed value from a
+pinned one meant neither, and this section described a precedence nothing could exercise.
+It reads as the mirror of stored state with no reader: a stored **distinction** no input
+could produce. Built 2026-08-27, along with the check below.
+
 When a pin is present it takes precedence over the derived value, and *then* the
 two representations can disagree — so a pinned constraint is checked against the
 prose and reported when it drifts. Because the units libraries are bidirectional, that check is
@@ -4695,6 +4703,7 @@ enforced rules puts the edit at the moment somebody is already editing both.
 | Evidence MUST support the scope a claim asserts (§17.3.1)                | `coverage`            | `coverage`                                          | human         |
 | A causal claim MUST NOT rest on observational evidence alone (§17.3.1.1) | `rung`                | `rung`                                              | human         |
 | A subject's values MUST stay in the dimension it declares (§5.8.2.1)     | `dimension-drift`     | `dimension-drift`                                   | human         |
+| A pinned `gnosis_constraint` MUST match its prose (§10.2.1)              | `constraint-drift`    | `constraint-drift`                                  | human         |
 | A normative claim's lead MUST state its conclusion first (§17.4)         | `lead`                | `lead`                                              | human         |
 | A normative concept MUST declare what it does not cover (§17.2)          | `limitations`         | `limitations`                                       | human         |
 | Two documents MUST NOT hold one subject after a merge (§4.6.1)           | `duplicate`           | `duplicate-title`, `duplicate-evidence`             | human         |

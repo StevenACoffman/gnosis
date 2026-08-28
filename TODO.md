@@ -615,8 +615,11 @@ ______________________________________________________________________
   text be subject to §9.3's scan, and §9.3 is unbuilt. Currently an SVG — or any
   source — can carry invisible text into the archive.
 - [ ] **`go-git/v6` is an alpha in the evidence path.** Decided in §20.6 with the
-  cost named. Revisit when `v6.0.0` ships — checked 2026-08-23: `v6.0.0-alpha.5` is
-  still the newest published version, so the trigger has not fired.
+  cost named. Revisit when `v6.0.0` ships — re-checked 2026-08-27 with
+  `go list -m -versions github.com/go-git/go-git/v6`, which still ends at
+  `v6.0.0-alpha.5`, so the trigger has not fired. *The method is recorded because
+  "checked <date>" with no method is how a stale blocker survives; three in this file
+  turned out to be wrong when somebody finally looked.*
   **This entry's "the exposure is one function and its tests" was wrong, and the
   measurement is now in §20.6.** Three production files import go-git — `git.go`
   clones, `gitfile.go` reads a file at a revision, `headtime.go` reads HEAD's commit
@@ -897,8 +900,11 @@ ______________________________________________________________________
   **The trigger that would change it**: a claim-level search result a reader cannot
   identify from its lead alone. The columns stay in the schema so adding them later is a
   migration nobody has to design.
-- [ ] **Six specified checks remain, and none is buildable today.** *Down from twelve on
-  2026-08-27. `filename-drift`, `limitations`, `duplicate`, `command`, `evidence` and
+- [ ] **Five specified checks remain, and none is buildable today.** *Down from twelve,
+  then from six when `constraint-drift`'s recorded blocker turned out to be wrong.
+  Re-measured 2026-08-27 against the tree rather than against these entries: `Warrant` and
+  `Challenge` appear nowhere in it, §14.4's durability classes are specified and unbuilt,
+  and nothing stores a previous link state. `filename-drift`, `limitations`, `duplicate`, `command`, `evidence` and
   `language` were built; the six left each name their blocker below, because "unbuilt"
   and "unbuildable" have been confused four times in this file and counting them together
   is what caused it.*
@@ -910,9 +916,18 @@ ______________________________________________________________________
     the key.
   - `unanswered-challenge` — needs `gnosis_challenges` and a window in `standards/`.
     Nothing writes challenges.
-  - `constraint-drift` — needs a pinned `gnosis_constraint` to check prose against.
-    Buildable in principle and pointless in fact: no corpus has a pin, and §10.2.1 keeps
-    them opt-in precisely so most claims never carry one.
+  - `constraint-drift` — **built 2026-08-27, and this line was wrong about its own
+    blocker.** *"No corpus has a pin" was not the obstacle: a pin **could not be
+    expressed**. Nothing parsed `gnosis_constraint`, `DocClaim` had no field for one, and
+    `subjectRow` hard-coded `Derived: true` at its only call site — so
+    `claim_subjects.derived` was a column with one attainable value, and `pattern_id`'s
+    stated contract ("empty for a pin or for a claim that parsed to nothing") was half
+    false. That is stored state with no reader wearing its other face: a stored
+    **distinction** nothing could produce.*
+    The pin path now exists, the column has both values, and the check skips with a
+    reason until a corpus writes one — which is the argument for building it rather than
+    against, the same one §5.8.3.1's episodic guard turned on: the path has to exist
+    before the first pin, or the first pin is the one nobody checked.
   - `gap` — **not deterministic, and §12's own table says `no`.** Recognising a concept
     somebody *mentioned* is on the reasoning side of §10.3's line and routes to the critic
     or nowhere.
@@ -979,7 +994,7 @@ ______________________________________________________________________
   offsets and §13's viewer will want them. When that arrives, add a `LinkRefs` field
   *alongside* `Links` in `skillet/markdown` — the shape that package's own `CodeSpans`
   comment prescribes for exactly this situation.
-- [ ] **Three occurrences of embedded-field shadowing, and no check.** `root.Config` has
+- [x] **Three occurrences of embedded-field shadowing, and no check.** `root.Config` has
   `Flags` and `Command`; a command `Config` embedding it and declaring neither assigns
   the *root's* through the same selector. It produced `admitcmd`'s `FromStdin`, the schema
   command's empty command list, and — on 2026-08-27 — a `synthesize` registration that
@@ -989,6 +1004,21 @@ ______________________________________________________________________
   **What would catch it**: a test walking the registered command tree and asserting each
   subcommand's `Flags` is not the root's, which is one pointer comparison per command and
   needs nothing that does not already exist.
+  **Built 2026-08-27, and the entry underestimated it in one respect.** *`Run`'s
+  registration list was inline, so a test could not reach the tree without retyping it —
+  a hand-maintained allowlist of exactly the kind this codebase has twice deleted. The
+  list is now `register(r)`, called by `Run` and by the test through `export_test.go`, so
+  the test sees what ships.*
+  **The walk had to detect a cycle, and finding that out took reintroducing the defect.**
+  Registration is `parent.Command.Subcommands = append(…, cfg.Command)`, so a Config
+  shadowing `Command` appends the root command to its own subcommand list and the tree
+  contains itself. The first version recursed forever and reported nothing — worse than
+  the defect, because a hanging suite is diagnosed as flakiness. It now names the culprit
+  in milliseconds.
+  **A second test guards the opposite failure.** A command owning a flag set with no
+  parent would pass the shadowing check and silently lose `--bundle` and `--jsonl`, which
+  a reader would diagnose as a missing feature rather than a wiring mistake. Group
+  parents are exempt: they run nothing and ff supplies their flag set at parse time.
 - [x] **The four other data-plus-corpus artifacts have not been checked against
   §18.4.1.** *Recorded 2026-08-27 after the operator corpus shipped with thirteen
   patterns, eight passing cases, and the commonest real input failing silently.*
@@ -1493,7 +1523,11 @@ anywhere** — it was a description cited as prior art and counted as a family m
   difference between a documented intent and a checked one — which is the distinction this
   specification spends §18 on.
 - [ ] **If a second tool emits a check report, `Skip{Check, Reason}` promotes.** That is
-  the trigger `skillet` recorded, and gnosis is the current sole holder. Nothing to do now;
+  the trigger `skillet` recorded, and gnosis is the current sole holder. *Re-checked
+  against skillet v0.26.0 on 2026-08-27: no `Skip` type there, and the new packages that
+  arrived since v0.23.0 — `claims`, `proof`, `judge`, `manifest`, `neutrality`,
+  `calibration`, `naming`, `frontmatter` — are skill tooling and unblock nothing here.
+  Recorded because two bumps this session invalidated claims written an hour earlier.* Nothing to do now;
   noted so the type is not casually reshaped in a way that makes lifting it awkward — it is
   two strings and should stay two strings.
 

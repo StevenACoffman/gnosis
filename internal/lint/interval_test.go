@@ -10,14 +10,14 @@ import (
 
 // bounded builds a corpus of claims on one subject, each with a parsed reading.
 func bounded(ops ...[2]any) *lint.Snapshot {
-	snap := &lint.Snapshot{Bounds: map[string]lint.Bound{}}
+	snap := &lint.Snapshot{Bounds: map[string]*lint.Bound{}}
 	doc := lint.Document{Path: "c/a.md", Type: "Rule"}
 	for i, o := range ops {
 		id := string(rune('a' + i))
 		doc.Claims = append(doc.Claims, lint.Claim{
 			ID: id, Anchor: "Retries are bounded (" + id + ").",
 		})
-		snap.Bounds[id] = lint.Bound{
+		snap.Bounds[id] = &lint.Bound{
 			SubjectKey: "retry.max_attempts", Dimension: "count",
 			Op: o[0].(string), Value: o[1].(float64),
 			PatternID: "test-pattern", Raw: "n",
@@ -196,7 +196,7 @@ func episodes(typeA, typeB string) *lint.Snapshot {
 				{Key: "Rule"},
 			},
 		},
-		Bounds: map[string]lint.Bound{
+		Bounds: map[string]*lint.Bound{
 			"a": {
 				SubjectKey: "retry.max_attempts", Dimension: "count",
 				Op: "<=", Value: 3, PatternID: "p",
