@@ -3,9 +3,12 @@ package indexcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/peterbourgon/ff/v4"
@@ -24,15 +27,42 @@ type Config struct {
 	// Force proceeds past the rebuild floor. It exists because a real deletion is
 	// legitimate and the floor cannot tell one from an accident; what the floor
 	// buys is that the accident takes a second command rather than none.
-	Force   bool
-	Flags   *ff.FlagSet
-	Command *ff.Command
+	Force bool
+
+	// Recreate deletes the database and builds it again from the bundle.
+	//
+	// **A separate flag from --force, and that separation is the point.** --force
+	// proceeds past the rebuild floor when a real deletion made the document count
+	// collapse; this destroys the database file. One word covering two destructions is
+	// how somebody deletes the wrong thing, and the two are not even the same kind of
+	// decision: one says "I meant to remove those documents", the other says "this
+	// cache is beyond repairing in place".
+	Recreate bool
+	Flags    *ff.FlagSet
+	Command  *ff.Command
 }
 
 // Result is the payload for a rebuild or a check.
 type Result struct {
+	// Documents is how many rows the index now holds, which is not how many the
+	// bundle holds — a document gnosis never assigned an identifier to cannot be
+	// indexed, because every derived row points at one.
 	Documents int `json:"documents"`
 	Drifted   int `json:"drifted"`
+
+	// Unidentified is how many loaded documents were left out for want of a
+	// `gnosis_id`.
+	//
+	// **Reported because the first version counted the wrong thing.** It said
+	// "indexed N document(s)" from the number *loaded*, so a corpus of hand-written
+	// pages — every page anybody writes before running `gnosis` over it — was told
+	// its whole contents had been indexed while the index stayed empty. A count that
+	// names work not done is worse than no count: the reader has been told the
+	// question was answered.
+	Unidentified int `json:"unidentified,omitempty"`
+
+	// Claims is how many claim addresses the index now holds (§5.5.3).
+	Claims int `json:"claims"`
 
 	// Sources is how many tier-0 records the projection now holds. Reported
 	// separately from Documents because the two answer different questions —
@@ -62,10 +92,12 @@ func New(parent *root.Config) *Config {
 		"report whether the index matches the bundle; write nothing")
 	cfg.Flags.BoolVar(&cfg.Force, 0, "force",
 		"rebuild even when the document count collapsed")
+	cfg.Flags.BoolVar(&cfg.Recreate, 0, "recreate",
+		"delete the database and build it again; repairs a schema-shape failure")
 
 	rebuild := &ff.Command{
 		Name:      "rebuild",
-		Usage:     "gnosis index rebuild [--check]",
+		Usage:     "gnosis index rebuild [--check | --recreate] [--force]",
 		ShortHelp: "rebuild the derived index from the bundle",
 		LongHelp: `Rebuild the derived index from the bundle and the evidence archive.
 
@@ -111,6 +143,10 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	}
 	defer w.Release()
 
+	if err := c.recreate(ctx); err != nil {
+		return err
+	}
+
 	db, err := bundle.OpenIndex(ctx, c.Bundle)
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
@@ -127,7 +163,7 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	}
 
 	drift := len(bundle.Reconciled(docs, indexed))
-	result := Result{Documents: len(docs), Drifted: drift}
+	result := Result{Drifted: drift}
 
 	if refusal := c.checkFloor(len(indexed), len(docs)); refusal != nil {
 		return refusal
@@ -146,6 +182,68 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 		return c.fail(root.ReasonIndexDrift, err)
 	}
 	return c.report(result, drift)
+}
+
+// recreate deletes the database so the rebuild below builds a fresh one, or does
+// nothing when --recreate was not given.
+//
+// **This is the automatic remedy `schema-shape` has always advised and never had.** That
+// check reports a missing table and tells a reader to delete the file, and its diagnostic
+// declares `ActionAutomatic` — a claim that a machine can fix it, which until now was
+// false: `rebuild` opens the existing database and migration skips every statement
+// because `user_version` is already current, so it fails on the missing table rather than
+// recreating it. The action code was not wrong about what should exist; it was ahead of
+// it.
+//
+// **It says what it is about to destroy before destroying it**, and the count that
+// matters is `schema-shape`'s Unexpected half — objects the migrations do not describe.
+// That half exists precisely because people put things in this database, and a repair
+// that silently dropped them would be worse than the manual step it replaces.
+//
+// **Refused under --check.** A read-only question must not delete anything, and a flag
+// combination that quietly did would be the worst possible way to learn the difference.
+func (c *Config) recreate(ctx context.Context) error {
+	if !c.Recreate {
+		return nil
+	}
+	if c.CheckOnly {
+		return fmt.Errorf("index rebuild: %w", c.Usage(errors.New(
+			"--check reports and writes nothing; it cannot be combined with --recreate")))
+	}
+
+	path := bundle.IndexPath(c.Bundle)
+	if err := c.warnAboutLosses(ctx); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return c.fail(root.ReasonNoBundle, err)
+	}
+	_, _ = fmt.Fprintf(c.Stderr, "deleted %s; rebuilding from the bundle\n", path)
+	return nil
+}
+
+// warnAboutLosses names what recreating will destroy that a rebuild cannot restore.
+//
+// A database that will not open is the ordinary case for --recreate and is not an
+// error here: there is nothing to enumerate and nothing a reader could act on, so the
+// deletion proceeds. What must not happen is deleting *silently* when there was
+// something to say.
+func (c *Config) warnAboutLosses(ctx context.Context) error {
+	db, err := bundle.OpenIndexForRead(ctx, c.Bundle)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = db.Close() }()
+
+	shape, err := db.CheckShape(ctx)
+	if err != nil || len(shape.Unexpected) == 0 {
+		return nil
+	}
+	_, _ = fmt.Fprintf(c.Stderr,
+		"warning: this database holds %d object(s) the migrations do not describe (%s);"+
+			" deleting it destroys them, and a rebuild will not bring them back\n",
+		len(shape.Unexpected), strings.Join(shape.Unexpected, ", "))
+	return nil
 }
 
 // checkFloor refuses a rebuild whose document count collapsed, or reports nil.
@@ -188,9 +286,24 @@ func (c *Config) write(
 	ctx context.Context, w *bundle.Writer, db *index.DB, docs []bundle.Document,
 	result *Result,
 ) error {
-	if err := db.Replace(ctx, bundle.Rows(docs), bundle.LinkRows(docs)); err != nil {
+	// The vocabulary is read here rather than inside the fold, so the fold stays pure
+	// and a caller testing it needs no bundle. An absent ontology yields no
+	// claim-subject rows, which is correct: a subject that resolves to nothing is
+	// `subject-unknown`'s finding, not a row keyed on an undeclared key.
+	vocab := bundle.LoadOntology(c.Bundle)
+	contents := index.Contents{
+		Documents:     bundle.Rows(docs),
+		Links:         bundle.LinkRows(docs),
+		Claims:        bundle.ClaimRows(docs),
+		Verifications: bundle.VerificationRows(docs),
+		ClaimSubjects: bundle.ClaimSubjectRows(docs, vocab, bundle.OperatorPatterns(c.Bundle)),
+	}
+	if err := db.Replace(ctx, &contents); err != nil {
 		return c.fail(root.ReasonIndexDrift, err)
 	}
+	result.Documents = len(contents.Documents)
+	result.Unidentified = len(docs) - len(contents.Documents)
+	result.Claims = len(contents.Claims)
 	// Rebuilt from the committed records rather than merged into what was there
 	// (§4.3.1): a record deleted from tier 0 must disappear here too.
 	sources, err := bundle.SourceRows(c.Bundle)
@@ -289,7 +402,16 @@ func (c *Config) report(result Result, drift int) error {
 
 	switch {
 	case result.Wrote:
-		_, _ = fmt.Fprintf(c.Stdout, "indexed %d document(s)\n", result.Documents)
+		_, _ = fmt.Fprintf(c.Stdout, "indexed %d document(s), %d claim(s)\n",
+			result.Documents, result.Claims)
+		if result.Unidentified > 0 {
+			// Named rather than silently subtracted: the remedy is a command, and a
+			// reader who is not told the count cannot tell a small corpus from a
+			// corpus most of which was dropped.
+			_, _ = fmt.Fprintf(c.Stderr,
+				"%d document(s) carry no gnosis_id and were not indexed;"+
+					" `gnosis doctor` reports them\n", result.Unidentified)
+		}
 	case driftedAndChecking:
 		_, _ = fmt.Fprintf(c.Stderr, "index is stale: %d document(s) differ\n", drift)
 		return root.ExitError(root.CodeFindings)

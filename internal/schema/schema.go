@@ -278,3 +278,27 @@ func names(text, prefix string) []marker {
 		rest = rest[end+len(markerSuffix):]
 	}
 }
+
+// RegionBody returns the generated text between a region's markers.
+//
+// Requires: text is a document that may or may not carry markers.
+// Ensures: false when the region is absent or its opening marker is never closed — an
+// unterminated marker has no knowable extent, which is the same refusal `Merge` makes
+// for the same reason. Pure.
+//
+// **The operation this package has been missing.** It could render regions and merge
+// them and refuse a broken one, and could not read one back — so every consumer that
+// wanted to know what a region *says* had to re-implement the marker scan.
+func RegionBody(text, name string) (string, bool) {
+	open, shut := markers(name)
+	start := strings.Index(text, open)
+	if start < 0 {
+		return "", false
+	}
+	rest := text[start+len(open):]
+	end := strings.Index(rest, shut)
+	if end < 0 {
+		return "", false
+	}
+	return strings.TrimSpace(rest[:end]), true
+}

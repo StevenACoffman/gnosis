@@ -113,6 +113,11 @@ type Claim struct {
 	// Text is the claim as it will be verified.
 	Text string
 
+	// Lead is the claim's conclusion (§17.4), carried so a round trip through
+	// accretion does not drop it. **The gate does not read it**: §17.4 makes a lead
+	// a review signal, and a gate that weighed one would be gating on a summary.
+	Lead string
+
 	// Enforced reports whether this claim's evidence is gated. A claim that is
 	// not enforced still records its quotations; it simply does not block.
 	Enforced bool

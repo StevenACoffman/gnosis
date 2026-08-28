@@ -1,0 +1,122 @@
+# Claim-strength markers: the lexical half of SPEC §17.3.1's sufficiency rule.
+#
+# Relevance is the quality of a claim's evidence; sufficiency is its quantity.
+# A quotation that validates is on-topic by construction, and nothing asks
+# whether it supports the *scope* the claim asserts. That is the gap.
+#
+# ## Why a word list can answer part of it
+#
+# §17.3.1: "One photograph of someone at an art shop on the day a painting sold
+# may be sufficient for *John may have bought the painting* and is plainly
+# insufficient for *John definitely bought the painting*. The evidence did not
+# change; the claim did."
+#
+# So a claim carrying a universal quantifier over a single supporting quote is a
+# reportable mismatch. That is `coverage`, warning tier.
+#
+# ## Roles
+#
+# `universal` asserts without exception — the words that raise what the evidence
+# has to carry.
+#
+# `hedged` asserts with one — the words that lower it. They are here so the check
+# can tell a claim that hedged from one that said nothing either way, which are
+# different states and only the second is silent.
+#
+# ## Editing
+#
+# Lower case; matching is fold-normalised and on word boundaries, so case and
+# whitespace runs do not matter and "allow" does not match "all".
+#
+# Add a word when a real claim over-asserted and this would have caught it. A
+# word nobody has seen over-assert tells you nothing about whether the check
+# works, which is the discipline standards/retrieval-cases.toml asks for and for
+# the same reason.
+#
+# Unlike standards/operators.toml, authoring this list is not inventing data:
+# §17.3.1 enumerates the class, and the entries below are its own examples plus
+# the obvious members of the same closed set.
+
+[[marker]]
+word = "always"
+role = "universal"
+
+[[marker]]
+word = "never"
+role = "universal"
+
+[[marker]]
+word = "all"
+role = "universal"
+
+[[marker]]
+word = "every"
+role = "universal"
+
+[[marker]]
+word = "guarantees"
+role = "universal"
+
+[[marker]]
+word = "guaranteed"
+role = "universal"
+
+[[marker]]
+word = "must"
+role = "universal"
+
+[[marker]]
+word = "must not"
+role = "universal"
+
+[[marker]]
+word = "no exceptions"
+role = "universal"
+
+[[marker]]
+word = "invariably"
+role = "universal"
+
+[[marker]]
+word = "definitely"
+role = "universal"
+
+[[marker]]
+word = "certainly"
+role = "universal"
+
+[[marker]]
+word = "cannot"
+role = "universal"
+
+[[marker]]
+word = "typically"
+role = "hedged"
+
+[[marker]]
+word = "usually"
+role = "hedged"
+
+[[marker]]
+word = "in most cases"
+role = "hedged"
+
+[[marker]]
+word = "may"
+role = "hedged"
+
+[[marker]]
+word = "might"
+role = "hedged"
+
+[[marker]]
+word = "often"
+role = "hedged"
+
+[[marker]]
+word = "generally"
+role = "hedged"
+
+[[marker]]
+word = "sometimes"
+role = "hedged"

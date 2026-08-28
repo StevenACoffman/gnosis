@@ -9,6 +9,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/relay"
 	"github.com/StevenACoffman/skillet/atomicfile"
 	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/skillet/identity"
 )
 
 // promptDir is where emitted prompts land, inside stateDir.
@@ -44,6 +45,16 @@ type PromptOptions struct {
 
 	// URIs are the sources to ask about.
 	URIs []string
+
+	// Into names an existing concept the replies should accrete to, bundle-relative.
+	//
+	// Empty is the ordinary case: each reply becomes a new quarantined document.
+	// When set, the prompts are bound to that document (§6.3) and their replies
+	// append evidence to the claims it already makes rather than filing a new page.
+	Into string
+
+	// Kind is what a concept-bound prompt asks for. Ignored when Into is empty.
+	Kind PromptKind
 
 	// CacheOnly suppresses writing. §6.1 says --cache-only "refuses to emit any
 	// prompt whose reply is not already cached", and refusing has to happen here
@@ -140,9 +151,13 @@ func (w *Writer) renderPending(
 	// could not accept.
 	meta := PromptMeta{
 		Key:         prompt.Key,
+		Kind:        PromptSource,
 		URI:         rec.URI,
 		SourceHash:  rec.SourceSHA256,
 		ArchivePath: rec.ArchivePath,
+	}
+	if err := w.bindToConcept(op, opts.Into, opts.Kind, &meta); err != nil {
+		return Pending{}, err
 	}
 	if err := w.StorePromptMeta(&meta); err != nil {
 		return Pending{}, err
@@ -188,4 +203,41 @@ func recordsByURI(op, bundleDir string) (map[string]archive.Record, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// bindToConcept points a prompt at an existing document, or leaves it a source prompt.
+//
+// Requires: into is bundle-relative or empty.
+// Ensures: meta is unchanged when into is empty. The hash is recorded so admit can
+// refuse a reply computed against bytes that have since moved (§6.3).
+func (w *Writer) bindToConcept(op, into string, kind PromptKind, meta *PromptMeta) error {
+	if into == "" {
+		return nil
+	}
+	hash, err := w.conceptHash(op, into)
+	if err != nil {
+		return err
+	}
+	meta.Kind, meta.DocumentPath, meta.DocumentHash = kind, into, hash
+	return nil
+}
+
+// conceptHash reads a concept's content hash, so a reply can be refused when the
+// document has moved under it.
+//
+// Requires: rel is bundle-relative.
+// Ensures: ENOTFOUND when the document is not there, which is a caller error worth
+// naming rather than a prompt bound to nothing.
+func (w *Writer) conceptHash(op, rel string) (string, error) {
+	raw, err := os.ReadFile(filepath.Join(w.dir, filepath.FromSlash(rel)))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", &errs.Error{
+				Code:    errs.ENOTFOUND,
+				Message: op + ": " + rel + " is not in this bundle",
+			}
+		}
+		return "", &errs.Error{Op: op, Err: err}
+	}
+	return identity.Hash(string(raw)), nil
 }

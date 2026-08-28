@@ -675,7 +675,7 @@ Not blocking, not urgent; each is a real rough edge found by running the thing.
   characters around it. That resolves the tension the original note recorded — the
   snippet is **re-derived**, so FTS5's offsets never need to line up with what is
   shown.
-- [ ] **`index rebuild` cannot repair a schema-shape failure.** `schema-shape`
+- [x] **`index rebuild` cannot repair a schema-shape failure.** `schema-shape`
   reports a missing table and advises deleting the file, which is correct —
   `rebuild` opens the existing database, and migration skips every statement
   because `user_version` is already current, so it would fail on the missing table
@@ -684,6 +684,26 @@ Not blocking, not urgent; each is a real rough edge found by running the thing.
   people do put things in that database, and a repair that silently drops them is
   worse than a manual step. If it is ever added it should be `--force` and say what
   it is about to destroy.
+  **Built 2026-08-27 as `--recreate`, and the entry's own suggestion of `--force` is what
+  this corrects.** *`--force` already exists and means "proceed past the rebuild floor
+  when a real deletion collapsed the document count". Overloading it would put two
+  unrelated destructions behind one word — and they are not even the same kind of
+  decision: one says "I meant to remove those documents", the other says "this cache is
+  beyond repairing in place".*
+  **The actual defect was the action code, not the missing feature.** `schema-shape`'s
+  missing-object finding declared `ActionAutomatic` — a claim that a machine can fix it —
+  while advising a manual `rm`. That claim was false for as long as it stood; the finding
+  now names `gnosis index rebuild --recreate`, and a test drops a table and asserts the
+  repair, so the code is true rather than aspirational.
+  **It says what it destroys, using the `Unexpected` half of the same check.** That half
+  exists because people do put things in this database, and it is silent only when the
+  database will not open at all — where there is nothing to enumerate and nothing a reader
+  could act on.
+  **`--check --recreate` is refused**, with a test asserting the file's modification time
+  is unchanged. A read-only question that quietly deleted something would be the worst
+  possible way to learn the difference between the two flags.
+  **`schema-shape` lives in `doctor`, not `lint`**, which this entry never said and which
+  is why the finding is invisible to `gnosis lint`.
 - [x] **`show --body` says when the index is behind.** *`index.Detail` carries the
   `content_hash` the table already stored, and `show` compares it against
   `identity.Hash` of the file it just read. Only with `--body`: without the text on
@@ -713,7 +733,7 @@ ______________________________________________________________________
 
 ## Recorded for Later Phases
 
-- [ ] **Silent definition drift has no detector — the largest hole in the
+- [x] **Silent definition drift has no detector — the largest hole in the
   vocabulary layer.** §5.8.2.1's alias-collision rule fires only when someone
   *declares* a colliding alias. It cannot fire when two groups have been using one
   word differently and neither has declared it, which is the ordinary way the
@@ -768,6 +788,33 @@ ______________________________________________________________________
   report produces. **The trigger:** the first subject key carrying claims from two
   documents whose evidence sets are disjoint — observable with no threshold, and the
   shape the failure actually takes.
+  **One of the three signals is built as of 2026-08-27, and the other two are named with
+  their blockers.** *`lint`'s `dimension-drift` reports a subject whose claims are written
+  in a unit its declaration does not describe — a key declared `count` whose claims say
+  "400ms" is two groups using one word for two things. It needs no threshold and no
+  baseline, which is what separates it from the other two: bimodal values need a plausible
+  range nobody declares (§6.2, the wall §10.2.1.1 hit), and a cluster of new aliases needs
+  a stored baseline (the wall `newly-orphaned` hit).*
+  **A bare number is not a mismatch, and that is the adversarial case.** "no more than 3"
+  writes no unit, and a bare number is what *every* dimension's value looks like when the
+  author omitted it. Reading it as a count would report every unqualified claim on a
+  `duration` subject.
+  **One finding per subject, not per claim.** A meaning that drifted has usually drifted
+  across many claims, so per claim this would be loudest exactly on the corpus with the
+  problem worst — and the remedy is one edit either way.
+  **Building it uncovered a live parser defect, which is the more valuable half.** The
+  written dimension has to be read from the value's unit, and `"The timeout must be under
+  400ms."` parsed to **nothing** — as did `"must not exceed 5MB."`. A unit written against
+  its number defeated the number reader, so `duration` and `bytes`, two of the four
+  declared dimensions, had no working ordinary form: nobody writes "400 ms" in a latency
+  budget. Every case in `operators_test.go` was spaced, so thirteen patterns and a green
+  suite said nothing about it.
+  **That is §18.4.1's own recorded failure recurring two sections from where it is
+  written down** — `99.9%` splitting into 99 was the same defect, found and fixed, and
+  "a failure mode recorded elsewhere in this document is not thereby avoided here" was
+  already on the wall. The fix trims a trailing unit only when the field begins with a
+  digit, so "a handful" and "v2" still state no quantity, and the unit is kept in `Raw`,
+  which is the only surviving record that the claim said "ms" at all.
 - [x] **The lint snapshot carries the vocabulary, and the three checks it blocked are
   built.** *`lint.Snapshot` gained `Vocabulary` — `ontology.toml` flattened by the shell
   to what the checks compare against — and `subject-missing`, `subject-unknown` and
@@ -793,31 +840,215 @@ ______________________________________________________________________
   stop writing subjects. It now skips with a reason until the vocabulary declares one.
   Also two subject-verb disagreements ("1 document declare", "1 claim name") that no
   substring assertion sees and one run shows.
-- [ ] **`standards/operators.toml` and its test corpus.** *Scheduled 2026-08-24
-  (§10.2.2.1): they land **with §10.2's conflict detection**, which is their only
-  consumer. Not sooner.* Building earlier would leave a parser nothing reads, and a test
-  corpus authored from somebody's imagination of how people phrase a constraint — which is
-  §11.0.2's warning about an instrument that cannot measure the thing claimed.
-  **The reason to wait is that the evidence survives waiting, and that is the reusable
-  part.** Retrieval cases needed the instrument *first*, because a disappointing query is
-  ephemeral. A mis-parsed claim is durable: it is on disk, and §10.2.1's regenerability
-  means an improved pattern set fixes every affected claim retroactively on the next
-  reindex. The question to ask of the next artifact of this shape is not "is the data
-  authorable yet" but **"does the evidence survive waiting"**.
-  **§10.2.3's coverage loop maintains this and cannot start it.** With no patterns,
-  coverage is zero on every key and cannot distinguish its two causes — no quantity
-  present, versus a phrasing the patterns miss. The trigger is conflict detection
-  beginning, not a coverage figure.
-  **Nothing is pre-positioned:** no seed file, and no direct import of the units library,
-  which is already an indirect dependency — so there is nothing to reserve and the
-  unused-dependency rule applies. Inversions are still the first cases when it is written.
-  **One part must ship with the first pattern rather than after it**: §10.2.2's rule that
-  a finding derived from a parse *shows the parse*. It looks cosmetic and is not — "a
-  false conflict that shows its reasoning is dismissible in seconds; one that shows only a
-  verdict erodes trust in the whole queue."
-  **What this blocks, exactly:** conflict detection, `constraint-coverage`,
-  `constraint-drift`, and the *detector* half of the definition-drift entry. It does not
-  block `claims`, claim-level search, or claim-level link attribution — see those entries.
+- [x] **Claim-level search covers only the extracted corpus and does not say so.**
+  **The entry was wrong about what existed, and the truth was worse.** *Measured
+  2026-08-27: there was no claim search at all. `index.DB.Search` queried `documents_fts`
+  and nothing else, while `claims_fts` had been written on every extraction since I added
+  it — the sixth instance of stored state with no reader in this backlog, and the first I
+  introduced myself with the rule in front of me.*
+  **Two honest options, and the reader won.** *Deleting the writer would have obeyed the
+  rule as ritual; the reason behind it is that unread state cannot be **known** to be
+  right, and a query answers that better than a deletion does. The data is specified
+  (§5.5), wanted (§11), and correct — what was missing was the half that makes it
+  observable.*
+  **Built**: `index.DB.SearchClaims` over `claims_fts`, and `gnosis search --claims`. A
+  flag rather than a command, for the same reason `--cases` is one: same index, same
+  query language, same bound, different grain.
+  **The shortfall travels in the result struct**, not as a second return value a caller
+  can drop — `ClaimResults.Unextracted` counts the claims carrying no lead, and it is
+  computed whether or not anything matched. A count that appeared only alongside hits
+  would go quiet in the case a reader most needs it: "no results" and "no results, and 40
+  claims were never extracted" send someone to opposite conclusions.
+  **Unconditional on the wire, conditional in prose.** JSON always carries the number,
+  because an absent field and a zero one are indistinguishable there. The human line
+  prints the clause only when it applies — "0 claim(s) carry no lead" on every query of a
+  fully extracted corpus teaches a reader to skip the line, and its absence is what
+  makes its presence mean something.
+- [x] **§17.4's `lead` check is built, and `standards/indicators.toml`'s conclusion rows
+  finally have a reader.** *One finding with two lexical shapes, both meaning "the
+  conclusion is not first": a lead that opens with a reason marker leads with its
+  derivation, and one carrying a conclusion marker after its start has buried the
+  conclusion behind the reasoning. A conclusion marker at the *start* is correct —
+  reporting it would teach authors to strip the connectives that make prose readable.*
+  **The defect running it found is the instructive part.** The check was written, tested,
+  and correct while `claimRefs` never copied `Lead` into the snapshot — so it ran on every
+  corpus and found nothing. Its own tests passed because they **constructed a
+  `lint.Snapshot` directly**: a pure-core test that builds its own input cannot detect a
+  shell that never supplies it. There is now a projection test that walks the fields, so a
+  field added to `DocClaim` and forgotten in `claimRefs` fails.
+- [x] **`constraint-coverage` reports §10.2.3's counts; §10.2.1.1's half is recorded as
+  undecidable.** *Per subject key: claims that parsed to a value and claims that did not,
+  named. No ratio — §17 forbids a count presented as health, and a coverage percentage
+  rises when somebody deletes the claims that do not parse.*
+  **The message names both causes because only a reader can tell them apart**, and the
+  remedies are opposite: the claims carry no quantity, which is nothing to fix, or they
+  carry one in a phrasing the patterns miss, which is a pattern to add.
+  **The too-wide rule is not built and the reason is recorded in §10.2.1.1 itself.** It
+  needs a plausible range per dimension that nothing declares — inventing one is what §6.2
+  prevents, and a vacuous-constraint check resting on a vacuous constant would be the joke
+  telling itself. Its own example is also a *range*, which under one-operator patterns is
+  two claims, so the rule as written would not catch the case that motivates it.
+- [x] **Claim `title` and `description` are refused rather than deferred.** *§5.5.3
+  records it: nothing reads either column, `lead` already is the retrieval unit §17.4
+  names, and asking for them costs a full re-extraction of every bundle (§6.1.1) for two
+  columns nothing selects. §11.1's "title, description" ladder is `index.md` metadata at
+  document grain; copying it one level down was a pattern applied rather than a need
+  identified.*
+  **The trigger that would change it**: a claim-level search result a reader cannot
+  identify from its lead alone. The columns stay in the schema so adding them later is a
+  migration nobody has to design.
+- [ ] **Six specified checks remain, and none is buildable today.** *Down from twelve on
+  2026-08-27. `filename-drift`, `limitations`, `duplicate`, `command`, `evidence` and
+  `language` were built; the six left each name their blocker below, because "unbuilt"
+  and "unbuildable" have been confused four times in this file and counting them together
+  is what caused it.*
+  - `newly-orphaned` — needs a **baseline**. Nothing stores a previous link state, and
+    "had an inbound link before" is not derivable from one commit.
+  - `durability` — needs §14.4's durability classes and §14.4.1's centrality. Neither
+    exists.
+  - `co-sign` — needs `gnosis_warrant`. §10.6's warrants are unbuilt and nothing reads
+    the key.
+  - `unanswered-challenge` — needs `gnosis_challenges` and a window in `standards/`.
+    Nothing writes challenges.
+  - `constraint-drift` — needs a pinned `gnosis_constraint` to check prose against.
+    Buildable in principle and pointless in fact: no corpus has a pin, and §10.2.1 keeps
+    them opt-in precisely so most claims never carry one.
+  - `gap` — **not deterministic, and §12's own table says `no`.** Recognising a concept
+    somebody *mentioned* is on the reasoning side of §10.3's line and routes to the critic
+    or nowhere.
+- [x] **`duplicate`, `command`, `evidence` and `language` are built, and two of them meant
+  something other than their one-line rows.**
+  **`command` cannot be about the generated region.** `gnosis schema` writes that region
+  from the registry, so a name inside it resolves by construction and a stale region is
+  already `schema --check`'s finding. The only part of `AGENTS.md` that can name an
+  unresolvable command is **the prose outside the markers** — the part §5.7.1 guarantees
+  gnosis never touches. An agent reads that document, runs what it is told, and cannot
+  tell a stale instruction from its own mistake.
+  **`evidence` cannot be about the archive changing.** Tier 0 is content-addressed: a file
+  at a hash cannot come to say something else, and a missing file is `archive-path`'s
+  finding. What changes is the **frontmatter** — a quote tidied after admission, or
+  `archive_paths` repointed — and nothing had looked since the gate validated it once. It
+  is a post-admission edit detector, and the message says so.
+  **`duplicate` is §4.6.1's merge reconciliation step**, not a hygiene check: identity is
+  assigned rather than derived, so two people writing about one subject produce two
+  documents git merges cleanly with no conflict marker. Two empty-set traps had to be
+  guarded — every untitled page shares "" and every hand-written page shares the empty
+  evidence set, so a naive grouping would report the whole corpus as one collision.
+  **`language` states the gate it is not**, in the code and in the data file. The promote
+  gate refuses an admission past `hedging_max`; this reports what the corpus already
+  holds, including every page written by hand that no gate ever saw. One finding per
+  document naming the phrases — §17.3.1's `coverage` showed what per-occurrence costs.
+- [x] **§12.1's table conflated two namespaces, and a lint check finally collided.**
+  *The gate's signals were written `gate \`evidence\``, so the extractor could not tell
+  them from lint checks — and `duplicate` had been one letter from `gate:duplication` for
+  longer. Adding an `evidence` check made it a failing test rather than a latent
+  ambiguity.*
+  Gate signals now carry a `gate:` prefix, and `spec_test.go`'s hand-maintained list of
+  five gate names is gone: a prefix cannot go stale and a list needs an entry per signal.
+  That is the second allowlist this week replaced by something derived.
+- [x] **`filename-drift` and `limitations` are built.** *Two of the twelve, and the two
+  that needed least.*
+  **`filename-drift` reports and never renames, and the action is still `automatic`.**
+  Those are consistent, and stating why took a failing test: the fix needs nobody's
+  confirmation because it happens as part of the *next write of this document*, which its
+  author already asked for. What would need asking is renaming a file underneath a reader
+  on the strength of a lint run — §5.6 makes a presented path a view.
+  **A hand-written file is named, not drifted.** A document gnosis never identified has no
+  slug convention to violate, so the check skips rather than reporting every file in a
+  corpus somebody started themselves — which is every corpus before its first promotion.
+  **`limitations` gained a `Document` field, and the seam test caught up.** `Lead` shipped
+  a working check that examined an empty field because `claimRefs` never copied it; the
+  projection test now walks the document fields too.
+  **The test helper was showing less than the command.** It rendered category and message
+  and dropped the path, so a test asserting *which document* a finding was about failed in
+  a way that looked like a code defect. It now renders what `gnosis lint` prints.
+- [x] **The link-offset decision, recorded at last.** *Decided 2026-08-27 and recorded
+  nowhere for a day while I reported it as recorded — the failure this file exists to
+  prevent, committed against this file. What remains is not this decision: it is a
+  `LinkRefs` field in `skillet/markdown`, owed to §13's viewer rather than to any entry
+  here, and noted below.*
+  **The decision**: attribute a link to a claim by **substring containment on the
+  anchor**, not by byte offset. `claim-anchor` already guarantees a valid anchor appears
+  in the body, so if a link's markup sits inside a claim's span the anchor contains it.
+  It is the only option that works when `claims.pos` is NULL, which is every anchor that
+  resolves under fold but was reflowed.
+  **Refused**: a second link locator inside gnosis. `markdown.Doc.Links` is `[]string`
+  with no offsets and mixes code-span contents in with hrefs, so a gnosis-side parser
+  would disagree with it *by construction* about which strings are links.
+  **Owed later, for a different reason**: §5.5 declares `links.snippet_start/end` as body
+  offsets and §13's viewer will want them. When that arrives, add a `LinkRefs` field
+  *alongside* `Links` in `skillet/markdown` — the shape that package's own `CodeSpans`
+  comment prescribes for exactly this situation.
+- [ ] **Three occurrences of embedded-field shadowing, and no check.** `root.Config` has
+  `Flags` and `Command`; a command `Config` embedding it and declaring neither assigns
+  the *root's* through the same selector. It produced `admitcmd`'s `FromStdin`, the schema
+  command's empty command list, and — on 2026-08-27 — a `synthesize` registration that
+  made **every** command require `--model`.
+  **The first two were messages; the third broke the binary**, and only a full-suite run
+  caught it. Three occurrences is where a comment stops being the remedy.
+  **What would catch it**: a test walking the registered command tree and asserting each
+  subcommand's `Flags` is not the root's, which is one pointer comparison per command and
+  needs nothing that does not already exist.
+- [x] **The four other data-plus-corpus artifacts have not been checked against
+  §18.4.1.** *Recorded 2026-08-27 after the operator corpus shipped with thirteen
+  patterns, eight passing cases, and the commonest real input failing silently.*
+  §18.4.1 now requires a corpus's cases to be shaped like the input the artifact
+  receives. Four artifacts predate that rule and none has been re-read against it:
+  `standards/indicators.toml` (§9.4.1), `standards/strength.toml` (§17.3.1), the scan
+  rules (§9.3), and `standards/retrieval-cases.toml` (§11.0.2, which ships empty and is
+  therefore the only one that cannot be wrong yet).
+  **The specific question to ask each**: does the corpus feed it sentences where the
+  artifact receives sentences, and real fetched bytes where it receives those? The
+  indicator words are the likeliest to have the same defect — their cases were written as
+  clause pairs and `segment` receives whole prose.
+  Cheap to check and worth doing before the next artifact of this shape, not after.
+  **Read 2026-08-27, and the guess above was wrong in both directions (§18.4.1.1).**
+  *The indicator cases are already whole sentences with terminal punctuation, as are the
+  strength cases — the artifacts this entry expected to be worst are the two that pass.*
+  **What they do not have is a corpus in the file, and that is correct rather than
+  missing.** A word list's behaviour is only observable through whatever matches it —
+  whether `because` refuses a cut is a fact about `segment` — and `internal/standards`
+  may not import its own consumers. A regex can self-test at load because it is
+  executable alone; a word cannot.
+  **The real gap was the scan rules, and it was the input's *size*.** Every `must_flag`
+  and `must_not_flag` is one sentence; `Ruleset.Patterns` receives a whole fetched page.
+  Two tests now close it over this repository's own long-form documents, which is the
+  nearest thing to a fetched page the repo holds: no rule fires on ~1MB of real markdown,
+  and every rule's own example is still found when **buried inside** one of those pages.
+  **The second test exists because the first can pass vacuously**, and confirming that
+  took breaking it: capping the matched text at 200 bytes leaves the "quiet on real
+  prose" test green and turns four rules red. Zero matches over a megabyte says nothing
+  unless the rules can fire on text of that shape at all.
+- [x] **`standards/operators.toml` is written, parsing, and read by both predicates.** *Landed 2026-08-27: the pattern set with its inversions first,
+  `internal/constraint` parsing prose to `{op, value}`, `rodaine/numwords` as a direct
+  dependency with one call site, and `claim_subjects` getting its one writer at
+  index-rebuild time with both halves together (§10.2.1).*
+  **The interval predicate is built and enumeration is subsumed by it.** Two claims on
+  one subject whose ranges share no value cannot both hold; two claims asserting `==` with
+  different values are that same case, so a second predicate would report one problem
+  twice. What separates them is a set-valued operator, which no pattern yields.
+  **`constraint-coverage` is all that remains of this entry** — §10.2.3's per-subject
+  counts and §10.2.1.1's too-wide rule.
+  **Adding the predicate exposed a stale `Applies`.** The `conflict` check began with
+  evidence divergence and gated on archived sources; a corpus stating two contradictory
+  bounds and having fetched nothing would have been told there was nothing to examine.
+  Derived applicability has to track what the check actually does — §12's own warning,
+  pointed at itself.
+  **A row is written even when the prose parses to nothing**, with a NULL value, because
+  §10.2.3 must distinguish *no quantity present* from *a phrasing the patterns miss* and
+  a missing row says neither.
+  **Two defects the corpus caught and one it did not.** The negative cases caught
+  `numwords` reading the article "a" as the number one, so "no more than a handful"
+  parsed to a confident `<= 1`. Running the binary caught the worse one: `numwords` does
+  not convert a number word with punctuation attached, so "…no more than three." — the
+  shape every real claim anchor has — silently parsed to nothing, and the first corpus
+  missed it because its cases were written *without* terminal punctuation. That is
+  §11.0.2's warning about an instrument authored from imagination, arriving in the file
+  written to avoid it. The punctuation pass then split `99.9%` into a bound of 99, which
+  is §9.4's own `2.5 seconds` failure one layer down.
+  **The patterns' widenings are deliberate and recorded per row.** "fewer than" is
+  strictly `<` and is stored as `<=`: a constraint one step wider than its prose cannot
+  manufacture a conflict the prose does not support, and the opposite error can.
 - [x] **Indicator words ship, and they refuse a cut rather than making one.**
   *`standards/indicators.toml` with both roles, `standards.LoadIndicators`, and
   `segment.Claims(text, dependent)` taking the reason words as a parameter. §9.4.1 has
@@ -990,32 +1221,188 @@ gnosis's.
   resolution for `anchor-absent` conflating a fabricated anchor with a drifted source —
   that is an obligation to *read* canonizer's answer when it lands, not to hold the
   item.
-- [ ] **A corpus does not know whether an admitted claim was ever used.** `ruflo`'s
-  nightly loop shipped 4 of 80 proposals over three months and could not see it,
-  because each run checked only whether it was repeating itself. gnosis's promote gate
-  decides admission and nothing asks about downstream reliance — the test the survey
-  already adopted from `haft`, now with a measured cost for omitting it. Phase 4.
-  **The blocker, measured 2026-08-23: the link graph does not hold the answer yet.**
-  `links.source_claim_id` is nullable and filled only when extraction identifies the
-  claim containing a link, which is Phase 3 — and nothing writes the `claims` table at
-  all. Document-level reliance already exists and is called `orphan`; what is missing is
-  claim-level, and it needs a claim-level link writer first.
-  **Corrected 2026-08-24: this is not behind the operator patterns, and saying it was
-  was my own over-statement.** The foreign key runs from `claim_subjects` to `claims`, not
-  the reverse, so `claims` is not coupled to the parser at all (§10.2.2.1). What this
-  actually needs is three small things and none of them is a constraint: the link
-  extractor reporting **byte offsets** — `LinkRow` carries none today — `claims.pos` from
-  the anchors `claim-anchor` already fold-matches, and containment. Then the report.
-  **Corrected again 2026-08-24: there is a fourth prerequisite and my previous correction
-  elided it.** `grep -rn 'INSERT INTO claims' internal/` returns **test files only**.
-  Nothing writes the `claims` table, so `claims.pos` presupposes rows that do not exist,
-  and "three small things" was three things plus a writer nobody had named.
-  **The writer is deliberately not built here.** §10.2.1 decided `claim_subjects` gets
-  one writer at index-rebuild time with both halves together; a `claims` writer landing
-  separately, filling `pos` and leaving `lead`, `title` and `description` NULL for
-  extraction to backfill, is the half-filled-row shape that decision exists to prevent.
-  So this is **blocked on the claims writer**, which lands with extraction (Phase 3) —
-  not unblocked, as this entry said for a day.
+- [x] **The `claims` table has a writer.** *`index rebuild` writes one row per declared
+  claim: `bundle.ClaimRows` is a pure fold and `index.Contents` carries them into the
+  same transaction as the documents.*
+  **`pos` is set only on an exact match and NULL otherwise.** §5.5.2 makes it an offset
+  into the document *body*, and `claim-anchor` matches under a fold that changes byte
+  lengths — so a fold-space offset written into a raw-space column is silently wrong,
+  which is worse than absent. An anchor that resolves but was reflowed still gets its
+  hash and no offset, which is exactly what §5.5.2 defines NULL for.
+  **The schema change had to be appended, not edited.** §5.5.3 first said a migration
+  could be corrected in place because `schema-shape` would report it; `DB.Objects`
+  selects `name FROM sqlite_master`, so that check compares object names and is blind to
+  a column definition. Corrected there and here.
+  **Running it found the count was measuring the wrong thing.** `index rebuild` reported
+  "indexed N document(s)" from the number *loaded*, so a corpus of hand-written pages —
+  every page before anybody runs gnosis over it — was told its whole contents were
+  indexed while the index stayed empty. It now reports what was written and names the
+  documents left out for want of a `gnosis_id`.
+
+  `grep -rn 'INSERT INTO claims' internal/` returns test files only. Claim-level
+  reliance (see below), the per-subject population the drift detector must be
+  calibrated against, and §10.2's conflict detection all rest on rows that do not
+  exist — so this is the highest-leverage unbuilt thing in the tree and it is not
+  blocked on anything.
+  **Decided 2026-08-26 (§5.5.3): write the address, declare the summary unknown, and
+  do not index what is not there.** `id`, `document_id`, `anchor_hash`, `pos` and
+  `type` are all recoverable from the document today; `title`, `description` and
+  `lead` wait on extraction and are **NULL**, not `''`.
+  **The empty string was the tempting default and it fails on a concrete case.** It
+  asserts that a claim *has* no lead, which is false, and §17.4's `lead` check cannot
+  tell it from an author who wrote an empty one — so that check would fire on every
+  claim in the corpus the first time it ran. `claims.pos` is nullable one column over
+  for the identical reason: zero is a real position, and the empty string is a real
+  lead.
+  **`claims_fts` stays empty.** It indexes those three columns, so filling it from
+  rows with no summary makes claim-level search return a corpus of blanks — fewer
+  results than there are claims, with nothing saying why. The claim ladder skips with
+  a reason until extraction writes something to match on.
+  **The `claim_subjects` precedent does not apply and checking that was the work.**
+  §10.2.1 refused half-filled rows there because `derived` and `pattern_id` would
+  assert "neither parsed nor pinned". Here the address columns are complete and correct
+  standing alone; what is absent is a summary, which is a different column group
+  answering a different question.
+  **Correcting the migration in place is allowed here.** `.gnosis/index.db` is
+  gitignored, per-user and rebuilt from the bundle, so `schema-shape` reports the
+  mismatch and names the rebuild — a liberty a durable database never has.
+- [x] **`conflict` reports the one §10.2 predicate that is decidable today.** *§10.2 lists
+  six; `lint`'s `conflict` check implements evidence divergence, and §10.2.0 now records
+  which of the other five are unbuildable, which are already reported elsewhere, and
+  which wait on the operator patterns.*
+  **Its decidable form is byte identity, and that is the only reading that survives
+  §10.3.** That section refuses a similarity threshold over an embedding and routes real
+  contradiction to the critic — so what is left for a deterministic predicate is: the
+  corpus holds one assertion twice, resting on two snapshots of one source that are not
+  the same bytes. Two sites on the same version are corroboration; two different sources
+  are corroboration across sources.
+  **It lives in `lint`, not a new package**, which corrects the plan. §12's own table
+  already calls `conflict` a lint check, `lint` is where every cross-document check
+  already lives (`orphan`, `identity`, `index-drift`), and a new parser package would
+  have been the first parser-to-parser import in the tree.
+  **Candidate narrowing by subject was in the plan and was not built**, also
+  deliberately: §10.2 describes it for the predicates that compare *values*, and this one
+  keys on claim text. Building it now would be a mechanism with no reader.
+  **Severity and level divergence are still not buildable, and the reason changed within
+  a day.** They read `ruleset.Severity` and `ruleset.Level`; skillet v0.23.0 ships both,
+  so "no such package" stopped being true on 2026-08-27. What is missing is a *claim*
+  carrying one — nothing in `gnosis_claims` declares a severity or a level — so the
+  predicate belongs to a corpus of rule documents rather than to this one. Kept rather
+  than deleted because a blocker that moves is worth more to the next reader than a
+  blocker that is simply gone.
+- [x] **`coverage` is built, and it had no entry until it was.** *§17.3.1 specified it and
+  §12.1's table listed it; nothing built it and no backlog item named it. Found
+  2026-08-27 while working out what was unblocked — a specified, enforced-table check
+  that nothing builds and no entry mentions is the drift §12.1's two-way test exists to
+  catch one level up.*
+  **`standards/strength.toml`, with both roles.** Authoring it is quoting §17.3.1's own
+  enumeration rather than inventing data, which is what separates it from the operator
+  patterns; and its reader ships in the same change, which is what separates it from the
+  indicator words. Hedged markers are declared so the check can tell a claim that hedged
+  from one that said nothing either way — and a claim carrying both is silence, because
+  which one governs is a reading no lexical check settles.
+  **The invented number was mine and running it found it.** The first version raised the
+  bar by one for a normative type, so a prescribing claim silently needed *three*
+  quotations — a figure §17.3.1 never states and §6.2 forbids. §14.4.1's stakes now
+  appear in the message, where a reader triaging a queue can act on them.
+  `lint.Claim` gained `Quotes` and `VocabType` gained `Normative`, both gathered by the
+  shell like `Subject` before them.
+- [x] **A corpus does not know whether an admitted *claim* was ever used — the document
+  half is built.** *Narrowed 2026-08-27 (§12.2). The surveyed loop shipped four of eighty
+  proposals over three months and could not see it, and that is a **throughput** measure:
+  `audit --gained` counts what landed and `audit --outstanding` counts what somebody was
+  asked about and abandoned. The failure this entry cites is closed at the grain its
+  evidence supports.*
+  **What remains is the claim grain, and it is blocked.** Five meanings were weighed and
+  four are refused (§12.2). Citation cannot be had: `links` has `source_claim_id` and no
+  target, and §5.6 makes a presented path a view of a *document*, so claim-level citation
+  needs a schema column and a new href form — contradicting that design for a report.
+  Adjudication and verification are not use: the first is rare enough to name nearly the
+  whole corpus, and the second is about truth rather than consultation.
+  **Retrieval is the meaning worth having, and as of 2026-08-27 there is something to
+  trace.** *The trigger this entry named — extraction writing `claims.lead` — has fired,
+  and `gnosis search --claims` returns claim-grain results. §6.4's tracer argument now
+  applies with a tracer to attach it to.*
+  **Built 2026-08-27**: `.gnosis/retrieved.jsonl` in `checked.jsonl`'s shape — per user,
+  gitignored, upsert rather than append — written by `search --claims` and read by
+  `gnosis audit --unretrieved`.
+  **The recording takes no lock, and that is the design decision rather than a shortcut.**
+  Every other record here goes through the write coordinator; `search` is a read command,
+  and putting a retrieval behind the writer's lock would serialise reads behind somebody
+  else's ingest. What that costs is a lost update under concurrent searches, stated on the
+  field: the count is a **lower bound**, the failure direction is a claim looking *less*
+  retrieved than it was, and the report therefore says "not observed returned" rather than
+  "never retrieved". The wording carries the whole guarantee.
+  **A failed write warns and never fails the search.** A query that answered has answered;
+  turning an observation into a failure would make the tracer the most fragile part of
+  retrieval.
+  **A claim with no lead is excluded from the report entirely.** It is not in `claims_fts`
+  (§5.5.3) so no search can return it at any ranking, and listing it would blame a claim
+  for a gap in extraction — on a corpus mid-extraction, most of them. That shortfall has
+  its own reader beside `search --claims`'s results.
+  **It skips when nothing has been searched.** A corpus nobody has queried has not failed
+  to be useful, and naming every claim in it on day one is the loudest possible thing to
+  say about nothing.
+  **The first version's own advice named a command that does not exist** — "run `gnosis
+  extract`" — which is the finding `lint`'s `command` check reports, written into the tool
+  that ships it. Caught by running the binary rather than by any test.
+  **It will measure reach, not reliance**, per-user like `checked.jsonl`, as a count over
+  a window and never a fraction — §17 forbids a count presented as health, and
+  proportion-of-the-corpus-ever-retrieved is the most target-shaped number available.
+  **This entry was listed unblocked twice, on 2026-08-26 and again in a plan, and both
+  times I checked its stated prerequisites rather than its question.** Byte offsets,
+  `claims.pos` and containment are all reachable now — and they answer which claims do the
+  *citing*, where the entry asks which are *relied upon*.
+- [x] **`verifications` has a table and a writer, and the entry understated it.** *It
+  said the table "is in §5.5's schema and nothing fills it". The table was not in the
+  migrations either — `grep` for it in `internal/index` returned nothing. So this was a
+  create-plus-write rather than a write.*
+  **The grain was a decision OKF does not make.** OKF §5.2 puts `verified` at document
+  level and §5.5 keys the table by claim. Expanding one into the other would assert that
+  somebody verified each claim when they verified a page — §5.5.1 refused that exact
+  inheritance for `subject`, and §5.5's own reason for making this a table is that a
+  human sign-off and an automated pass must stay distinguishable, which a page-level
+  expansion destroys one level down. So `verified` is read inside a `gnosis_claims` entry
+  and **a document-level list is not expanded**. The plan proposed reading it as a
+  fallback; that was the inheritance under another name and it was dropped at
+  implementation time.
+  **An existing test caught the new table before any writer existed.**
+  `TestEveryContentTableIsDigested` failed the moment the migration landed: a content
+  table outside the digest means two rebuilds differing only there report the same
+  digest. It also flagged the new *index*, because it excluded indexes by a
+  hand-maintained list of name prefixes — so `index.DB.Tables` now asks SQLite for
+  `type = 'table'` and the list is gone. A new index can no longer fail that test for
+  the wrong reason.
+- [x] **Four tables in §5.5's schema have no migration.** `entity_aliases`, `tags`,
+  `sources` and `evidence` are specified in that block and absent from
+  `internal/index`. `verifications` was the fifth until 2026-08-27, and finding it took
+  grepping for the table rather than for its writer.
+  **None is obviously owed yet and that is the point of the entry.** `evidence` would
+  index the quotations frontmatter already holds authoritatively; `tags` and
+  `entity_aliases` have no reader; `sources` per claim overlaps what `sources_fetched`
+  records per fetch. What is wrong is that §5.5 presents ten tables as the schema and the
+  code has six, with nothing saying which are which — the same gap `coverage` had when it
+  was specified, listed as enforced, and unbuilt.
+  **Closed 2026-08-27, and the count in this entry's own title was wrong.** *There are
+  **seven** unbuilt tables, not four. `checked`, `llm_cache` and `findings` were never
+  counted — which is the argument for the fix that landed rather than an embarrassment:
+  a hand count of a block is exactly the artifact that goes stale, and the check that
+  replaced it found three more in its first run.*
+  **The marker lives in the spec, not in Go.** A `-- not built:` line above a table
+  declaration carries the reason, and `schema_test.go` walks §5.5's SQL block against a
+  fresh database in both directions: specified-unmarked-and-absent fails, and
+  marked-but-present fails too. The documentation and the thing documented are one
+  artifact, so they cannot drift.
+  **The three newly found ones each say something the block did not.** `checked` is a
+  table §5.5 declares and §4.3.1 puts in `.gnosis/checked.jsonl` — the specification
+  contradicting itself, now marked rather than deleted so a reader looking for that state
+  is sent to the file. `llm_cache` would be a second index of files whose names already
+  are the key. `findings` is §10.7.4's own conclusion arriving one table earlier: `lint`
+  computes findings every run and holds none, and the rows that need durable state are
+  challenges, which live in frontmatter and travel.
+  **The marker is a literal token, and writing "not built as a table" instead of "not
+  built:" made the test fail.** That is the property worth having: prose that reads like
+  a marker is not one.
 - [x] **The scripted-model fixture is built; the real-model run is not.** *§18.6.1.
   "A local server speaking the model protocol" needed translating, because gnosis
   speaks no model protocol: it writes a prompt file and reads a reply file, so the
@@ -1221,7 +1608,7 @@ published results — the grader diverges from the paper's, and §11.0 now says 
   but "we decline this, and here is roughly what declining costs on an adjacent
   benchmark" is a stronger and more honest section than the one there now, which
   argues entirely from principle. Revise §11.0 to state the trade.
-- [ ] **Nothing holds an *experience*.** *Decided 2026-08-24 (§5.8.3.1), and the
+- [x] **Nothing holds an *experience*.** *Decided 2026-08-24 (§5.8.3.1), and the
   "per-type accretion rules" this entry waited on are **not** what gets built. The type
   vocabulary carries one more fact about the kind of knowledge — `episodic`, meaning its
   claims assert what happened at a moment rather than what holds in general — and three
@@ -1255,14 +1642,39 @@ published results — the grader diverges from the paper's, and §11.0 now says 
   behaviour differs compare as one — and §5.8.2 would then merge them silently. The test
   now enumerates Type's bool fields by reflection rather than listing them, so the next
   flag is covered before it is written.
-  **Conflict ineligibility (§10.2) lands with the detector, so the second step is not
-  buildable** — it is behind `standards/operators.toml`, which is scheduled with conflict
+  **Unblocked as of 2026-08-27: §10.2's interval predicate is built.** Conflict
+  ineligibility was waiting on a detector to be ineligible *for*, and `lint`'s `conflict`
+  check now compares bounds on one subject. What remains is one guard: a claim of an
+  episodic type is excluded from the comparison, because "we set retry to 3 in March" and
+  "we set it to 5 in June" are two disjoint bounds on one subject and adjudicating them
+  is the corpus adjudicating its own history.
+  *The paragraph below is what this entry said while it waited, kept because its
+  reasoning is still the reasoning:* conflict ineligibility lands with the detector, so
+  the second step was not buildable — it is behind `standards/operators.toml`, which is scheduled with conflict
   detection. Listed Tier 1 on 2026-08-24, which was wrong for the same reason the drift
   detector was: one step done is not the entry unblocked.
   Supersession then never fires as a consequence rather than a rule.
-  **The type itself does not ship in the starter vocabulary yet**, on §10.6's attenuation
-  argument: a starter entry nothing uses is a dead knob in a different file. It is worth
-  adding when a corpus has an episode to file.
+  **Closed 2026-08-27: the guard is built, and scoping it was the work.** *`conflict`
+  skips a document whose type is `episodic` before reading its bounds — excluded from
+  **either side** of a pair rather than only from episode-versus-episode, because an
+  episode records what happened and a rule states what holds; a finding pairing them
+  would ask a reader to adjudicate a fact against a policy.*
+  **Scoped to the interval predicate and deliberately not to evidence divergence.** The
+  first draft excluded episodic claims from the whole `conflict` check, which reads
+  §5.8.3.1 as being about episodes generally. It is about *adjudication between claims* —
+  "two reports of different moments cannot contradict". An episode resting on two
+  versions of one source still has evidence that moved, and suppressing that would use
+  "this is history" to excuse an unsupported claim.
+  **The flag is read from the document's type, not carried on `Bound`.** Copying it onto
+  every claim value would put a document fact in a second place, where the two can
+  disagree and nothing would notice.
+  **It changes nothing visible today**, since no corpus declares an episodic type — and
+  that is the argument for building it now rather than against. The guard has to exist
+  before the first episode, or the first thing a corpus does with its own history is
+  contradict itself.
+  **The type itself still does not ship in the starter vocabulary**, on §10.6's
+  attenuation argument: a starter entry nothing uses is a dead knob in a different file.
+  It is worth adding when a corpus has an episode to file.
   **No longer blocked on a decision** — the flag and the staleness derivation are ordinary
   work.
   Original: a standard and an episode are different
@@ -1427,11 +1839,57 @@ how cheap they are relative to what they buy.
   distinguish "cites", "supersedes", "causes", and "is filed near". Typing the graph
   needs a relation vocabulary, which is §5.8's problem, so this is Phase 3 at the
   earliest — but §20's trails entry should stop assuming an ordered list is a path.
-- [ ] **No claim carries a causal rung.** FPF's CAUSAL-USE exists because
-  association, intervention, and counterfactual claims get treated as
-  interchangeable. §10.2's constraint extraction is the natural place for a rung, and
-  a claim whose wording is causal but whose evidence is associational is exactly the
-  silent upgrade §9.4 guards against for quotations.
+- [x] **No claim carries a causal rung, and nothing should carry one.** FPF's
+  CAUSAL-USE exists because association, intervention and counterfactual claims get
+  treated as interchangeable; a claim whose wording is causal while its evidence is
+  observational is the silent upgrade §9.4 refuses for quotations.
+  **Decided 2026-08-26 (§17.3.1.1): the rung is not stored anywhere.** Both registers
+  are read at check time — the claim's from its wording, the evidence's from the
+  archived passage the corpus already validates verbatim — and only the *gap* is
+  reported. A single stored rung cannot express a gap, and the gap is what the
+  interesting case always is.
+  **This entry's own suggestion was wrong and checking it was the work.** It said
+  §10.2's constraint extraction is "the natural place". A constraint is a quantity;
+  "restarting the pod clears the leak" carries no operator, so the rung would reach
+  only claims that happen to state a number — close to the opposite of the population
+  that needs it. A declared `rung` field is self-certification, which §4.6.2.1 already
+  refused one layer up; and `links.rel` contradicts §5.5.1.2, where causality is
+  carried as a claim rather than as a relation between documents.
+  **It is a second axis of `coverage`, not a subsystem.** §17.3.1 already specifies the
+  machinery for the quantifier axis: closed lexical lists in `standards/`, warning tier,
+  remedy is to weaken the wording. This is the same shape on a second dimension.
+  **Unblocked as of 2026-08-27: `coverage` is built.** It was blocked on that check —
+  itself listed with no blocker analysis for weeks and flagged three times before anybody
+  fixed it — and `coverage` landed with `standards/strength.toml`, the quantifier axis,
+  and §14.4.1's stakes in the message.
+  **What remains is one word list and one comparison.** The causal registers go into
+  `standards/` beside the strength markers: *causes*, *leads to*, *results in* against
+  *is associated with*, *correlates with*, *predicts*. The check reads the claim's
+  register and its supporting quotation's, and reports only the gap — a claim asserting
+  intervention on evidence that observes.
+  **The word list ships with the comparison or not at all**, which is now a rule rather
+  than a caution: `standards/indicators.toml`'s conclusion rows sat unread from the day
+  they shipped until §17.4's check was built a week later.
+  **Built 2026-08-27 as `lint`'s `rung` check**, with `standards/registers.toml` and its
+  comparison landing together.
+  **The evidence's rung is read from the quotation, never from the archived file.** The
+  quote is what the corpus already validates verbatim; a whole source almost certainly
+  contains a causal word somewhere, so reading the file would clear nearly every claim
+  while appearing to check it — the loudest possible way to be useless.
+  **Silence in three of the four states, and the third is the adversarial one.** A
+  quotation carrying no register word has not been *shown* to be observational. Most
+  quotations carry none, so reading silence as "observational" would report nearly every
+  causal claim in a corpus on the strength of evidence never examined — asserting from
+  absence, which is what §9.4's `Unchecked` outcome refuses one layer down.
+  **Registered as its own check rather than a branch inside `coverage`**, because §12's
+  applicability rule is per check: a check that silently declines half of itself is
+  indistinguishable from one that found nothing, and a corpus declaring strength markers
+  but no registers deserves to be told which half is unavailable.
+  **A word list that only matched one copula is the defect this shipped nearly having.**
+  "is associated with" does not match *are* associated, *was* associated, *were*
+  associated — real prose inflects, and the bare form has to be in the list too. Found by
+  a test fixture that omitted it and failed in a way that read as a code defect; the
+  shipped file is now pinned against real sentences in `internal/standards`.
 - [x] **`gnosis schema` exists and carries the marker contract.** *§5.7.1.
   `internal/schema` is pure over (existing text, generated regions) and `cmd/schemacmd`
   does the I/O. The command did not exist — §5.7 specified it and `ls cmd/` had no
@@ -1700,7 +2158,23 @@ and `PLAN.md` §5.6. What remains open is here.
   a document, and empty sections. Both are what an agent leaves behind when it runs
   out of material, both are pure text, and neither needs a model. From `kb-lint`.
 
-- [ ] **Machine-owned versus human-owned regions of a document.** §6.3 splits
+- [x] **`synthesize` is built, and the gate is a set rather than a count.** *`gnosis
+  synthesize <path>` emits a rewrite prompt; `admit` applies §6.3's gate and reports the
+  diff before writing anything.*
+  **A rewrite may reorganise anything it keeps the evidence for.** The comparison is a
+  set over quotations: one that dropped a passage and added another would balance, and
+  the arithmetic would approve a document that lost the passage its claim rested on —
+  which sits in frontmatter, where a reader skimming improved prose will not see it.
+  **Three things running it caught.** `quotecheck.Check` reports per *passage*, not per
+  quotation, so the first version's fold lookup never matched and every quotation read
+  as unsupported; support is now recorded per whole quotation. A rewrite must be checked
+  against **every** source the document cites, not the one the prompt was built from,
+  or the gate reports a loss it caused itself. And the command's `Config` declared no
+  `Flags` or `Command` of its own, so `cfg.Flags = ...` assigned the *embedded root's* —
+  registering `synthesize` silently made every other command require `--model`. That is
+  the third appearance of this shadowing and the first where it broke the binary.
+
+- [x] **Machine-owned versus human-owned regions: decided, and both halves built.** §6.3 splits
   accretion from synthesis at the level of the *operation*; `wenlan` splits at the
   level of the *region* — a refresh rewrites machine-written prose and **stages
   human-written prose for review**. That is the finer and more survivable version,
@@ -1729,28 +2203,30 @@ and `PLAN.md` §5.6. What remains open is here.
   diff a reviewer cannot read — one where a preserved paragraph is indistinguishable from
   a rewritten one. The prediction is that it will not arise, because a diff whose evidence
   must survive it is a small diff.
-  **What remains open is not this decision, and it is two unlike things rather than
-  one — which is most of why this entry has stayed open.** `synthesize` (§6.3) needs the
-  relay and a model round trip, so it is Phase 3 work. An `index.md` generator is a pure
-  fold over loaded documents and is buildable today; §12 already specifies `index-drift`
-  as "`index.md` differs from what would be generated", and nothing generates it. Split
-  below so the small half is not held hostage to the large one.
-  Neither is blocked on anything recorded here — but `synthesize` needs the relay and a
-  model round trip, so it is Phase 3 rather than available work.
+  **Closed 2026-08-27: nothing outstanding.** The two things this entry said remained are
+  both built. `index.md`'s generated region landed with §5.7.1's contract on 2026-08-24,
+  and `synthesize` landed on 2026-08-26 — and the claim that it "needs the relay and a
+  model round trip" was wrong twice over: the relay seam already existed, and what was
+  actually missing was a prompt bound to a document rather than to a source.
+  **The revisit trigger stands and is the reason this text is kept rather than deleted:**
+  a real `synthesize` diff a reviewer cannot read, one where a preserved paragraph is
+  indistinguishable from a rewritten one. The prediction remains that it will not arise,
+  because a diff whose evidence must survive it is a small diff — and there is now a gate
+  in the tree to test that prediction against.
 
-- [ ] **`ingest` does not append evidence, and §6.3 says it does.** SPEC §6.3: "`gnosis
-  ingest` appends `gnosis_evidence` entries and updates `sources` mechanically. No model,
-  no body rewrite. This alone keeps the corpus current on facts." `ingest` writes prompts;
-  nothing appends evidence to an existing concept.
-  **This is the mechanical half of accretion — the half §6.3 says needs no model — and it
-  is unbuilt and was not recorded as unbuilt.** Found 2026-08-24 while measuring whether
-  the machine-owned-regions entry had a buildable half.
-  **What it needs, and why it is not built yet:** a reply carrying a claim about an
-  *existing* concept rather than a new one. `admit` creates a quarantined document; there
-  is no path that adds a validated quotation to a page that already exists. That seam is
-  the relay's shape, and inventing an interface for it from this side would be designing
-  Phase 3's boundary from outside it.
-  The spec is right about what should exist; this entry records that it does not.
+- [x] **`ingest` appends evidence, which §6.3 said it did.** *`gnosis ingest --into
+  <path>` binds the prompts to an existing concept; a reply's quotations are appended to
+  the claims that document already makes.*
+  **The body is compared, not promised.** §6.3 says accretion appends evidence with "no
+  body rewrite", so after the merge the rendered body is checked against the one that
+  was read. A reply claim the document does not already make is reported by name and
+  never added — it has no paragraph, and giving it one is `synthesize`'s gated operation
+  under the cheaper name.
+  **Two things running it caught.** `okf.Render` re-emits the original frontmatter block
+  verbatim, so mutating `Fields` would have written nothing — both writers now render
+  through one `conceptDoc`, which also stops the two frontmatter shapes drifting. And
+  `admit` reported every accepted reply as "quarantined; review it, then promote it",
+  so an accretion told its caller to promote a document already in the corpus.
 
 - [x] **`index.md` carries a generated listing, and this entry's premise was false.**
   *`schema.IndexRegions`, `bundle.PlanIndexDoc`, and `gnosis schema` maintaining both

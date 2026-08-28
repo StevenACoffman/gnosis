@@ -3,12 +3,15 @@ package bundle
 import (
 	"context"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gofrs/flock"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/skillet/atomicfile"
 	"github.com/StevenACoffman/skillet/errs"
 )
 
@@ -151,6 +154,37 @@ func (w *Writer) Release() {
 	}
 	_ = w.lock.Unlock()
 	w.lock = nil
+}
+
+// WriteConcept replaces a concept document's bytes.
+//
+// Requires: the writer holds the lock; rel is bundle-relative and under the concept
+// directory; content is a rendered OKF document.
+// Ensures: written atomically, so an interrupted write never leaves half a document
+// where a whole one was.
+//
+// **It refuses a path outside `c/`.** Every caller today passes one from a prompt's
+// metadata, which is written by gnosis — but a write method that would follow whatever
+// path it was handed is one traversal away from overwriting `ontology.toml`, and the
+// guard costs a comparison.
+func (w *Writer) WriteConcept(rel string, content []byte) error {
+	const op = "bundle.Writer.WriteConcept"
+
+	if err := w.held(op); err != nil {
+		return err
+	}
+	clean := path.Clean(rel)
+	if !strings.HasPrefix(clean, conceptDir+"/") || strings.Contains(clean, "..") {
+		return &errs.Error{
+			Code: errs.EINVALID, Op: op,
+			Message: op + ": " + rel + " is not a concept path",
+		}
+	}
+	full := filepath.Join(w.dir, filepath.FromSlash(clean))
+	if err := atomicfile.WriteFile(full, content, 0o640); err != nil {
+		return &errs.Error{Op: op, Err: err}
+	}
+	return nil
 }
 
 // held reports whether this Writer still holds the lock.

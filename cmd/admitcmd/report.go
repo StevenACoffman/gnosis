@@ -37,14 +37,78 @@ func exitFor(outcome gnosis.Outcome) error {
 	return root.ExitError(outcome.Code)
 }
 
+// writeAccepted says what the reply became, which is not one thing.
+//
+// **A reply lands three ways and the first version knew about one.** It reported every
+// accepted reply as "quarantined <path>; review it, then promote it", read off the
+// presence of a path — so an accretion and then a rewrite of an existing concept both
+// told their caller to promote a document already in the corpus. The advice was not
+// merely wrong; it named a command that would refuse.
+//
+// Each branch is chosen by a key only that outcome carries, rather than by a kind field
+// the coordinator would have to remember to set. The data a report needs and the data
+// that identifies it are the same data.
 func writeAccepted(c *Config, outcome gnosis.Outcome) {
 	data, _ := outcome.Data.(map[string]any)
-	if path, ok := data["path"].(string); ok {
+	path, hasPath := data["path"].(string)
+	added, accreted := countOf(data, "added")
+	diff, rewritten := data["diff"].(string)
+
+	switch {
+	case accreted && hasPath:
+		writeAccretion(c, path, added, data)
+	case rewritten && hasPath:
+		_, _ = fmt.Fprintf(c.Stdout, "rewrote %s\n", path)
+		if diff != "" {
+			_, _ = fmt.Fprintf(c.Stderr, "\n%s", diff)
+		}
+		_, _ = fmt.Fprintf(c.Stderr,
+			"every quotation it already held survived; `git diff` shows the prose\n")
+	case hasPath:
 		_, _ = fmt.Fprintf(c.Stdout, "quarantined %s\n", path)
 		_, _ = fmt.Fprintf(c.Stdout, "\nReview it, then: gnosis promote %s\n", path)
+	default:
+		_, _ = fmt.Fprintf(c.Stdout, "the reply checks out; nothing was written\n")
+	}
+}
+
+// countOf reads an integer the envelope may carry as either Go type.
+//
+// An in-process outcome holds it as an int; a decoded envelope makes it a float,
+// because JSON has one number type. Both mean the same thing and a report that
+// understood only one would be correct in tests and wrong through the CLI, or the
+// reverse.
+func countOf(data map[string]any, key string) (int, bool) {
+	if f, ok := data[key].(float64); ok {
+		return int(f), true
+	}
+	n, ok := data[key].(int)
+	return n, ok
+}
+
+// writeAccretion reports evidence appended to a concept that already exists.
+//
+// The unmatched claims are named rather than counted, because the remedy differs per
+// claim: one may be a paraphrase of something the document already says, and another
+// may be knowledge the document does not hold — which `gnosis synthesize` is for, and
+// accretion deliberately will not do (§6.3).
+func writeAccretion(c *Config, path string, added int, data map[string]any) {
+	if added == 0 {
+		_, _ = fmt.Fprintf(c.Stdout,
+			"%s already holds every quotation this reply offered\n", path)
+	} else {
+		_, _ = fmt.Fprintf(c.Stdout, "%s gained %d quotation(s)\n", path, added)
+	}
+	unmatched, _ := data["unmatched"].([]string)
+	if len(unmatched) == 0 {
 		return
 	}
-	_, _ = fmt.Fprintf(c.Stdout, "the reply checks out; nothing was written\n")
+	_, _ = fmt.Fprintf(c.Stderr,
+		"\n%d claim(s) match nothing this document says, so no evidence was attached"+
+			" — accretion adds evidence and never a claim (§6.3):\n", len(unmatched))
+	for _, u := range unmatched {
+		_, _ = fmt.Fprintf(c.Stderr, "  %s\n", u)
+	}
 }
 
 // writeRefusals lists the two failure kinds under their own headings, because the

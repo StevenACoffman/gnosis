@@ -127,3 +127,58 @@ func TestAnUnterminatedFenceIsNotABlock(t *testing.T) {
 		t.Fatal("an unterminated fence was parsed")
 	}
 }
+
+// TestAReplyWithNoLeadIsAccepted is §5.8.3's argument one field over: §17.4 makes a lead
+// a *checked property*, and reporting is a review signal where refusing is a gate.
+// Turning one into the other would make the corpus decline knowledge over a summary.
+func TestAReplyWithNoLeadIsAccepted(t *testing.T) {
+	t.Parallel()
+
+	const src = "```yaml\ntype: Rule\ntitle: Retry Budget\nclaims:\n" +
+		"  - text: Retries are capped at three attempts.\n    quotes:\n" +
+		"      - the service retries three times before giving up\n```\n"
+	got, err := relay.ParseReply([]byte(src))
+	if err != nil {
+		t.Fatalf("a reply with no lead was refused: %v", err)
+	}
+	if len(got.Claims) != 1 {
+		t.Fatalf("want one claim, got %d", len(got.Claims))
+	}
+	if got.Claims[0].Lead != "" {
+		t.Errorf("a lead was invented: %q", got.Claims[0].Lead)
+	}
+}
+
+// TestALeadIsCarriedFromTheReply is the field arriving where §17.4 needs it. It is
+// authored by the model rather than derived, and §17.4 records why: a rule that picked
+// the conclusion clause would make the check testing that rule vacuous.
+func TestALeadIsCarriedFromTheReply(t *testing.T) {
+	t.Parallel()
+
+	const src = "```yaml\ntype: Rule\ntitle: Retry Budget\nclaims:\n" +
+		"  - text: Retries are capped at three attempts.\n" +
+		"    lead: Cap retries at three.\n    quotes:\n" +
+		"      - the service retries three times before giving up\n```\n"
+	got, err := relay.ParseReply([]byte(src))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got.Claims[0].Lead != "Cap retries at three." {
+		t.Errorf("lead = %q, want the reply's own words", got.Claims[0].Lead)
+	}
+}
+
+// TestThePromptAsksForALead is the contract in the direction that is easy to break: the
+// field can be parsed and never requested, and then no model would ever send one.
+func TestThePromptAsksForALead(t *testing.T) {
+	t.Parallel()
+	prompt := relay.Render(&relay.Request{
+		URI: "https://x/doc", SourceHash: "abc", Text: "Some source text.",
+		Model: relay.Model{Name: "test", Version: "1"},
+	})
+	for _, want := range []string{"lead:", "conclusion"} {
+		if !strings.Contains(prompt.Text, want) {
+			t.Errorf("the prompt does not ask for a lead (%q missing)", want)
+		}
+	}
+}

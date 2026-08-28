@@ -19,6 +19,18 @@ const claimsKey = "gnosis_claims"
 // convenience.
 const subjectKey = "subject"
 
+// verifiedKey is OKF §5.2's verification list, read per claim (§5.5).
+const verifiedKey = "verified"
+
+// leadKey is §17.4's conclusion-first summary, per claim.
+const leadKey = "lead"
+
+// limitationsKey is what a concept declares it does not cover (§17.2), per document.
+//
+// Per document rather than per claim, unlike `subject` and `lead`: §17.2's scope is the
+// concept's, and a claim does not have limits of its own — the page does.
+const limitationsKey = "gnosis_limitations"
+
 // claimsOf reads a document's claims out of frontmatter.
 //
 // §5.5.1 requires a claim's identity and address to be recoverable from the
@@ -50,6 +62,7 @@ func claimsOf(doc *okf.Document) []gate.Claim {
 			// which is the same fail-open mistake `DryRun bool` makes.
 			Enforced:     boolOr(m, "enforced", true),
 			Text:         stringOr(m, "anchor"),
+			Lead:         stringOr(m, leadKey),
 			Quotes:       stringsOf(m, evidenceKey),
 			ArchivePaths: stringsOf(m, "archive_paths"),
 		})
@@ -78,10 +91,50 @@ func docClaims(doc *okf.Document) []DocClaim {
 			ID:           firstString(m, "id", "anchor", strconv.Itoa(i)),
 			Anchor:       stringOr(m, "anchor"),
 			Subject:      stringOr(m, subjectKey),
+			Lead:         stringOr(m, leadKey),
+			Quotes:       stringsOf(m, evidenceKey),
+			Verified:     verifiedOf(m),
 			ArchivePaths: stringsOf(m, "archive_paths"),
 		})
 	}
 	return out
+}
+
+// verifiedOf reads a claim entry's OKF §5.2 verification list.
+//
+// Requires: m is a gnosis_claims entry.
+// Ensures: one Verification per well-formed event, in declaration order; an entry
+// missing either field is skipped rather than half-recorded. OKF §11 requires a bare
+// mapping be treated as a one-element list, which is what the string case does.
+func verifiedOf(m map[string]any) []Verification {
+	switch v := m[verifiedKey].(type) {
+	case map[string]any:
+		return oneVerification(v)
+	case []any:
+		out := make([]Verification, 0, len(v))
+		for _, entry := range v {
+			switch e := entry.(type) {
+			case map[string]any:
+				out = append(out, oneVerification(e)...)
+			case string:
+				// A bare actor with no time. Recorded, because OKF §11 says tolerate
+				// it and the actor is the half the trust fold reads (§14.1).
+				out = append(out, Verification{By: e})
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// oneVerification reads a single event mapping, or nothing.
+func oneVerification(m map[string]any) []Verification {
+	by := stringOr(m, "by")
+	if by == "" {
+		return nil
+	}
+	return []Verification{{By: by, At: stringOr(m, "at")}}
 }
 
 // sourcesOf reads a document's OKF sources list.

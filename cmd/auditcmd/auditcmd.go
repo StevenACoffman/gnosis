@@ -146,7 +146,11 @@ type Config struct {
 	// list of them, and this is a boolean asking for a report.
 	SubjectPop bool
 
-	// Since bounds --gained. A count with no period is uninterpretable.
+	// Unretrieved reports which claims searches were not seen to return (§12.2).
+	Unretrieved bool
+
+	// Since bounds --gained and --unretrieved. A count with no period is
+	// uninterpretable.
 	Since string
 
 	Flags   *ff.FlagSet
@@ -173,12 +177,15 @@ func New(parent *root.Config) *Config {
 		"count what the corpus acquired, rather than what is wrong with it")
 	cfg.Flags.BoolVar(&cfg.SubjectPop, 0, "subjects",
 		"report how the vocabulary is occupied: claims and sources per subject key")
+	cfg.Flags.BoolVar(&cfg.Unretrieved, 0, "unretrieved",
+		"list the claims this user's searches were not seen to return")
 	cfg.Flags.StringVar(&cfg.Since, 0, "since", "",
-		"the window for --gained, as YYYY-MM-DD; defaults to the last 30 days")
+		"the window for --gained and --unretrieved, as YYYY-MM-DD;"+
+			" defaults to the last 30 days")
 	cfg.Command = &ff.Command{
 		Name: "audit",
 		Usage: "gnosis audit (--outstanding | --unsupported | --churn | --gained" +
-			" | --subjects)",
+			" | --subjects | --unretrieved)",
 		ShortHelp: "report on the write trail",
 		LongHelp:  longHelp,
 		Flags:     cfg.Flags,
@@ -197,11 +204,13 @@ func New(parent *root.Config) *Config {
 // **Two of the five never open the trail**, and that ordering is the point rather
 // than an optimisation: a bundle whose trail is damaged can still say which of its
 // sources keep moving and how its vocabulary is occupied.
-func (c *Config) exec(_ context.Context, args []string) error {
+func (c *Config) exec(ctx context.Context, args []string) error {
 	if err := c.validate(args); err != nil {
 		return err
 	}
 	switch {
+	case c.Unretrieved:
+		return c.reportReach(ctx)
 	case c.SubjectPop:
 		pop, err := bundle.LoadPopulation(c.Bundle)
 		if err != nil {
@@ -227,16 +236,20 @@ func (c *Config) validate(args []string) error {
 	if len(args) != 0 {
 		return c.usage(errors.New("audit takes no arguments; try `gnosis audit --outstanding`"))
 	}
-	if c.Since != "" && !c.Gained {
-		return c.usage(errors.New("--since bounds --gained and applies to no other report"))
+	if c.Since != "" && !c.Gained && !c.Unretrieved {
+		return c.usage(errors.New(
+			"--since bounds --gained and --unretrieved and applies to no other report"))
 	}
-	if chosen(c.Outstanding, c.Unsupported, c.Churn, c.Gained, c.SubjectPop) != 1 {
+	if chosen(
+		c.Outstanding, c.Unsupported, c.Churn, c.Gained, c.SubjectPop, c.Unretrieved,
+	) != 1 {
 		// No default report — the command will grow `--reversed` (§10.6.5), so a bare
 		// invocation that silently meant one of them would change meaning when the
 		// next arrived. And two at once would interleave two lists on one stream with
 		// nothing separating them.
 		return c.usage(errors.New("audit needs exactly one report: " +
-			"--outstanding, --unsupported, --churn, --gained, or --subjects"))
+			"--outstanding, --unsupported, --churn, --gained, --subjects," +
+			" or --unretrieved"))
 	}
 	return nil
 }
@@ -606,5 +619,76 @@ func (c *Config) reportPopulation(pop *bundle.Population) error {
 		_, _ = fmt.Fprintf(c.Stderr, "%s declared and unused\n",
 			countOf(pop.Undeclared, "subject key"))
 	}
+	return nil
+}
+
+// reportReach answers §12.2's claim-grain question: which claims has nothing returned?
+//
+// **The report reads the index and the retrieval log and folds them purely**, which is
+// why `bundle.Unreached` takes values rather than a database: every case it has to get
+// right — a claim with no lead, a retrieval older than the window, a log that is empty —
+// is testable from literals.
+//
+// **It skips when nothing has ever been searched**, rather than reporting the whole
+// corpus. A corpus nobody has searched has not failed to be useful, and naming every
+// claim in it on day one is the loudest thing this tool could say about nothing.
+func (c *Config) reportReach(ctx context.Context) error {
+	since, err := c.window()
+	if err != nil {
+		return c.usage(err)
+	}
+	log, err := bundle.LoadRetrievals(c.Bundle)
+	if err != nil {
+		return c.unreadable(err)
+	}
+
+	db, err := bundle.OpenIndexForRead(ctx, c.Bundle)
+	if err != nil {
+		return c.unreadable(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	rows, err := db.AllClaims(ctx)
+	if err != nil {
+		return c.unreadable(err)
+	}
+	claims := make([]bundle.QuietClaim, 0, len(rows))
+	for _, r := range rows {
+		claims = append(claims, bundle.QuietClaim{ClaimID: r.ID, Path: r.Path, Lead: r.Lead})
+	}
+	return c.renderReach(bundle.Unreached(claims, log, since), len(log))
+}
+
+// renderReach writes the reach report.
+//
+// **A count over a window and never a fraction** (§12.2, §17). The two numbers are
+// printed side by side and no ratio is derived from them, because a
+// proportion-of-the-corpus-retrieved figure looks like progress and rises when a claim is
+// deleted.
+//
+// **"not observed returned", never "never retrieved".** Recording is per-user and
+// best-effort, so the honest claim is about what this log saw. The wording carries the
+// whole guarantee, and a stronger phrasing would be the report asserting reach it did not
+// measure.
+func (c *Config) renderReach(reach *bundle.Reach, logged int) error {
+	if c.JSONL {
+		if err := c.EmitOK(reach); err != nil {
+			return fmt.Errorf("audit: %w", err)
+		}
+		return nil
+	}
+	if logged == 0 {
+		_, _ = fmt.Fprintln(c.Stderr,
+			"no search has been recorded yet, so nothing can be said about reach;"+
+				" run `gnosis search --claims <QUERY>` first")
+		return nil
+	}
+	for _, q := range reach.Quiet {
+		_, _ = fmt.Fprintf(c.Stdout, "%s\t%s\t%s\n", q.Path, q.ClaimID, q.Lead)
+	}
+	_, _ = fmt.Fprintf(c.Stderr,
+		"%d retrievable claim(s); %d observed returned since %s, %d not observed\n",
+		reach.Claims, reach.Observed, reach.Window.Format(time.DateOnly),
+		len(reach.Quiet))
 	return nil
 }

@@ -2487,3 +2487,422 @@ rendered with no heading. An example-based test asserting "the entry appears" pa
 for a caller I imagined `init` would need and it never did. Deleted. It is worth noting
 because it is the failure mode the plan's own §rules 15 citation warns about, committed
 in the same pass that cited it.
+
+### 6.36 the Claim Row, and a Default That Would Have Shipped a Fifth Time
+
+*Does a claims row with no title, description or lead assert anything?* Yes, under the
+schema as declared, and what it asserts is false.
+
+**The table holds two unlike things and separating them settled it.** Five columns are
+an address — `id`, `document_id`, `anchor_hash`, `pos`, `type` — and §5.5.1 already
+requires each to be recoverable from the document. Three are a summary that extraction
+supplies. The address is derivable today, so the rows can be written today; the summary
+is not, so it is NULL.
+
+**`NOT NULL DEFAULT ''` was the tempting reading and it fails on a case that already
+exists.** §17.4's `lead` check reports a lead that restates background. Under the empty
+default it cannot tell *nobody extracted a lead* from *the author wrote an empty one*,
+so it fires on every claim in the corpus the first time it runs. That is the fifth
+instance this week of a signal at its loudest when there is least to say — and the
+first that would have been baked into a schema rather than into a message, where it
+would have been much more expensive to notice and to undo.
+
+**The precedent that looked decisive was the wrong one.** §10.2.1 refused half-filled
+`claim_subjects` rows because `derived` and `pattern_id` would assert "neither parsed
+nor pinned". Reaching for that analogy would have kept `claims` blocked on extraction
+along with everything behind it. It does not hold: there a *flag* would have lied, and
+here the address columns are complete and correct on their own. The right precedent was
+one column over — `claims.pos` is nullable because zero is a real position, and the
+empty string is a real lead.
+
+**A second table turned out to be part of the same question.** `claims_fts` indexes
+exactly the three summary columns, so filling it from rows with no summary yields a
+searchable corpus of blanks: claim-level search returns fewer results than there are
+claims, with nothing saying why. That is §12's *examined and clean* versus *not yet
+examinable*, arriving in `search` rather than in `lint`, and the answer is the same —
+skip with a reason.
+
+**And one constraint turned out not to be one.** Correcting a shipped migration in
+place is normally forbidden; `.gnosis/index.db` is gitignored, per-user and rebuilt
+from the bundle, so `schema-shape` reports the mismatch and names the rebuild. The
+column choice can therefore be made when it is noticed rather than when it would be
+convenient — which is worth stating, because the reflex to append a migration would
+have added a schema version to carry a decision that had not shipped to anybody.
+
+Checking the schema block also found `claims_fts` documented over `title, description,
+body` where `claims` has no `body` column. The code was right.
+
+### 6.37 the Causal Rung, Which Turned Out Not to Be a Place
+
+*Where does a causal rung live?* Nowhere, and arriving there took rejecting the entry's
+own answer and then noticing the question was mis-posed.
+
+**Three homes, three different failures.** A declared `rung` on the claim is
+self-certification — an author who overclaims causally declares `intervention` too, and
+§4.6.2.1 refused exactly that shape two days earlier when it took `approval_required`
+off the payload. The constraint, which the entry proposed as "the natural place", holds
+a *quantity*: "restarting the pod clears the leak" has no operator, so the rung would
+reach only the claims that happen to state a number. And `links.rel` contradicts
+§5.5.1.2, which already says causality is carried as a claim rather than inferred from a
+relation.
+
+**The question was mis-posed, and the entry's own sentence said so.** It described the
+failure as "wording is causal but evidence is associational" — a *mismatch between two
+readings*. A single stored rung cannot express a mismatch. Once that is seen, the
+storage question dissolves the way three others have this week: there was no place to
+put it because it was never one value.
+
+**And the machinery already exists in specification.** §17.3.1's `coverage` reports a
+claim asserting more strongly than its evidence supports, with strength partly lexical,
+markers as closed lists in `standards/`, warning tier, and the remedy being to weaken
+the wording. The causal register is a second axis of that same measurement — and the
+evidence's half is cheap for a reason worth stating: the supporting passage is archived
+and validated verbatim, so it can be read the same way the claim is.
+
+**The blocker this entry never carried is now written down.** It is behind `coverage`,
+not behind §10.2's constraint extraction. It had gone weeks with no blocker analysis and
+was flagged in three consecutive priority listings without being fixed, which is a
+better argument for annotating an entry at the moment it is measured than any amount of
+agreeing that it should be.
+
+### 6.38 Five Items, and the Third Appearance of One Bug
+
+All five landed. The findings are in what running each one turned up, not in the
+features.
+
+**A count that measured the wrong thing.** `index rebuild` reported "indexed N
+document(s)" from the number of documents *loaded*, and `Rows()` silently drops any
+without a `gnosis_id`. So a corpus of hand-written pages — every page before anybody
+runs gnosis over it — was told its whole contents had been indexed while the index
+stayed empty. The claims writer inherited the same skip correctly and looked broken
+because of it, which is how it was found. A count that names work not done is worse
+than no count: the reader has been told the question was answered.
+
+**A decision recorded an hour earlier turned out to be false.** §5.5.3 said a migration
+could be corrected in place because `schema-shape` would report the mismatch. It would
+not — `DB.Objects` selects `name FROM sqlite_master`, so the check compares object names
+and is blind to a column definition. An edited migration would have left every existing
+index carrying the old `NOT NULL` and failed at the first NULL insert, as a runtime
+error nothing had warned about. Writing the reasoning down is what made it checkable;
+the lesson is that recording a decision is the beginning of testing it, not the end.
+
+**A renderer that could not express the change being asked of it.** `okf.Render`
+re-emits the original frontmatter block verbatim, so accretion by mutating `Fields`
+would have written nothing and appeared to work. Both writers now build one
+`conceptDoc`, which was worth doing anyway: two frontmatter renderers agreeing by
+inspection is the kind of claim §9.4 refuses elsewhere, and here it would have failed
+silently — an accreted document formatted differently reads as an edit nobody made.
+
+**A check answering a nearby question.** `quotecheck.Check` reports per *passage*, and
+the synthesis gate asks per *quotation*. The first version folded findings and looked
+them up by whole quote, so nothing ever matched and every quotation read as
+unsupported — a gate that refuses everything is as broken as one that refuses nothing,
+and only running it tells you which you have.
+
+**And the same shadowing bug, a third time.** `synthesizecmd.Config` embedded
+`*root.Config` and declared no `Flags` or `Command`, so `cfg.Flags = ...` assigned the
+root's. Registering the new command made every other command require `--model`. It
+produced `admitcmd`'s `FromStdin` and the schema command's empty command list before
+this, and this is the first time it broke the binary rather than one message. Three
+occurrences is the point at which the pattern deserves a check rather than a comment.
+
+**One thing was deliberately not built.** §18.6's real-model run needs a real model, and
+the grader is the part that can be tested without one — a pure predicate over the audit
+trail asking whether a reply was admitted and whether anything was written first against
+an explicit allowlist. The runner that shells to a model is a documented manual step
+rather than code nothing exercises. §18.6 already says the run is slow, billed, and must
+stay out of the gate; a runner in the tree that no test could reach would be the
+data-with-no-reader mistake in executable form.
+
+### 6.39 `coverage`, and a Threshold I Invented While Arguing Against Thresholds
+
+The check had no backlog entry. §17.3.1 specified it, §12.1's table listed it, and
+nothing built it — which is the drift the two-way registry test catches one level up and
+nothing catches at this one. Finding it took asking what was unblocked rather than
+reading the list of what was open.
+
+**Two things made it cheap, and both are distinctions this project has argued before.**
+Authoring `standards/strength.toml` is quoting §17.3.1's own enumeration rather than
+inventing phrasings, which is why it is unlike `standards/operators.toml`. And its reader
+ships in the same change, which is why it is unlike the indicator words — the artifact
+that had to wait until something read it.
+
+**Declaring the hedged markers was not symmetry for its own sake.** The check has to tell
+a claim that *hedged* from one that said nothing either way: only the second is silent,
+and reporting the first would teach authors that hedging buys nothing — the opposite of
+what §17.3.1's remedy asks for. A claim carrying a universal *and* a hedge is silence,
+because which governs is a reading no word list settles.
+
+**And then I invented a threshold in the middle of a check about not inventing them.**
+§17.3.1 says normative claims are held higher; it does not say by how much. The first
+version raised the bar by one, so a prescribing claim silently needed *three* quotations
+— a number nowhere in the specification, sitting directly beneath a constant whose own
+comment claimed it was "doing less work than it looks". Running the binary showed two
+findings where §17.3.1 describes one, which is what surfaced it. The stakes now appear in
+the message, where a reader triaging a queue can act on them, and there is exactly one
+comparison in the code because there is exactly one in the section.
+
+The general form is worth keeping: **a comment explaining why a constant is defensible is
+not evidence that the constant next to it is.**
+
+### 6.40 the Conflict Frame, and Two Corrections to a Plan Written an Hour Earlier
+
+The plan said a new `internal/conflict` package, pure, with candidate narrowing by
+subject. Both were wrong, and the reasons were already written down elsewhere in this
+tree.
+
+**It belongs in `lint`.** §12's own check table lists `conflict` as a lint check, every
+cross-document check already lives there — `orphan`, `identity`, `index-drift` — and a
+new parser package would have been the first parser-to-parser import in the tree, which
+is the rule that decided the vocabulary's shape and the indicator words' shape in the
+same week. Three precedents pointing one way, and the plan pointed the other because it
+was thinking about §10 rather than about §12.
+
+**Candidate narrowing was not built.** §10.2 describes it for the predicates that compare
+*values*; evidence divergence keys on claim text and needs none. Building it would have
+been a mechanism with no reader — the mistake recorded four times already, and the plan
+had scheduled it anyway because §10.2 mentions it in the same paragraph.
+
+**Deciding what "archived texts that disagree" means was the actual work.** §10.2 gives
+it one line. §10.3 refuses a similarity threshold over an embedding and routes real
+contradiction to the critic, so a semantic reading is unavailable by construction. What
+survives is **byte identity**: one assertion held twice, resting on two snapshots of a
+single source that are not the same bytes. That is exactly decidable, needs no threshold,
+and describes a real failure — if the page changed in the passage that matters, one of
+the two claims is now unsupported while both still read as evidenced.
+
+The two negative cases matter as much as the positive one, and both are tested: two sites
+on the *same* version are corroboration, and two different *sources* are corroboration
+across sources, which is what a corpus is for. A predicate that reported either would
+fire on every well-maintained corpus and be switched off within a week.
+
+**Five predicates were left out and the check says which.** Two are *unbuildable* rather
+than unbuilt — severity and level divergence read a `ruleset` package the kernel does not
+ship — one is already reported by two other things, and two wait on the operator
+patterns. §12.0's warning is about a green run standing in for an examination nobody
+performed, and a checker called `conflict` implementing a sixth of §10.2 without saying
+so is that warning aimed at this tree.
+
+### 6.41 the Operator Patterns, and a Test Corpus That Missed the Commonest Case
+
+Two items planned, one finished and one half-finished, and the interesting part is what a
+data file with a test corpus still failed to catch.
+
+**`verifications` was understated by its own entry.** It said the table "is in §5.5's
+schema and nothing fills it". The table was not in the migrations either — so this was a
+create-plus-write, and grepping for the *table* rather than for its writer is what found
+that. Four more tables in that schema block are still absent (`entity_aliases`, `tags`,
+`sources`, `evidence`); §5.5 presents ten and the code has seven, with nothing saying
+which are which. That now has an entry.
+
+**Its grain was a decision OKF does not make.** OKF §5.2 puts `verified` at document
+level; §5.5 keys the table by claim. Expanding one into the other would assert that
+somebody verified each claim when they verified a page — §5.5.1 refused that exact
+inheritance for `subject`, and §5.5's own reason for making this a table is that a human
+sign-off and an automated pass must stay distinguishable, which a page-level expansion
+destroys one level down. The plan proposed reading the document list as a fallback; that
+was the same inheritance under another name, and it was dropped while implementing.
+
+**An existing test caught the new table before any writer existed**, and then caught the
+new index for the wrong reason. `TestEveryContentTableIsDigested` excluded indexes by a
+hand-maintained list of name prefixes, so a new index failed it as an undigested table.
+`index.DB.Tables` now asks SQLite for `type = 'table'` and the list is gone.
+
+**The operator corpus caught one trap and missed a worse one.** Its negative cases caught
+`numwords` reading the article "a" as the number one, so "no more than a handful" parsed
+to a confident `<= 1`. What they missed: `numwords` does not convert a number word with
+punctuation attached, so "Retries must be no more than three." — the shape every real
+claim anchor has, because an anchor is a sentence — parsed to nothing at all. The corpus
+missed it because every case was written *without* terminal punctuation.
+
+That is §11.0.2's own warning arriving inside the file written to obey it: an instrument
+authored from imagination measures the thing you imagined. The cases are now
+sentence-shaped, and the fix exposed a third defect immediately — spacing punctuation
+split `99.9%` into a bound of 99, which is §9.4's `2.5 seconds` failure one layer down and
+was already written on the wall.
+
+**The general form: a test corpus is only as good as its resemblance to the artifact.**
+Thirteen patterns and eight positive cases all passed while the commonest input in the
+corpus failed, and no amount of adding patterns would have found it. Running the tool over
+a real document did, in one command.
+
+### 6.42 the Interval Predicate, an Enumeration That Was Already There, and a Cache Everyone Pays For
+
+Two items, and in both the interesting decision was to build *less* than the plan said.
+
+**Enumeration conflict is subsumed, not absent.** §10.2 lists interval and enumeration as
+two predicates. With the operator set as it stands, two claims asserting `==` on one
+subject with different values *are* two disjoint intervals — so the interval predicate
+reports them, and a second predicate firing on the same pair would report one problem
+twice. It separates only if a pattern ever yields a set-valued operator, and none does.
+That condition is now recorded in §10.2.0 as the thing to watch, which is more useful than
+a second implementation would have been.
+
+**The predicate fires on disjointness, never on difference**, and the distinction is the
+whole of whether it is usable. `<= 3` and `<= 5` differ and are perfectly compatible; a
+check firing on difference would report every corpus that states a bound twice, which is
+every well-specified corpus. Six negative cases are tested against one positive one, which
+is the ratio that shape of predicate deserves.
+
+**Adding it exposed a stale `Applies`.** The `conflict` check began with evidence
+divergence and gated on archived sources. Once it also ran the interval predicate, a
+corpus stating two contradictory bounds and having fetched nothing was told there was
+nothing to examine. Derived applicability has to track what the check actually *does* —
+§12's own warning about a green run standing in for an unperformed examination, arriving
+inside the check that warning is written next to.
+
+**And `lead` cost something nobody had written down.** The cache key hashes the whole
+prompt body, so adding one field to the reply format moves every key in every bundle:
+every prompt re-emitted, every reply re-asked. That is the mechanism working — a changed
+prompt is a changed question — but §6.1's promise is about unchanged *inputs* and the
+prompt is one. It is now §6.1.1, with the two consequences that follow: batch prompt
+edits, and say so in `log.md`, because a corpus that suddenly wants to re-answer
+everything is otherwise indistinguishable from one whose cache is broken.
+
+**Two things were kept out on purpose.** §17.4's check is buildable now and is not built:
+the field existing and the field being checked are two decisions. And claim-level search
+now works over the *extracted* part of the corpus, which is a partial answer — so it has
+an entry requiring it to say what it did not cover, rather than shipping the silence.
+
+### 6.43 What Was Found by Looking for What Had Not Been Recorded
+
+Asked to record unrecorded findings, the search itself produced the largest one.
+
+**Thirteen checks are specified in §12, unbuilt, and were named nowhere.** `coverage` was
+the fourteenth, and it was found by accident — while asking what was unblocked, not by
+anything looking for it. §12.1's two-way test compares the enforced table against the
+registry in both directions, and **neither direction can see a check missing from both**:
+the row is absent, the checker is absent, and the two absences agree. That is a blind
+spot in a mechanism specifically built against drift, and it stayed invisible because it
+produces no failure — only silence.
+
+The count came from a five-line comparison of §12's list against `lint.Checks()`. Nothing
+prevented anybody running it a month ago.
+
+**Two smaller findings were things I said were recorded and had not recorded.** The
+link-offset decision was analysed, agreed, and written into no document while I reported
+it as recorded. The embedded-field shadowing pattern reached three occurrences — the third
+broke the binary rather than a message — and PLAN said it "deserves a check rather than a
+comment" without anything existing to build one.
+
+**The common shape: a claim about the record is not the record.** Each of the three was
+a thing I knew, said, and did not write where the next reader would look. That is the
+failure this corpus exists to prevent, committed three times against the corpus itself in
+one session — which is worth more as evidence for the argument than as an embarrassment.
+
+**One near-miss cut the other way.** `archive-budget` is in the specified list, is *not*
+in the registry, and is nonetheless built: it runs through `doctor`'s environment because
+it reads a measured archive size rather than a Snapshot. Counting the registry alone
+would have filed it as missing, which is why the count was checked against the code
+rather than reported from the tables.
+
+### 6.44 Two Refusals and a Check That Examined an Empty Field
+
+Three items, and only one was a build. That ratio is now the ordinary result of measuring
+before planning rather than a surprise.
+
+**Claim `title` and `description` are refused.** Nothing reads either column; `lead`
+already is the retrieval unit §17.4 argues for; and asking would cost a full re-extraction
+of every bundle under §6.1.1 — a rule recorded one day earlier and immediately load-bearing
+in a decision it was not written for. §11.1's "title, description" ladder is `index.md`
+metadata at *document* grain, and copying it one level down was a pattern applied rather
+than a need identified. The columns stay in the schema so the reversal is a migration
+nobody has to design.
+
+**§10.2.1.1's too-wide rule is undecidable as written**, and saying so was worth more than
+implementing something adjacent. It needs a plausible range per dimension that nothing
+declares — and a vacuous-constraint check resting on a vacuous constant would be the joke
+telling itself. Its own example, *"between 1 and 100"*, is a **range**: under one-operator
+patterns that is two claims, so the rule as written would not catch the case that
+motivates it. Both facts now sit in that section rather than in a code comment nobody
+opens.
+
+**And the `lead` check examined an empty field.** It was written, tested, correct, and
+found nothing on every corpus, because `claimRefs` never copied `Lead` into the snapshot.
+Its own tests passed — they **constructed a `lint.Snapshot` directly**.
+
+That is a sharper form of a lesson this log already carries. It is not that the suite
+missed a case; it is that **a pure-core test which builds its own input cannot, in
+principle, detect a shell that never supplies it.** FCIS makes the core trivially
+testable and moves exactly this failure into the seam between the halves, where neither
+side's tests look. The remedy is a projection test that walks the fields rather than
+asserting one, so a field added to `DocClaim` and forgotten in `claimRefs` fails — and it
+is the first test in this tree written against a *seam* rather than a behaviour.
+
+Running the binary found it in one command, as it has every time.
+
+### 6.45 Twelve Checks, and the Difference Between Counting and Splitting
+
+The entry said twelve. Counting them was the easy part and it was done last week;
+**splitting them was the work**, and it took one pass measuring each against what
+`lint.Snapshot` actually carries.
+
+Four need one thing each and are buildable. Five need a subsystem that does not exist —
+a baseline, durability classes, warrants, challenges. One needs a pin no corpus has. And
+one, `gap`, is **not deterministic at all**: §12's own table marks it `no`, and §10.3
+puts "recognise a concept somebody mentioned" on the reasoning side of the line it draws
+between language and inference. That column had been sitting there unread against the
+backlog.
+
+**Six of the twelve had been called "unbuilt" when three are unbuildable and one is
+undecidable.** That is the fourth time this backlog has had to separate those, and the
+remedy each time is the same: name the blocker in the entry rather than counting the
+group. A count invites somebody to think the work is uniform.
+
+Two were built — the two that needed least — and both turned up something.
+
+**`filename-drift` reports and never renames, and its action is still `automatic`.** A
+failing test forced that to be stated rather than assumed: the fix needs nobody's
+confirmation because it happens as part of the next write of the document, which its
+author already asked for. What *would* need asking is renaming a file underneath a reader
+on the strength of a lint run. Two different acts, one of which the check performs and
+one of which it merely names.
+
+**`limitations` added a `Document` field, and the seam test that caught `lead` was
+extended to catch it.** That test now walks both projections field by field, which is
+the only thing that can see a shell silently not supplying a pure core.
+
+**And the test helper was showing less than the command.** It rendered category and
+message and dropped the path, so a test asserting which document a finding was about
+failed in a way that read as a code defect for several minutes. A helper that shows a
+reader less than the tool does is testing something other than what ships — which is a
+small instance of the same principle §18.4.1 states for corpora.
+
+### 6.46 Four Checks, Two of Which Meant Something Else
+
+Twelve became six. The four built here were the ones measured as needing least — and two
+of them turned out to mean something other than their one-line row in §12, which is the
+third time this week a specified check has been misread from its own summary.
+
+**`command` cannot be about the generated region.** `gnosis schema` writes that region
+from the registry, so a name inside it resolves by construction and a region that has
+fallen behind is already `schema --check`'s finding. Read that way the check is either
+dead or duplicated. The only part of `AGENTS.md` that can name a command which does not
+resolve is the prose **outside** the markers — the part §5.7.1 guarantees gnosis never
+touches. That is a real failure with teeth: an agent reads the document, runs what it is
+told, and cannot distinguish a stale instruction from its own mistake.
+
+**`evidence` cannot be about the archive changing.** Tier 0 is content-addressed. A file
+at a hash cannot come to say something else, and a file that is gone belongs to
+`archive-path`. What changes is the frontmatter — somebody tidies a quotation after
+admission, or repoints `archive_paths` — and the promote gate validated it once and
+nothing has looked since. It is a post-admission edit detector.
+
+**Two empty-set traps in one check.** `duplicate` groups on title and on evidence set, and
+every untitled page shares `""` while every hand-written page shares the empty evidence
+set. A naive grouping reports the whole corpus as one giant collision — on precisely the
+corpus §4.6.1's merge scenario produces. Both are guarded and both are tested first.
+
+**And a namespace collision that had been latent for weeks.** §12.1 wrote gate signals as
+`gate \`evidence\``, so the table's extractor could not tell a gate signal from a lint
+check; `duplicate` had been one letter from `gate:duplication` the whole time. Adding an
+`evidence` *check* turned that from an ambiguity into a failing test. Gate signals now
+carry a `gate:` prefix, and the hand-maintained list of five gate names in `spec_test.go`
+is gone — the second allowlist this week replaced by something derived, after
+`index.DB.Tables`.
+
+**The grammar defect appeared for the third time.** "names 1 command that do not resolve",
+after "1 document declare" and "1 claim name". A substring assertion sees `1 command` and
+stops; one run of the binary shows the sentence. The remedy each time is to put the count
+in a noun phrase so no verb has to agree with it — which is now three data points for a
+rule that could be written down.

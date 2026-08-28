@@ -1,0 +1,151 @@
+# Operator patterns: the phrasings that introduce a bounded quantity.
+# See SPEC §10.2, §10.2.1, §10.2.2.
+#
+# ## What these are, and what they are not
+#
+# A constraint is a **cached parse of the prose, not a second assertion**
+# (§10.2.1). The prose is authoritative; this file says how to read it. Two
+# properties follow and both matter more than the patterns themselves.
+#
+# Nothing has to be authored by hand — a claim gets a constraint because its text
+# parses, not because somebody filled in a field. And an improved pattern set
+# fixes every affected claim retroactively on the next reindex, which is why
+# waiting to write this file cost nothing: a mis-parsed claim is durable.
+#
+# ## Inversions are first, because they are what naive patterns get wrong
+#
+# "no fewer than three retries" and "no more than three retries" differ by one
+# word and invert the operator. A matcher that stopped at its first hit would read
+# a floor as a ceiling. The parser sorts by phrase length so that longest-wins is
+# a property of the data rather than of the order these rows appear in — but the
+# rows are ordered inversion-first anyway, because the next person to add one
+# should see them.
+#
+# ## Findings, never verdicts
+#
+# A pattern-derived operator is a heuristic and §10.2.2 refuses heuristics under
+# blocking gates. These feed **candidate generation**: the interval and enumeration
+# predicates run where both sides parsed and emit a finding a person adjudicates.
+# Nothing blocks on a parse, and every finding shows the parse beside the claim.
+#
+# ## Editing
+#
+# Lower case; matching is fold-normalised on word boundaries, and spelled-out
+# numbers are converted before matching (§7.3), so "three" needs no pattern of its
+# own.
+#
+# Add a phrase when a real claim was read wrongly and this would have fixed it.
+# The test corpus in operators_test.go carries the case; a phrase with no case is
+# a guess about how people write, which is what §11.0.2 warns against.
+
+# ── Inversions, first on purpose ─────────────────────────────────────────────
+
+[[pattern]]
+id = "at-least-no-fewer"
+phrase = "no fewer than"
+op = ">="
+rationale = """
+The inversion that motivates this file. "no fewer than three" is a floor stated in
+the vocabulary of a ceiling, and a pattern set that matched "fewer" without the
+negation would invert it.
+"""
+
+[[pattern]]
+id = "at-most-not-exceed"
+phrase = "not exceed"
+op = "<="
+rationale = """
+"retries should not exceed three" — a ceiling stated as a prohibition. Paired with
+the row above because the two are the standard trap: both read as their opposite
+if the negation is dropped.
+"""
+
+[[pattern]]
+id = "at-least-no-less"
+phrase = "no less than"
+op = ">="
+rationale = "The same floor as no-fewer-than, for a mass noun rather than a count."
+
+# ── Ceilings ─────────────────────────────────────────────────────────────────
+
+[[pattern]]
+id = "at-most-no-more"
+phrase = "no more than"
+op = "<="
+rationale = "The plainest ceiling, and the phrasing §10.2.2 uses in its own example."
+
+[[pattern]]
+id = "at-most-at-most"
+phrase = "at most"
+op = "<="
+rationale = "The formal ceiling. Common in normative prose written by engineers."
+
+[[pattern]]
+id = "at-most-up-to"
+phrase = "up to"
+op = "<="
+rationale = """
+A ceiling in ordinary register. It is the loosest entry here: "up to" sometimes
+introduces a range rather than a bound, and a claim that means a range is one
+§10.2.1.1 would report as too wide anyway.
+"""
+
+[[pattern]]
+id = "at-most-fewer-than"
+phrase = "fewer than"
+op = "<="
+rationale = """
+Strictly this is `<` and the operator set has no strict form. Recording `<=` is a
+deliberate widening: a constraint one wider than the prose cannot manufacture a
+conflict that the prose does not support, and the opposite error can. Sharpening
+the operator set is worth doing when a real claim turns on the boundary.
+"""
+
+[[pattern]]
+id = "at-most-under"
+phrase = "under"
+op = "<="
+rationale = "The duration and ratio register: 'under 400ms', 'under 1%'."
+
+# ── Floors ───────────────────────────────────────────────────────────────────
+
+[[pattern]]
+id = "at-least-at-least"
+phrase = "at least"
+op = ">="
+rationale = "The formal floor, and the mirror of at-most."
+
+[[pattern]]
+id = "at-least-more-than"
+phrase = "more than"
+op = ">="
+rationale = """
+Strictly `>`, widened to `>=` for the reason fewer-than is widened: a constraint
+wider than its prose cannot invent a conflict.
+"""
+
+[[pattern]]
+id = "at-least-over"
+phrase = "over"
+op = ">="
+rationale = "The duration and ratio register, mirroring 'under'."
+
+# ── Exact values ─────────────────────────────────────────────────────────────
+
+[[pattern]]
+id = "exactly-exactly"
+phrase = "exactly"
+op = "=="
+rationale = "An exact value, stated as one."
+
+[[pattern]]
+id = "exactly-is"
+phrase = "is"
+op = "=="
+rationale = """
+The commonest exact statement — "the retry budget is 3" — and the loosest pattern
+in the file. "is" appears in prose that states no constraint at all, which is why
+the parser requires a number immediately after the phrase and yields nothing
+otherwise: "the retry budget is generous" parses to no constraint rather than to a
+wrong one. The negative cases in the corpus are mostly about this row.
+"""

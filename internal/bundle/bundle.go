@@ -63,6 +63,11 @@ type Document struct {
 	// SourceKeys identify the source versions this document rests on, keyed as
 	// checked.jsonl keys them.
 	SourceKeys []string
+
+	// Limitations is what this concept declares it does **not** cover (§17.2).
+	// Empty for a document declaring none, which is a finding only on a normative
+	// type.
+	Limitations []string
 }
 
 // DocClaim is a claim's identity and its evidence addresses, as the document
@@ -79,6 +84,26 @@ type DocClaim struct {
 	// is a question about the document rather than about the evidence.
 	Anchor string
 
+	// Quotes are the passages this claim offers as evidence, as frontmatter declares
+	// them. §17.3.1's sufficiency check weighs them against the claim's wording.
+	Quotes []string
+
+	// Lead is the claim's conclusion, stated first (§17.4). Empty until extraction
+	// writes one; §5.5.3 makes that a NULL column rather than an empty string.
+	Lead string
+
+	// Verified are OKF §5.2's verification events for this claim.
+	//
+	// **Per claim, and a document-level `verified` is not expanded into it.** OKF puts
+	// the key at document level; §5.5 keys the table by claim; and inheriting one to
+	// the other would assert that somebody verified each claim when they verified a
+	// page. §5.5.1 refused exactly that for `subject` — editing an inherited default
+	// silently re-subjects every claim that did not override — and §5.5's own reason
+	// for making this a table rather than a column is that a human sign-off and an
+	// automated pass must stay distinguishable. Expanding a page-level list one level
+	// down destroys that distinction wholesale.
+	Verified []Verification
+
 	// Subject is the surface phrase naming what this claim is about (§5.5.1), as
 	// the author wrote it — an alias is resolved by the checks, not here. Empty for
 	// a claim declaring none, which is a review signal on some types and silence on
@@ -93,6 +118,23 @@ type DocClaim struct {
 	Subject string
 
 	ArchivePaths []string
+}
+
+// Verification is one OKF §5.2 verification event.
+//
+// A struct rather than a pair of parallel slices because the two belong together: an
+// actor with no time and a time with no actor are both meaningless, and a shape that can
+// hold either is a shape a reader has to check.
+type Verification struct {
+	// By is the actor, as OKF §7's grammar writes it. Kept as the raw string rather
+	// than parsed into gnosis.Actor: §14.1.1 makes these two populations, and the
+	// tier fold reads the raw form deliberately.
+	By string
+
+	// At is the event's timestamp, as declared. A string rather than a time.Time
+	// because it is projected into the index verbatim and never compared here — and
+	// parsing it would make a malformed date drop a verification silently.
+	At string
 }
 
 // isReserved reports whether name is one of the filenames OKF §3.1 gives a
@@ -202,6 +244,7 @@ func read(fsys fs.FS, path string) Document {
 	}
 
 	doc.Claims = docClaims(parsed)
+	doc.Limitations = stringsOf(parsed.Fields, limitationsKey)
 	doc.StaleAfter = staleAfter(parsed)
 	doc.SourceKeys = sourceKeys(doc.Claims)
 

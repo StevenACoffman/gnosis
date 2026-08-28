@@ -61,7 +61,16 @@ func TestTheEnforcementTableMatchesTheRegistry(t *testing.T) {
 		if strings.Contains(name, ".") || strings.Contains(name, " ") {
 			continue // an enforcer that is not a lint check: a gate, a loader, a type
 		}
-		if !registry[name] && !gateSignals()[name] && !nonLintEnforcers()[name] {
+		if strings.HasPrefix(name, "gate:") {
+			// A promote-gate signal, which shares no namespace with the registry.
+			// **A prefix rather than a list**: this was a hand-maintained set of five
+			// names until 2026-08-27, when the `evidence` lint check took a name the
+			// gate's evidence signal already had and the table could not express both.
+			// A list needs an entry per signal and goes stale in silence; a prefix
+			// cannot.
+			continue
+		}
+		if !registry[name] && !nonLintEnforcers()[name] {
 			t.Errorf("SPEC %s names %q as enforced and no such check exists",
 				enforcedHeading, name)
 		}
@@ -204,16 +213,6 @@ func backticked(cell string) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// gateSignals are the promote-gate signals §12.1 lists as enforcers. They are not
-// lint checks and have no entry in the registry, so the walk needs to know them by
-// name rather than treating them as missing checks.
-func gateSignals() map[string]bool {
-	return map[string]bool{
-		"security": true, "evidence": true, "provenance": true,
-		"duplication": true, "hedging": true, "conflict": true,
-	}
 }
 
 // nonLintEnforcers are the types and loaders §12.1 credits with enforcing a rule:

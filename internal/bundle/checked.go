@@ -14,6 +14,15 @@ type checked struct {
 	// claims is every segmented claim, in order.
 	claims []segment.Claim
 
+	// supported is every passage the archive was found to contain, fold-normalised.
+	//
+	// **Per passage rather than per claim, because the synthesis gate asks a
+	// different question from the admission gate.** Admission passes a claim with
+	// *at least one* supporting quotation; a rewrite that kept a claim while
+	// dropping the passage that made it checkable has lost evidence, and a
+	// claim-level answer cannot see that.
+	supported map[string]bool
+
 	// unsupported names claims whose quotations were looked for and not found.
 	// This is fabrication or corruption, and it blocks.
 	//

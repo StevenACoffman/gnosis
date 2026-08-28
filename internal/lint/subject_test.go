@@ -27,6 +27,12 @@ func vocab() lint.Vocabulary {
 // runNamed runs one check by name and returns what it emitted, failing when the
 // check declined to run — a skipped check reporting nothing is not the same as a
 // clean one, and a test that could not tell them apart would pass either way.
+//
+// **It renders category, path and message, which is what `gnosis lint` prints.** The
+// first version dropped the path, so a test asserting *which document* a finding was
+// about could not, and one that tried failed for a reason that looked like a code
+// defect. A helper that shows a reader less than the command does is a helper that
+// tests something other than what ships.
 func runNamed(t *testing.T, snap *lint.Snapshot, name string) []string {
 	t.Helper()
 
@@ -39,7 +45,7 @@ func runNamed(t *testing.T, snap *lint.Snapshot, name string) []string {
 		}
 		out := make([]string, 0)
 		for _, d := range c.Run(snap) {
-			out = append(out, d.Category+": "+d.Message)
+			out = append(out, d.Category+" "+d.Path+": "+d.Message)
 		}
 		return out
 	}

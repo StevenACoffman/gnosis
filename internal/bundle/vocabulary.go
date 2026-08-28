@@ -2,6 +2,8 @@ package bundle
 
 import (
 	"io/fs"
+	"os"
+	"path/filepath"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/lint"
@@ -40,6 +42,7 @@ func vocabulary(fsys fs.FS) lint.Vocabulary {
 		t := &o.Types[i]
 		entry := lint.VocabType{
 			Key:            t.Key,
+			Normative:      t.Normative,
 			ExpectsSubject: t.ExpectsSubject,
 			Episodic:       t.Episodic,
 		}
@@ -61,4 +64,22 @@ func vocabulary(fsys fs.FS) lint.Vocabulary {
 		}
 	}
 	return out
+}
+
+// LoadOntology reads a bundle's vocabulary, or nil when it is absent or malformed.
+//
+// Requires: bundleDir is a path, which need not exist.
+// Ensures: nil rather than an error, because every caller of this can proceed without a
+// vocabulary and `doctor` is what reports its absence — failing here would report one
+// fault twice and leave the caller with neither a vocabulary nor a diagnosis.
+func LoadOntology(bundleDir string) *ontology.Ontology {
+	raw, err := os.ReadFile(filepath.Join(bundleDir, ontology.FileName))
+	if err != nil {
+		return nil
+	}
+	o, err := ontology.Load(raw)
+	if err != nil {
+		return nil
+	}
+	return o
 }

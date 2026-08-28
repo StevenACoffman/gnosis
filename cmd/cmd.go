@@ -34,6 +34,7 @@ import (
 	"github.com/StevenACoffman/gnosis/cmd/searchcmd"
 	"github.com/StevenACoffman/gnosis/cmd/showcmd"
 	"github.com/StevenACoffman/gnosis/cmd/standardscmd"
+	"github.com/StevenACoffman/gnosis/cmd/synthesizecmd"
 	"github.com/StevenACoffman/gnosis/cmd/version"
 	"github.com/StevenACoffman/gnosis/internal/scan"
 )
@@ -48,25 +49,7 @@ import (
 // Flags supplied on the command line always take precedence over env vars.
 func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	r := root.New(stdin, stdout, stderr)
-	version.New(r)
-	initcmd.New(r)
-	doctorcmd.New(r)
-	lintcmd.New(r)
-	indexcmd.New(r)
-	schemacmd.New(r)
-	searchcmd.New(r)
-	showcmd.New(r)
-	graphcmd.New(r)
-	fetchcmd.New(r)
-	ingestcmd.New(r)
-	admitcmd.New(r)
-	quarantinecmd.New(r)
-	promotecmd.New(r)
-	logcmd.New(r)
-	standardscmd.New(r)
-	auditcmd.New(r)
-	debtcmd.New(r)
-	// register new commands here
+	register(r)
 
 	if err := r.Command.Parse(args, ff.WithEnvVarPrefix("GNOSIS")); err != nil {
 		_, _ = fmt.Fprintf(stderr, "\n%s\n", ffhelp.Command(r.Command))
@@ -113,4 +96,36 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	}
 
 	return nil
+}
+
+// register attaches every command to r.
+//
+// **Separated from Run so a test can walk the real tree.** The list used to sit inline,
+// which meant any test about the command set had to retype it — and a retyped list is a
+// hand-maintained allowlist, which this codebase has twice replaced with a derived check
+// after it fell behind. A test calling this function sees exactly what ships.
+//
+// Requires: r is a fresh root.Config.
+// Ensures: every command in the tree is registered under r.Command.
+func register(r *root.Config) {
+	version.New(r)
+	initcmd.New(r)
+	doctorcmd.New(r)
+	lintcmd.New(r)
+	indexcmd.New(r)
+	schemacmd.New(r)
+	searchcmd.New(r)
+	showcmd.New(r)
+	graphcmd.New(r)
+	fetchcmd.New(r)
+	ingestcmd.New(r)
+	admitcmd.New(r)
+	quarantinecmd.New(r)
+	promotecmd.New(r)
+	logcmd.New(r)
+	standardscmd.New(r)
+	auditcmd.New(r)
+	debtcmd.New(r)
+	synthesizecmd.New(r)
+	// register new commands here
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/StevenACoffman/gnosis/internal/index"
+	"github.com/StevenACoffman/skillet/errs"
 )
 
 // openTemp opens an index in a per-test directory. A real SQLite file is used
@@ -229,5 +230,85 @@ func TestDocumentSearchIsSelfContained(t *testing.T) {
 		`SELECT COUNT(*) FROM documents_fts WHERE documents_fts MATCH 'retries'`,
 	); n != 1 {
 		t.Fatalf("documents_fts followed the delete; the test's premise is wrong, got %d", n)
+	}
+}
+
+// TestClaimSearchReturnsTheLeadThatMatched is the reader `claims_fts` spent a week
+// without. Until this query existed the table was written on every extraction and
+// selected from nowhere, so nothing could tell a correct index from an empty one.
+func TestClaimSearchReturnsTheLeadThatMatched(t *testing.T) {
+	t.Parallel()
+	db := openTemp(t)
+
+	mustExec(t, db, `INSERT INTO documents (id, path, title)
+		VALUES ('d1', 'c/a.md', 'Retry budget')`)
+	mustExec(t, db, `INSERT INTO claims (id, document_id, anchor_hash, type, lead)
+		VALUES ('c1', 'd1', 'h1', 'Rule', 'cap retries at three per request')`)
+	mustExec(t, db, `INSERT INTO claims_fts (rowid, lead)
+		SELECT rowid, lead FROM claims WHERE id = 'c1'`)
+
+	got, err := db.SearchClaims(t.Context(), "retries", 10)
+	if err != nil {
+		t.Fatalf("search claims: %v", err)
+	}
+	if len(got.Hits) != 1 {
+		t.Fatalf("want one hit, got %d", len(got.Hits))
+	}
+	// The path, because a claim id alone tells a reader nothing about where to look.
+	if got.Hits[0].Path != "c/a.md" {
+		t.Errorf("hit does not carry its document path: %+v", got.Hits[0])
+	}
+	if !strings.Contains(got.Hits[0].Lead, "cap retries") {
+		t.Errorf("hit does not carry the lead that matched: %+v", got.Hits[0])
+	}
+}
+
+// TestClaimSearchSaysWhatItCouldNotReach is the adversarial case, and the one that would
+// mislead if wrong: §5.5.3 keeps a claim with no lead out of `claims_fts`, so those
+// claims cannot match at any ranking. Answering with the matches alone would present the
+// extracted part of a corpus as the whole of it.
+//
+// The count is asserted on a query that matches **nothing**, because that is where a
+// silent shortfall does the most damage — "no results" and "no results, and 2 claims were
+// never extracted" send a reader to opposite conclusions.
+func TestClaimSearchSaysWhatItCouldNotReach(t *testing.T) {
+	t.Parallel()
+	db := openTemp(t)
+
+	mustExec(t, db, `INSERT INTO documents (id, path) VALUES ('d1', 'c/a.md')`)
+	mustExec(t, db, `INSERT INTO claims (id, document_id, anchor_hash, type, lead)
+		VALUES ('c1', 'd1', 'h1', 'Rule', 'cap retries at three')`)
+	mustExec(t, db, `INSERT INTO claims_fts (rowid, lead)
+		SELECT rowid, lead FROM claims WHERE id = 'c1'`)
+	mustExec(t, db, `INSERT INTO claims (id, document_id, anchor_hash, type)
+		VALUES ('c2', 'd1', 'h2', 'Rule')`)
+	mustExec(t, db, `INSERT INTO claims (id, document_id, anchor_hash, type)
+		VALUES ('c3', 'd1', 'h3', 'Rule')`)
+
+	got, err := db.SearchClaims(t.Context(), "nothingmatchesthis", 10)
+	if err != nil {
+		t.Fatalf("search claims: %v", err)
+	}
+	if len(got.Hits) != 0 {
+		t.Fatalf("want no hits, got %d", len(got.Hits))
+	}
+	if got.Unextracted != 2 {
+		t.Errorf("Unextracted = %d, want 2; a query that matched nothing still owes "+
+			"the reader the claims it could not reach", got.Unextracted)
+	}
+}
+
+// TestAMalformedClaimQueryIsAUsageError keeps the two search paths agreeing about whose
+// mistake a syntax error is. A typo classified as a crash in one query and a usage error
+// in the other teaches a reader that the tool is unpredictable.
+func TestAMalformedClaimQueryIsAUsageError(t *testing.T) {
+	t.Parallel()
+	db := openTemp(t)
+
+	for _, q := range []string{"", `"unbalanced`} {
+		_, err := db.SearchClaims(t.Context(), q, 10)
+		if errs.ErrorCode(err) != errs.EINVALID {
+			t.Errorf("SearchClaims(%q) gave %v, want EINVALID", q, err)
+		}
 	}
 }

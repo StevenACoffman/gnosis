@@ -23,6 +23,29 @@ type DocumentRow struct {
 	Bytes int
 }
 
+// Contents is everything one rebuild puts into the index.
+//
+// A value rather than three parameters, because they belong together and because the
+// signature would otherwise record the order the writer was built in: documents, then
+// links, then claims, then whatever Phase 3 adds. A caller with no claims omits the
+// field instead of passing a nil in third position.
+type Contents struct {
+	Documents []DocumentRow
+	Links     []LinkRow
+
+	// Claims are the addresses of the claims each document declares. Empty for a
+	// corpus whose documents declare none, which is every corpus written by hand.
+	Claims []ClaimRow
+
+	// Verifications are OKF §5.2's events, one row each. Empty for a corpus whose
+	// claims declare none, which is every corpus until somebody signs one off.
+	Verifications []VerificationRow
+
+	// ClaimSubjects are each claim's subject and the value its prose parses to
+	// (§10.2.1). Empty for a corpus whose claims name no subject.
+	ClaimSubjects []ClaimSubjectRow
+}
+
 // Indexed lists every document row as gnosis.Reconcile consumes them.
 //
 // Requires: db is open.
@@ -53,9 +76,9 @@ func (db *DB) Indexed(ctx context.Context) ([]gnosis.Indexed, error) {
 	return out, nil
 }
 
-// Replace makes the index describe exactly the documents given.
+// Replace makes the index describe exactly the contents given.
 //
-// Requires: every row carries a non-empty ID and Path.
+// Requires: every document row carries a non-empty ID and Path.
 // Ensures: the index afterwards contains precisely these documents and links — the whole
 // operation is one transaction, so a failure leaves the previous contents
 // intact rather than a partial rebuild. Concepts cascade from their documents,
@@ -65,7 +88,7 @@ func (db *DB) Indexed(ctx context.Context) ([]gnosis.Indexed, error) {
 // (SPEC §4.5): reconstructing it wholesale is the cheaper correct operation, and
 // a merge would need its own reconciliation logic that could disagree with
 // gnosis.Reconcile.
-func (db *DB) Replace(ctx context.Context, docs []DocumentRow, links []LinkRow) error {
+func (db *DB) Replace(ctx context.Context, c *Contents) error {
 	const op = "index.DB.Replace"
 
 	tx, err := db.sql.BeginTx(ctx, nil)
@@ -78,26 +101,67 @@ func (db *DB) Replace(ctx context.Context, docs []DocumentRow, links []LinkRow) 
 	// not follow the cascade and has to be cleared explicitly. Forgetting this
 	// would leave search answering from documents that no longer exist — a
 	// failure that looks like a stale result rather than like a bug.
+	// claims cascade from documents, so deleting documents empties them.
 	for _, stmt := range []string{`DELETE FROM documents`, `DELETE FROM documents_fts`} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return &errs.Error{Op: op, Err: err}
 		}
 	}
-	for i := range docs {
-		if err := insertDocument(ctx, tx, &docs[i]); err != nil {
-			return &errs.Error{Op: op, Err: err}
-		}
-	}
-	// Links go in after every document, because a link's target is a foreign key
-	// and forward references are ordinary in a corpus: A can cite B whether or
-	// not B was walked first.
-	for i := range links {
-		if err := insertLink(ctx, tx, &links[i]); err != nil {
-			return &errs.Error{Op: op, Err: err}
-		}
+	if err := insertAll(ctx, tx, c); err != nil {
+		return &errs.Error{Op: op, Err: err}
 	}
 	if err := tx.Commit(); err != nil {
 		return &errs.Error{Op: op, Err: err}
+	}
+	return nil
+}
+
+// insertAll writes one rebuild's rows in dependency order.
+//
+// Requires: tx is open; every row is valid.
+// Ensures: the order respects the foreign keys — documents, then the claims that
+// cascade from them, then links.
+//
+// **Verifications after claims** for the same key, and before links only so the two
+// claim-dependent writes stay adjacent and a reader looking for them finds them
+// together.
+//
+// **Claims before links** because a link may one day name the claim it sits in
+// (`links.source_claim_id`) and a key cannot point at a row that is not there yet.
+// Nothing writes that column today; the ordering costs nothing and removes a trap from
+// the change that will. **Links last** because a link's target is a foreign key and a
+// forward reference is ordinary in a corpus: A can cite B whether or not B was walked
+// first.
+func insertAll(ctx context.Context, tx execer, c *Contents) error {
+	// Each stage is a slice and one writer, in dependency order. A table added later
+	// gets a line here rather than a branch, which is why this reads as a list.
+	stages := []func() error{
+		func() error { return each(ctx, tx, c.Documents, insertDocument) },
+		func() error { return each(ctx, tx, c.Claims, insertClaim) },
+		func() error { return each(ctx, tx, c.ClaimSubjects, insertClaimSubject) },
+		func() error { return each(ctx, tx, c.Verifications, insertVerification) },
+		func() error { return each(ctx, tx, c.Links, insertLink) },
+	}
+	for _, stage := range stages {
+		if err := stage(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// each writes every row of one table through its own writer.
+//
+// Generic over the row type because the five writers differ only in that: five
+// near-identical loops were what pushed insertAll past the complexity a reader can hold,
+// and the loop was never the interesting part — the order is.
+func each[T any](
+	ctx context.Context, tx execer, rows []T, write func(context.Context, execer, *T) error,
+) error {
+	for i := range rows {
+		if err := write(ctx, tx, &rows[i]); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -139,9 +139,9 @@ func TestEveryContentTableIsDigested(t *testing.T) {
 	t.Parallel()
 
 	db := openTemp(t)
-	objects, err := db.Objects(t.Context())
+	objects, err := db.Tables(t.Context())
 	if err != nil {
-		t.Fatalf("objects: %v", err)
+		t.Fatalf("tables: %v", err)
 	}
 
 	digested := map[string]bool{}
@@ -150,13 +150,13 @@ func TestEveryContentTableIsDigested(t *testing.T) {
 	}
 	for _, name := range objects {
 		switch {
-		case strings.HasSuffix(name, "_fts"),
-			strings.Contains(name, "_fts_"),
-			strings.HasPrefix(name, "documents_"),
-			strings.HasPrefix(name, "claims_"),
-			strings.HasPrefix(name, "links_"),
-			strings.HasPrefix(name, "sources_fetched_"):
-			// A virtual table, one of its shadows, or an index.
+		case strings.HasSuffix(name, "_fts"), strings.Contains(name, "_fts_"):
+			// An FTS5 virtual table or one of its shadow tables. Its content is the
+			// table it indexes, which is digested on its own account.
+			//
+			// Indexes no longer need excluding here: `Tables` asks SQLite for
+			// `type = 'table'`, so a new index cannot make this test fail for the
+			// wrong reason — which the previous prefix list allowed and did.
 			continue
 		case digested[name]:
 			continue
@@ -172,7 +172,7 @@ func digestOf(t *testing.T, rows []index.DocumentRow) string {
 	t.Helper()
 
 	db := openTemp(t)
-	if err := db.Replace(t.Context(), rows, nil); err != nil {
+	if err := db.Replace(t.Context(), &index.Contents{Documents: rows}); err != nil {
 		t.Fatalf("replace: %v", err)
 	}
 	got, err := db.Digest(t.Context())
@@ -189,14 +189,14 @@ func TestTheDigestSurvivesARebuild(t *testing.T) {
 	t.Parallel()
 
 	db := openTemp(t)
-	if err := db.Replace(t.Context(), docRows(), nil); err != nil {
+	if err := db.Replace(t.Context(), &index.Contents{Documents: docRows()}); err != nil {
 		t.Fatalf("first replace: %v", err)
 	}
 	first, err := db.Digest(t.Context())
 	if err != nil {
 		t.Fatalf("digest: %v", err)
 	}
-	if err = db.Replace(t.Context(), docRows(), nil); err != nil {
+	if err = db.Replace(t.Context(), &index.Contents{Documents: docRows()}); err != nil {
 		t.Fatalf("second replace: %v", err)
 	}
 	second, err := db.Digest(t.Context())
@@ -210,7 +210,7 @@ func TestTheDigestSurvivesARebuild(t *testing.T) {
 	// asserting that Replace does nothing.
 	moved := docRows()
 	moved[0].Path = "c/renamed.md"
-	if err = db.Replace(t.Context(), moved, nil); err != nil {
+	if err = db.Replace(t.Context(), &index.Contents{Documents: moved}); err != nil {
 		t.Fatalf("third replace: %v", err)
 	}
 	third, err := db.Digest(t.Context())

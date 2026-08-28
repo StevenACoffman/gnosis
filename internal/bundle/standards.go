@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
+	"github.com/StevenACoffman/gnosis/internal/constraint"
+	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/scan"
 	"github.com/StevenACoffman/gnosis/internal/standards"
 	"github.com/StevenACoffman/skillet/errs"
@@ -199,4 +201,140 @@ func dependentMarkers(bundleDir string) []string {
 		return nil
 	}
 	return in.Words(standards.RoleReason)
+}
+
+// LoadStrengths reads a bundle's claim-strength markers, falling back to the seed.
+//
+// Requires: bundleDir is a path, which need not exist.
+// Ensures: the same rule as the gate loaders — an absent file gets the embedded default,
+// and a present file that will not load is a hard error.
+func LoadStrengths(bundleDir string) (*standards.Strengths, error) {
+	return loadStandards(bundleDir, "bundle.LoadStrengths",
+		standards.StrengthFileName, standards.DefaultStrengths, standards.LoadStrengths)
+}
+
+// strengthMarkers is the claim-strength lists `coverage` compares against.
+//
+// Requires: fsys is rooted at the bundle.
+// Ensures: the seed's markers when the bundle declares none, and the zero value when a
+// file that is present will not parse.
+//
+// **Read through the fs.FS rather than by path**, like `vocabulary` and unlike the gate
+// loaders: `Snapshot` is handed a filesystem so a caller testing with an fstest.MapFS
+// gets the same answers as one reading a disk, and a path parameter here would be the
+// one input that could not be faked.
+//
+// A malformed file yields the zero value, which skips the check with a reason rather
+// than passing every claim — reporting the absence of the ruler as a clean measurement
+// is the one output a health command must never produce. `doctor` reports the parse
+// failure.
+func strengthMarkers(fsys fs.FS) lint.Strengths {
+	raw, err := fs.ReadFile(fsys, standards.StrengthFileName)
+	if err != nil {
+		raw = standards.DefaultStrengths()
+	}
+	in, err := standards.LoadStrengths(raw)
+	if err != nil {
+		return lint.Strengths{}
+	}
+	return lint.Strengths{
+		Universal: in.Words(standards.StrengthUniversal),
+		Hedged:    in.Words(standards.StrengthHedged),
+	}
+}
+
+// registerWords reads a bundle's causal registers, falling back to the seed.
+//
+// The same shape as strengthMarkers and for the same reason: a file that will not load
+// leaves the check unable to run and saying so, rather than running against half a list.
+func registerWords(fsys fs.FS) lint.Registers {
+	raw, err := fs.ReadFile(fsys, standards.RegistersFileName)
+	if err != nil {
+		raw = standards.DefaultRegisters()
+	}
+	in, err := standards.LoadRegisters(raw)
+	if err != nil {
+		return lint.Registers{}
+	}
+	return lint.Registers{
+		Intervention: in.Words(standards.RegisterIntervention),
+		Association:  in.Words(standards.RegisterAssociation),
+	}
+}
+
+// LoadOperators reads a bundle's operator patterns, falling back to the seed.
+//
+// Requires: bundleDir is a path, which need not exist.
+// Ensures: the same rule as the gate loaders — an absent file gets the embedded default,
+// and a present file that will not load is a hard error.
+func LoadOperators(bundleDir string) (*standards.Operators, error) {
+	return loadStandards(bundleDir, "bundle.LoadOperators",
+		standards.OperatorsFileName, standards.DefaultOperators, standards.LoadOperators)
+}
+
+// OperatorPatterns is the pattern set the constraint parser reads.
+//
+// Requires: bundleDir is a path.
+// Ensures: nil when the file will not load, which makes every claim parse to no
+// constraint rather than to a wrong one — the interval and enumeration predicates then
+// skip instead of comparing readings nobody can trust. `doctor` reports the parse
+// failure.
+func OperatorPatterns(bundleDir string) []constraint.Pattern {
+	in, err := LoadOperators(bundleDir)
+	if err != nil {
+		return nil
+	}
+	out := make([]constraint.Pattern, 0, len(in.Pattern))
+	for _, p := range in.Pattern {
+		out = append(out, constraint.Pattern{
+			ID: p.ID, Phrase: p.Phrase, Op: constraint.OpKind(p.Op),
+		})
+	}
+	return out
+}
+
+// indicatorWords is the closed lexical class of §9.4.1, for the checks that read it.
+//
+// Requires: fsys is rooted at the bundle.
+// Ensures: the seed's words when the bundle declares none, and the zero value when a
+// present file will not parse — which skips §17.4's check with a reason rather than
+// passing every lead.
+//
+// Read through the fs.FS like the vocabulary and the strength markers, so a caller
+// testing with an fstest.MapFS gets the same answers as one reading a disk.
+func indicatorWords(fsys fs.FS) lint.Indicators {
+	raw, err := fs.ReadFile(fsys, standards.IndicatorsFileName)
+	if err != nil {
+		raw = standards.DefaultIndicators()
+	}
+	in, err := standards.LoadIndicators(raw)
+	if err != nil {
+		return lint.Indicators{}
+	}
+	return lint.Indicators{
+		Reason:     in.Words(standards.RoleReason),
+		Conclusion: in.Words(standards.RoleConclusion),
+	}
+}
+
+// languageMarkers is §10.3's lexical class, for the check that reads it.
+//
+// Requires: fsys is rooted at the bundle.
+// Ensures: the seed's markers when the bundle declares none, and none when a present
+// file will not parse — which skips the check with a reason rather than passing every
+// document.
+func languageMarkers(fsys fs.FS) []lint.LanguageMarker {
+	raw, err := fs.ReadFile(fsys, standards.LanguageFileName)
+	if err != nil {
+		raw = standards.DefaultLanguage()
+	}
+	in, err := standards.LoadLanguage(raw)
+	if err != nil {
+		return nil
+	}
+	out := make([]lint.LanguageMarker, 0, len(in.Marker))
+	for _, m := range in.Marker {
+		out = append(out, lint.LanguageMarker{Phrase: m.Phrase, Role: m.Role})
+	}
+	return out
 }

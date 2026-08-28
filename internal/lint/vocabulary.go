@@ -41,6 +41,13 @@ type Vocabulary struct {
 type VocabType struct {
 	Key gnosis.TypeKey
 
+	// Normative reports whether this type prescribes rather than records.
+	//
+	// It raises the standard a claim of this type is held to, never its truth
+	// (§14.4.1): a universal assertion the corpus leans on is where being wrong
+	// costs most.
+	Normative bool
+
 	// ExpectsSubject reports whether a claim of this type is expected to name what
 	// it is about (§5.8.2). It drives a review signal and never a refusal.
 	ExpectsSubject bool

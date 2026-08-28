@@ -75,6 +75,14 @@ func digestedTables() []digestedTable {
 				FROM sources_fetched ORDER BY record_sha256`,
 		},
 		{
+			name: "verifications",
+			// Ordered by all three columns because the table has no key: OKF §5.2
+			// makes `verified` a list of events, and two events with one actor at
+			// one time are indistinguishable and both real.
+			query: `SELECT claim_id, by, at FROM verifications
+				ORDER BY claim_id, by, at`,
+		},
+		{
 			name:  "subjects",
 			query: `SELECT key, dimension, description, deprecated FROM subjects ORDER BY key`,
 		},

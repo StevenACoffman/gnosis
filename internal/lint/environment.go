@@ -335,13 +335,19 @@ func diagnoseIndex(env *Environment) []finding.Diagnostic {
 		// so an interrupted run leaves a database claiming a version whose
 		// schema is not all there. Every later command would then fail on a
 		// missing table with SQLite's own error rather than this one.
+		//
+		// **The remedy names a command, and until 2026-08-27 it could not.** This
+		// diagnostic declared ActionAutomatic while advising a manual `rm`: plain
+		// `rebuild` opens the existing database and migration skips every statement
+		// because user_version is already current, so it failed on the missing table
+		// rather than recreating it. `--recreate` is what makes the action code true.
 		out = append(out, finding.Diagnostic{
 			Severity: finding.SeverityError,
 			Category: "index",
 			Path:     ".gnosis/index.db",
 			Message: fmt.Sprintf(
-				"the index is missing %d schema object(s) (%s); delete it and run "+
-					"`gnosis index rebuild`",
+				"the index is missing %d schema object(s) (%s); run "+
+					"`gnosis index rebuild --recreate`",
 				len(env.SchemaMissing), strings.Join(env.SchemaMissing, ", ")),
 			Action: finding.ActionAutomatic,
 		})

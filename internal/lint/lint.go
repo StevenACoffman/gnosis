@@ -73,6 +73,49 @@ type Snapshot struct {
 	// corpus whose standards did not load.
 	StalenessDays int
 
+	// Bounds maps a claim id to the reading its prose parses to (§10.2.1). Empty for a
+	// corpus whose claims name no declared subject.
+	Bounds map[string]Bound
+
+	// Sources maps an archived file to the source and version it holds, from tier 0's
+	// records. Empty for a corpus that has fetched nothing.
+	Sources map[string]SourceVersion
+
+	// LanguageMarkers is §10.3's lexical class, from standards/.
+	LanguageMarkers []LanguageMarker
+
+	// ArchiveText is the text of the archived files claims actually cite.
+	//
+	// **Only the cited paths.** Reading a corpus's whole archive into a snapshot
+	// would hold every fetched page in memory to re-validate a handful of
+	// quotations, and the archive is the largest thing a bundle owns.
+	ArchiveText map[string]string
+
+	// SchemaDoc is AGENTS.md's text, or empty when the bundle has none.
+	SchemaDoc string
+
+	// Commands are this binary's registered subcommand names.
+	//
+	// Filled by the command layer rather than by `bundle`, because the registry lives
+	// there and nowhere else — the same route `schemacmd` uses to hand PlanSchemaDoc
+	// its list. §5.7.1's point is that the binary describes itself.
+	Commands []string
+
+	// Indicators is the closed lexical class of §9.4.1, from standards/. The reason
+	// words gate segmentation in the shell; the conclusion words are read here.
+	Indicators Indicators
+
+	// Strength is the claim-strength markers of §17.3.1, from standards/.
+	//
+	// Gathered rather than derived, like the vocabulary: the check stays pure and the
+	// closed lexical class stays in data where a corpus can extend it.
+	Strength Strengths
+
+	// Registers is the causal-register class of §17.3.1.1, from standards/. Read by
+	// `coverage`'s second axis, which compares the rung a claim asserts against the
+	// rung its own quotations support.
+	Registers Registers
+
 	// Vocabulary is ontology.toml flattened to what the checks compare against.
 	// Its zero value states that the bundle declares none, which skips the three
 	// checks that read it rather than failing them.
@@ -111,6 +154,10 @@ type Document struct {
 	// form checked.jsonl keys them. Empty for a document citing nothing, whose
 	// freshness is not_applicable rather than unknown.
 	SourceKeys []string
+
+	// Limitations is what this concept declares it does not cover (§17.2). Empty for
+	// a document declaring none.
+	Limitations []string
 }
 
 // Claim is the subset of a claim the checks examine: its identity, its address,
@@ -122,6 +169,19 @@ type Claim struct {
 	// frontmatter states it. Empty for a claim declaring none, which is not this
 	// package's finding to report — an address that stopped resolving is.
 	Anchor string
+
+	// Lead is the claim's conclusion, stated first (§17.4), or empty when extraction
+	// has written none. §17.4's check reads it; nothing else does yet.
+	Lead string
+
+	// Quotes are the passages this claim offers as evidence, as frontmatter declares
+	// them.
+	//
+	// The passages rather than a count, because `coverage`'s finding has to say how
+	// thin the evidence is and a number cannot be quoted back at a reader. Empty for
+	// a claim offering none, which is a different state from a claim whose quotation
+	// failed to validate — that one is the gate's.
+	Quotes []string
 
 	// Subject is the surface phrase naming what this claim is about, as the author
 	// wrote it. Empty for a claim declaring none. It is the surface rather than the
@@ -227,6 +287,18 @@ func Checks(now time.Time) []Check {
 		archiveClosureCheck(),
 		archivePathCheck(),
 		claimAnchorCheck(),
+		conflictCheck(),
+		coverageCheck(),
+		rungCheck(),
+		dimensionDriftCheck(),
+		constraintCoverageCheck(),
+		commandCheck(),
+		evidenceCheck(),
+		languageCheck(),
+		duplicateCheck(),
+		filenameDriftCheck(),
+		limitationsCheck(),
+		leadCheck(),
 		subjectMissingCheck(),
 		subjectUnknownCheck(),
 		ontologyCheck(),

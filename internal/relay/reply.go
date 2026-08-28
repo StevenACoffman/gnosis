@@ -32,6 +32,20 @@ type Claim struct {
 	Text   string   `json:"text"`
 	Quotes []string `json:"quotes"`
 
+	// Lead is the claim's conclusion, stated first, in its own words (§17.4).
+	//
+	// **Optional, and a reply omitting it is not refused.** §17.4 makes a lead a
+	// *checked property*, and §5.8.3's argument one field over settles what that means
+	// at admission: reporting is a review signal and refusing is a gate, and turning
+	// one into the other would make the corpus decline knowledge over a summary. A
+	// claim with no lead gets a NULL one, which is the state §5.5.3 already defines.
+	//
+	// It is authored rather than derived, and §17.4 records why deriving it is
+	// refused: a rule that picked the conclusion clause would make the check testing
+	// that rule vacuous, and a lead is the author's judgement about what the claim
+	// ultimately asserts rather than the part of a sentence that survived a filter.
+	Lead string `yaml:"lead" json:"lead,omitempty"`
+
 	// ID is assigned by the caller, not by the model. An identifier a reply chose
 	// could collide with one already in the corpus, or be reused across replies to
 	// make two different claims look like one.
@@ -51,6 +65,7 @@ type replyDoc struct {
 	Type   string `yaml:"type"`
 	Claims []struct {
 		Text   string   `yaml:"text"`
+		Lead   string   `yaml:"lead"`
 		Quotes []string `yaml:"quotes"`
 	} `yaml:"claims"`
 }
@@ -118,7 +133,7 @@ func validateReply(op string, doc *replyDoc) (Reply, error) {
 			bad = append(bad, "claim "+ordinal(i)+" offers no quotation")
 			continue
 		}
-		out.Claims = append(out.Claims, Claim{Text: c.Text, Quotes: c.Quotes})
+		out.Claims = append(out.Claims, Claim{Text: c.Text, Lead: c.Lead, Quotes: c.Quotes})
 	}
 
 	if len(bad) > 0 {

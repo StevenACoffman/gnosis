@@ -247,3 +247,41 @@ func TestAReferencedRecordAccountsForNoFile(t *testing.T) {
 		t.Errorf("RecordedText = %v, want nothing for a referenced record", snap.RecordedText)
 	}
 }
+
+// TestSnapshotCarriesEveryStandardsList is the seam that swallowed `Lead`, one layer up.
+//
+// A check reading a lexical class from the snapshot is correct, tested, and useless if
+// the shell never fills the field — `lint`'s `lead` check ran against an empty string for
+// a day for exactly that reason, and its own tests could not see it because they built
+// the snapshot themselves. These lists come from `standards/` rather than from documents,
+// so a bundle declaring none must still get the embedded seeds.
+//
+// **Asserted over a bundle with no `standards/` directory at all**, which is the case
+// that matters: a corpus that declares nothing is the commonest one, and a fallback that
+// silently yielded an empty list would make every check depending on it skip with a
+// reason that reads like a configuration problem.
+func TestSnapshotCarriesEveryStandardsList(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		"c/01932b7c-1f4e-7a3d-9c2b-5e8f0a1b2c3d-a.md": concept(
+			"01932b7c-1f4e-7a3d-9c2b-5e8f0a1b2c3d", "A"),
+	}
+	snap, err := bundle.Snapshot(fsys, bundle.IndexState{}, bundle.FreshnessState{})
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	if !snap.Strength.Declared() {
+		t.Error("Strength is empty; `coverage` would skip on every bundle")
+	}
+	if !snap.Registers.Declared() {
+		t.Error("Registers is empty; `rung` would skip on every bundle")
+	}
+	if len(snap.Indicators.Reason) == 0 {
+		t.Error("Indicators.Reason is empty")
+	}
+	if len(snap.Indicators.Conclusion) == 0 {
+		t.Error("Indicators.Conclusion is empty; §17.4's `lead` check would skip")
+	}
+}

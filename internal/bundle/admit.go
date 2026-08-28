@@ -11,10 +11,13 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/gnosis/internal/okf"
 	"github.com/StevenACoffman/gnosis/internal/relay"
 	"github.com/StevenACoffman/gnosis/internal/segment"
 	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/skillet/identity"
 	"github.com/StevenACoffman/skillet/quotecheck"
+	"github.com/StevenACoffman/skillet/textnorm"
 )
 
 // admit consumes an agent's reply and writes the resulting document to quarantine.
@@ -67,27 +70,193 @@ func (c *Coordinator) admit(
 		return gnosis.Outcome{}, err
 	}
 	if len(checked.unsupported) > 0 || len(checked.unchecked) > 0 {
-		outcome := checked.outcome(cmd)
-		c.record(w, &audit.Row{
-			At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),
-			// The archived text the quotations were checked against, so the row says
-			// *which* source the claims were not supported by. Without it the record
-			// would be "somebody once asserted this and it did not hold", which is a
-			// fact about nobody.
-			Paths:       []string{meta.ArchivePath},
-			Outcome:     string(outcome.Status),
-			Detail:      outcome.Message,
-			Unsupported: checked.withheld,
-		})
-		return outcome, nil
+		return c.refuseReply(w, cmd, &meta, checked), nil
+	}
+	return c.applyReply(op, w, cmd, &reply, &meta, checked)
+}
+
+// applyReply routes a checked reply to what its prompt asked for.
+//
+// Requires: every quotation was supported; meta.Kind is set, which StorePromptMeta
+// guarantees.
+// Ensures: exactly one of the three operations runs. Named rather than defaulted, so a
+// kind added later has to be classified deliberately.
+func (c *Coordinator) applyReply(
+	op string, w *Writer, cmd *command.Admit, reply *relay.Reply, meta *PromptMeta,
+	k *checked,
+) (gnosis.Outcome, error) {
+	switch meta.Kind {
+	case PromptAccrete:
+		return c.accreteReply(op, w, cmd, reply, meta)
+	case PromptSynthesize:
+		return c.synthesizeReply(op, w, cmd, reply, meta, k)
+	case PromptSource, PromptKindUnset:
 	}
 	if !cmd.Eff.Writes() {
 		return gnosis.OK(map[string]any{
 			"key": cmd.Key, "effect": cmd.Eff.String(),
-			"claims": len(checked.claims), "would_quarantine": true,
+			"claims": len(k.claims), "would_quarantine": true,
 		}), nil
 	}
-	return c.quarantineReply(op, w, cmd, &reply, checked)
+	return c.quarantineReply(op, w, cmd, reply, k)
+}
+
+// refuseReply records a reply whose quotations the archive did not support.
+//
+// The archived text is named on the row, so it says *which* source the claims were not
+// supported by. Without it the record would be "somebody once asserted this and it did
+// not hold", which is a fact about nobody.
+func (c *Coordinator) refuseReply(
+	w *Writer, cmd *command.Admit, meta *PromptMeta, k *checked,
+) gnosis.Outcome {
+	outcome := k.outcome(cmd)
+	c.record(w, &audit.Row{
+		At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),
+		Paths:       meta.Archives(),
+		Outcome:     string(outcome.Status),
+		Detail:      outcome.Message,
+		Unsupported: k.withheld,
+	})
+	return outcome
+}
+
+// accreteReply appends a concept-bound reply's evidence to the document it was about.
+//
+// Requires: meta.Kind is PromptConcept; the reply's quotations have been checked.
+// Ensures: the document's body is unchanged or nothing is written (§6.3). A reply
+// adding no new quotation is a no-op rather than a fresh commit, so re-ingesting an
+// unchanged source costs nothing.
+//
+// **The document is re-read here and its hash compared**, because the prompt was
+// computed against bytes that may since have moved. Applying an answer to a document
+// that changed underneath it is §9.4's approved-diff window one level up, and the
+// comparison is what closes it.
+func (c *Coordinator) accreteReply(
+	op string, w *Writer, cmd *command.Admit, reply *relay.Reply, meta *PromptMeta,
+) (gnosis.Outcome, error) {
+	doc, hash, err := c.readConcept(op, meta.DocumentPath)
+	if err != nil {
+		return gnosis.Outcome{}, err
+	}
+	if hash != meta.DocumentHash {
+		return gnosis.Blocked(gnosis.ReasonNeedsHuman,
+			meta.DocumentPath+" changed since this prompt was emitted, so the reply "+
+				"was computed against bytes that are gone; re-run `gnosis ingest` for it",
+			map[string]any{"key": cmd.Key, "path": meta.DocumentPath}), nil
+	}
+
+	id, _ := doc.Text(idKey)
+	plan, err := Accrete(doc, gnosis.ID(id), reply)
+	if err != nil {
+		return gnosis.Outcome{}, err
+	}
+	data := map[string]any{
+		"key": cmd.Key, "path": meta.DocumentPath,
+		"added": plan.Added, "unmatched": plan.Unmatched,
+	}
+	if plan.Added == 0 || !cmd.Eff.Writes() {
+		data["effect"] = cmd.Eff.String()
+		return gnosis.OK(data), nil
+	}
+	if err := w.WriteConcept(meta.DocumentPath, plan.Content); err != nil {
+		return gnosis.Outcome{}, err
+	}
+	c.record(w, &audit.Row{
+		At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),
+		Paths:   []string{meta.DocumentPath},
+		Outcome: string(gnosis.StatusOK),
+		Detail:  "accreted " + strconv.Itoa(plan.Added) + " quotation(s)",
+	})
+	return gnosis.OK(data), nil
+}
+
+// synthesizeReply replaces a concept's body with a gated rewrite (§6.3).
+//
+// Requires: meta.Kind is PromptSynthesize; the reply's quotations have been checked.
+// Ensures: nothing is written unless every quotation the document already held survives
+// and every quotation the rewrite offers validates. The diff is reported either way,
+// because a caller refusing a rewrite still needs to see what it proposed.
+func (c *Coordinator) synthesizeReply(
+	op string, w *Writer, cmd *command.Admit, reply *relay.Reply, meta *PromptMeta,
+	k *checked,
+) (gnosis.Outcome, error) {
+	doc, hash, err := c.readConcept(op, meta.DocumentPath)
+	if err != nil {
+		return gnosis.Outcome{}, err
+	}
+	if hash != meta.DocumentHash {
+		return gnosis.Blocked(gnosis.ReasonNeedsHuman,
+			meta.DocumentPath+" changed since this prompt was emitted, so the rewrite "+
+				"was computed against bytes that are gone; re-run `gnosis synthesize`",
+			map[string]any{"key": cmd.Key, "path": meta.DocumentPath}), nil
+	}
+
+	id, _ := doc.Text(idKey)
+	plan, err := Synthesize(doc, gnosis.ID(id), reply, k.supported)
+	if err != nil {
+		return gnosis.Outcome{}, err
+	}
+	plan.Path = meta.DocumentPath
+	data := map[string]any{
+		"key": cmd.Key, "path": plan.Path, "diff": plan.Diff,
+		"dropped": plan.Dropped, "unvalidated": plan.Unvalidated,
+	}
+	if !plan.Approved() {
+		return gnosis.Blocked(gnosis.ReasonRefused,
+			"the rewrite would lose evidence the document already held", data), nil
+	}
+	if !cmd.Eff.Writes() {
+		data["effect"] = cmd.Eff.String()
+		return gnosis.OK(data), nil
+	}
+	if err := w.WriteConcept(plan.Path, plan.Content); err != nil {
+		return gnosis.Outcome{}, err
+	}
+	c.record(w, &audit.Row{
+		At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),
+		Paths: []string{plan.Path}, Outcome: string(gnosis.StatusOK),
+		Detail: "synthesized " + plan.Path,
+	})
+	return gnosis.OK(data), nil
+}
+
+// recordSupported notes which whole quotations the archive supports.
+//
+// Requires: quotes are one claim's, as offered; sources are the archived files.
+// Ensures: a quotation is recorded only when checking it alone finds support.
+//
+// **Per quotation, checked one at a time, and the reason is that `Check` answers a
+// different question.** It reports per *passage* — a quotation is split, and each part
+// gets its own finding — so folding a finding's passage yields fragments that no
+// caller holding the original quotation can look up. The synthesis gate asks "does the
+// document still hold this exact quotation", which only a per-quotation answer
+// settles. The cost is one extra scan of the archive per quotation, which is bounded
+// by the archive and paid only where the answer is needed.
+//
+// Fold-normalised, because that is the space the evidence invariant compares in: a
+// passage re-offered with different whitespace is the same passage.
+func recordSupported(k *checked, quotes []string, sources []quotecheck.Source) {
+	if k.supported == nil {
+		k.supported = map[string]bool{}
+	}
+	for _, q := range quotes {
+		if quotecheck.Support(quotecheck.Check([]string{q}, sources)) > 0 {
+			k.supported[textnorm.Fold(q)] = true
+		}
+	}
+}
+
+// readConcept loads a concept and the hash of the bytes it was read from.
+func (c *Coordinator) readConcept(op, rel string) (*okf.Document, string, error) {
+	raw, err := os.ReadFile(filepath.Join(c.Dir, filepath.FromSlash(rel)))
+	if err != nil {
+		return nil, "", &errs.Error{Op: op, Err: err}
+	}
+	doc, err := okf.Parse(raw)
+	if err != nil {
+		return nil, "", &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+	}
+	return doc, identity.Hash(string(raw)), nil
 }
 
 // cacheReply stores the answer under its key.
@@ -116,11 +285,15 @@ func (c *Coordinator) cacheReply(
 func (c *Coordinator) checkReply(
 	op string, reply *relay.Reply, meta *PromptMeta,
 ) (*checked, error) {
-	body, err := os.ReadFile(filepath.Join(c.Dir, filepath.FromSlash(meta.ArchivePath)))
-	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+	archives := meta.Archives()
+	sources := make([]quotecheck.Source, 0, len(archives))
+	for _, rel := range archives {
+		body, rErr := os.ReadFile(filepath.Join(c.Dir, filepath.FromSlash(rel)))
+		if rErr != nil {
+			return nil, &errs.Error{Op: op, Err: rErr}
+		}
+		sources = append(sources, quotecheck.Source{Name: rel, Text: string(body)})
 	}
-	sources := []quotecheck.Source{{Name: meta.ArchivePath, Text: string(body)}}
 
 	// Read once, outside the loop: the words are the same for every claim in the
 	// reply, and reading them per claim would put file I/O inside a fold.
@@ -137,6 +310,7 @@ func (c *Coordinator) checkReply(
 
 		findings := quotecheck.Check(rc.Quotes, sources)
 		rc.ArchivePaths = foundIn(findings)
+		recordSupported(out, rc.Quotes, sources)
 		switch {
 		case quotecheck.Support(findings) > 0:
 		case allUnchecked(findings):
