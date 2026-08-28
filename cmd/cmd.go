@@ -17,6 +17,8 @@ import (
 	"github.com/peterbourgon/ff/v4/ffhelp"
 
 	"github.com/StevenACoffman/gnosis/cmd/admitcmd"
+	"github.com/StevenACoffman/gnosis/cmd/auditcmd"
+	"github.com/StevenACoffman/gnosis/cmd/debtcmd"
 	"github.com/StevenACoffman/gnosis/cmd/doctorcmd"
 	"github.com/StevenACoffman/gnosis/cmd/fetchcmd"
 	"github.com/StevenACoffman/gnosis/cmd/graphcmd"
@@ -28,10 +30,13 @@ import (
 	"github.com/StevenACoffman/gnosis/cmd/promotecmd"
 	"github.com/StevenACoffman/gnosis/cmd/quarantinecmd"
 	"github.com/StevenACoffman/gnosis/cmd/root"
+	"github.com/StevenACoffman/gnosis/cmd/schemacmd"
 	"github.com/StevenACoffman/gnosis/cmd/searchcmd"
 	"github.com/StevenACoffman/gnosis/cmd/showcmd"
 	"github.com/StevenACoffman/gnosis/cmd/standardscmd"
+	"github.com/StevenACoffman/gnosis/cmd/synthesizecmd"
 	"github.com/StevenACoffman/gnosis/cmd/version"
+	"github.com/StevenACoffman/gnosis/internal/scan"
 )
 
 // Run parses args and dispatches to the matching command.
@@ -44,27 +49,31 @@ import (
 // Flags supplied on the command line always take precedence over env vars.
 func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	r := root.New(stdin, stdout, stderr)
-	version.New(r)
-	initcmd.New(r)
-	doctorcmd.New(r)
-	lintcmd.New(r)
-	indexcmd.New(r)
-	searchcmd.New(r)
-	showcmd.New(r)
-	graphcmd.New(r)
-	fetchcmd.New(r)
-	ingestcmd.New(r)
-	admitcmd.New(r)
-	quarantinecmd.New(r)
-	promotecmd.New(r)
-	logcmd.New(r)
-	standardscmd.New(r)
-	// register new commands here
+	register(r)
 
 	if err := r.Command.Parse(args, ff.WithEnvVarPrefix("GNOSIS")); err != nil {
 		_, _ = fmt.Fprintf(stderr, "\n%s\n", ffhelp.Command(r.Command))
 		return fmt.Errorf("parse: %w", err)
 	}
+
+	// Post-parse initialisation, which is where a shared dependency belongs: the
+	// §9.3 ruleset is compiled once here and inherited by every command through
+	// root.Config rather than loaded four times.
+	//
+	// A failure is reported and does not stop the run. The ruleset is embedded, so
+	// the only way to fail is a build defect that a test already catches — and the
+	// commands degrade to a stage-1 scan that *reports* the missing stages, which
+	// makes the promote gate stricter rather than quieter. Refusing every command
+	// including `lint` and `search` because a pattern file will not compile would
+	// take a corpus offline for a reason unrelated to reading it.
+	rules, rulesErr := scan.Rules()
+	if rulesErr != nil {
+		_, _ = fmt.Fprintf(stderr,
+			"warning: the §9.3 pattern ruleset did not load, so injection and secret "+
+				"scanning are unavailable and every scan will report them missing: %v\n",
+			rulesErr)
+	}
+	r.Rules = rules
 
 	// An unmatched token leaves the selected command a group parent (Exec == nil)
 	// with a leftover positional. Without this guard it falls through to Run,
@@ -87,4 +96,36 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	}
 
 	return nil
+}
+
+// register attaches every command to r.
+//
+// **Separated from Run so a test can walk the real tree.** The list used to sit inline,
+// which meant any test about the command set had to retype it — and a retyped list is a
+// hand-maintained allowlist, which this codebase has twice replaced with a derived check
+// after it fell behind. A test calling this function sees exactly what ships.
+//
+// Requires: r is a fresh root.Config.
+// Ensures: every command in the tree is registered under r.Command.
+func register(r *root.Config) {
+	version.New(r)
+	initcmd.New(r)
+	doctorcmd.New(r)
+	lintcmd.New(r)
+	indexcmd.New(r)
+	schemacmd.New(r)
+	searchcmd.New(r)
+	showcmd.New(r)
+	graphcmd.New(r)
+	fetchcmd.New(r)
+	ingestcmd.New(r)
+	admitcmd.New(r)
+	quarantinecmd.New(r)
+	promotecmd.New(r)
+	logcmd.New(r)
+	standardscmd.New(r)
+	auditcmd.New(r)
+	debtcmd.New(r)
+	synthesizecmd.New(r)
+	// register new commands here
 }

@@ -87,6 +87,43 @@ func (db *DB) CheckShape(ctx context.Context) (Shape, error) {
 	}, nil
 }
 
+// Tables reports the content tables the index holds, excluding indexes and the shadow
+// tables an FTS5 virtual table maintains.
+//
+// Requires: db is open.
+// Ensures: sorted; never nil. Every name is a table somebody could put rows in.
+//
+// **Derived from `sqlite_master.type` rather than from a list of name prefixes.** The
+// digest-coverage test used to exclude indexes by prefix — `claims_`, `links_`,
+// `sources_fetched_` — which meant every new index needed an entry in a list somewhere
+// else, and forgetting one produced a failure that read as a missing digest rather than
+// as a missing exclusion. SQLite already knows which objects are tables.
+func (db *DB) Tables(ctx context.Context) ([]string, error) {
+	const op = "index.DB.Tables"
+
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT name FROM sqlite_master
+		WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+		ORDER BY name`)
+	if err != nil {
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]string, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, &errs.Error{Op: op, Err: err}
+		}
+		out = append(out, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+	return out, nil
+}
+
 // expectedObjects builds a throwaway index and reports what it contains.
 func expectedObjects(ctx context.Context) ([]string, error) {
 	scratch, err := Open(ctx, ":memory:")

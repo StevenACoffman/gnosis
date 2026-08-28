@@ -136,3 +136,44 @@ func TestSinceFiltersByDate(t *testing.T) {
 		}
 	}
 }
+
+// TestAnIndentedHeadingIsAnExample is a bug the fixtures could not have found,
+// because nothing wrote to log.md until a discard did.
+//
+// `log.md`'s seed explains its own format by showing it, in an indented code block.
+// Parsed as a heading, that example became a real entry — and the first write
+// re-emitted it at column zero, so the file's explanation of itself turned into a
+// fabricated entry dated January. Found by running the command and reading the file.
+func TestAnIndentedHeadingIsAnExample(t *testing.T) {
+	t.Parallel()
+
+	const src = "# Update Log\n\nEach entry is a date heading in the OKF §9 form:\n\n" +
+		"    ## 2026-01-31\n" +
+		"    * what changed, and the reasoning that is not obvious from the diff\n"
+
+	_, entries := okflog.Parse(src)
+	if len(entries) != 0 {
+		t.Fatalf("an indented example was parsed as %d entries: %+v", len(entries), entries)
+	}
+	// And a write leaves it alone, indentation included, which is the property that
+	// actually matters: the preamble is prose the corpus wrote about itself.
+	got := okflog.Add(src, "2026-08-23", "- declined a draft")
+	if !strings.Contains(got, "    ## 2026-01-31") {
+		t.Errorf("writing to the log de-indented its own example:\n%s", got)
+	}
+	if !strings.Contains(got, "## 2026-08-23") {
+		t.Errorf("the new entry has no heading:\n%s", got)
+	}
+}
+
+// TestAHeadingMayBeSlightlyIndented keeps the fix from being stricter than Markdown.
+// Three spaces still make a heading; four make a code block, and that is the
+// boundary the format already has.
+func TestAHeadingMayBeSlightlyIndented(t *testing.T) {
+	t.Parallel()
+
+	_, entries := okflog.Parse("   ## 2026-08-23\n- a note\n")
+	if len(entries) != 1 {
+		t.Fatalf("a three-space-indented heading was not one: %+v", entries)
+	}
+}

@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/StevenACoffman/gnosis/internal/constraint"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/okf"
@@ -63,6 +64,11 @@ type Document struct {
 	// SourceKeys identify the source versions this document rests on, keyed as
 	// checked.jsonl keys them.
 	SourceKeys []string
+
+	// Limitations is what this concept declares it does **not** cover (§17.2).
+	// Empty for a document declaring none, which is a finding only on a normative
+	// type.
+	Limitations []string
 }
 
 // DocClaim is a claim's identity and its evidence addresses, as the document
@@ -72,8 +78,78 @@ type Document struct {
 // know which claim named which archived file and nothing else, and a wider type
 // would invite a check to start judging evidence, which is the gate's job.
 type DocClaim struct {
-	ID           string
+	ID string
+
+	// Anchor is the span of the body this claim addresses (§5.5.1). The
+	// claim-anchor check needs it to say whether the address still resolves, which
+	// is a question about the document rather than about the evidence.
+	Anchor string
+
+	// Quotes are the passages this claim offers as evidence, as frontmatter declares
+	// them. §17.3.1's sufficiency check weighs them against the claim's wording.
+	Quotes []string
+
+	// Lead is the claim's conclusion, stated first (§17.4). Empty until extraction
+	// writes one; §5.5.3 makes that a NULL column rather than an empty string.
+	Lead string
+
+	// Verified are OKF §5.2's verification events for this claim.
+	//
+	// **Per claim, and a document-level `verified` is not expanded into it.** OKF puts
+	// the key at document level; §5.5 keys the table by claim; and inheriting one to
+	// the other would assert that somebody verified each claim when they verified a
+	// page. §5.5.1 refused exactly that for `subject` — editing an inherited default
+	// silently re-subjects every claim that did not override — and §5.5's own reason
+	// for making this a table rather than a column is that a human sign-off and an
+	// automated pass must stay distinguishable. Expanding a page-level list one level
+	// down destroys that distinction wholesale.
+	Verified []Verification
+
+	// Pin is a `gnosis_constraint` reading stated in frontmatter, and Pinned reports
+	// whether there was one (§10.2.1).
+	//
+	// **Comma-ok rather than a zero Constraint**, which would assert a bound of zero.
+	//
+	// A pin exists for the case where a precise value is real but unreachable by the
+	// prose parser — a number in a table, a code fence, or a figure caption. It takes
+	// precedence over the derived reading and is then checked against the prose, which
+	// is the only reason the two can ever disagree (§10.2.1). It is never required:
+	// requiring one would hand a model-generated number authority over the
+	// human-readable text, which is what making the prose authoritative was for.
+	Pin    constraint.Constraint
+	Pinned bool
+
+	// Subject is the surface phrase naming what this claim is about (§5.5.1), as
+	// the author wrote it — an alias is resolved by the checks, not here. Empty for
+	// a claim declaring none, which is a review signal on some types and silence on
+	// others (§5.8.3).
+	//
+	// **It is deliberately not on gate.Claim.** The backlog entry asked for both
+	// readers, and that would hand the promote gate a field §5.8.3 forbids it to act
+	// on: a claim with no subject is reported for review and never blocked, because
+	// blocking would make the corpus refuse ordinary knowledge. The comment on
+	// docClaims already gives the general form of this — sharing a type would give a
+	// check the fields to start judging.
+	Subject string
+
 	ArchivePaths []string
+}
+
+// Verification is one OKF §5.2 verification event.
+//
+// A struct rather than a pair of parallel slices because the two belong together: an
+// actor with no time and a time with no actor are both meaningless, and a shape that can
+// hold either is a shape a reader has to check.
+type Verification struct {
+	// By is the actor, as OKF §7's grammar writes it. Kept as the raw string rather
+	// than parsed into gnosis.Actor: §14.1.1 makes these two populations, and the
+	// tier fold reads the raw form deliberately.
+	By string
+
+	// At is the event's timestamp, as declared. A string rather than a time.Time
+	// because it is projected into the index verbatim and never compared here — and
+	// parsing it would make a malformed date drop a verification silently.
+	At string
 }
 
 // isReserved reports whether name is one of the filenames OKF §3.1 gives a
@@ -183,6 +259,7 @@ func read(fsys fs.FS, path string) Document {
 	}
 
 	doc.Claims = docClaims(parsed)
+	doc.Limitations = stringsOf(parsed.Fields, limitationsKey)
 	doc.StaleAfter = staleAfter(parsed)
 	doc.SourceKeys = sourceKeys(doc.Claims)
 

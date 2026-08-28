@@ -31,13 +31,13 @@ const auditFile = "audit.jsonl"
 //
 // It is unexported, and that is the point rather than an accident of layering.
 // §15 requires every mutation to verify its own row, and the first guard on that
-// was a test reading the call sites' source text for `bundle.Audit(` — brittle,
-// and written and deleted inside one pass. Taking the unverified append off the
+// was a test reading the call sites' source text for an append call — brittle, and
+// written and deleted inside one pass. Taking the unverified append off the
 // package's surface makes the compiler enforce what that test was inspecting:
-// AuditVerified is the only way in, so a writer added later cannot append without
+// Writer.Audit is the only way in, so a writer added later cannot append without
 // checking. Make it impossible rather than tested.
 //
-// See AuditVerified, and Coordinator.auditUnread for why the two failures differ.
+// See Writer.Audit, and Coordinator.auditUnread for why the two failures differ.
 func appendRow(bundleDir string, row *audit.Row) error {
 	const op = "bundle.appendRow"
 
@@ -148,8 +148,8 @@ func (c *Coordinator) now() time.Time {
 // and that is not on disk is a different event, handled the opposite way: §15
 // requires it to reach the caller as an error, because it is the one failure no
 // other signal reveals. See Coordinator.auditUnread.
-func (c *Coordinator) record(row *audit.Row) {
-	err := AuditVerified(c.Dir, row)
+func (c *Coordinator) record(w *Writer, row *audit.Row) {
+	err := w.Audit(row)
 	switch {
 	case err == nil:
 	case AuditLost(err):

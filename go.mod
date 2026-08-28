@@ -12,6 +12,7 @@ require (
 	github.com/go-git/go-git/v6 v6.0.0-alpha.5
 	github.com/gofrs/flock v0.13.0
 	github.com/google/uuid v1.6.0
+	github.com/rodaine/numwords v0.0.0-20200910203654-405f4a455f79
 	modernc.org/sqlite v1.57.0
 )
 
@@ -42,6 +43,6 @@ require (
 )
 
 require (
-	github.com/StevenACoffman/skillet v0.19.0
+	github.com/StevenACoffman/skillet v0.26.0
 	github.com/StevenACoffman/toerr v0.1.0 // indirect
 )

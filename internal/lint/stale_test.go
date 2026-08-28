@@ -171,3 +171,53 @@ func TestFreshnessOfMatchesTheCheck(t *testing.T) {
 		})
 	}
 }
+
+// TestAnEpisodicTypeIsExemptFromTheWindowButNotFromItsAuthor is §5.8.3.1's derived
+// behaviour, and the split matters more than the exemption.
+//
+// An episode's evidence is a commit hash, immutable by construction, so "re-run
+// `gnosis fetch` on them" is advice nobody can act on and the finding never clears.
+// But a declared stale_after is the author's own statement about their claim, and an
+// author may legitimately ask for an episode to be revisited — exempting that too
+// would silence a person rather than an impossible instruction.
+func TestAnEpisodicTypeIsExemptFromTheWindowButNotFromItsAuthor(t *testing.T) {
+	t.Parallel()
+
+	vocabulary := lint.Vocabulary{
+		Declared: true,
+		Types: []lint.VocabType{
+			{Key: "Episode", Episodic: true},
+			{Key: "Rule"},
+		},
+	}
+	long := now().AddDate(0, 0, -400)
+
+	// The window half: exempt for Episode, reported for Rule.
+	windowed := &lint.Snapshot{
+		Vocabulary:    vocabulary,
+		StalenessDays: 30,
+		SourceChecks:  map[string]time.Time{"s1": long},
+		Documents: []lint.Document{
+			{Path: "c/ep.md", Type: "Episode", SourceKeys: []string{"s1"}},
+			{Path: "c/rule.md", Type: "Rule", SourceKeys: []string{"s1"}},
+		},
+	}
+	got := lint.StaleFindings(windowed, now())
+	if len(got) != 1 {
+		t.Fatalf("want one finding, got %d: %+v", len(got), got)
+	}
+	if got[0].Path != "c/rule.md" {
+		t.Errorf("the exemption applied to the wrong document: %s", got[0].Path)
+	}
+
+	// The declared half: reported for Episode too, because a person asked.
+	asked := &lint.Snapshot{
+		Vocabulary: vocabulary,
+		Documents: []lint.Document{
+			{Path: "c/ep.md", Type: "Episode", StaleAfter: now().AddDate(0, 0, -1)},
+		},
+	}
+	if got := lint.StaleFindings(asked, now()); len(got) != 1 {
+		t.Errorf("an author's own stale_after was silenced on an episodic type: %+v", got)
+	}
+}

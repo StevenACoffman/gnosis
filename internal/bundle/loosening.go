@@ -1,11 +1,38 @@
 package bundle
 
 import (
+	"os"
 	"strconv"
+	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/standards"
 	"github.com/StevenACoffman/skillet/errs"
+)
+
+// The reasons a loosening has no finding count, stated once each.
+//
+// They were three literals at three branches of the switch below, and a fourth
+// category arrived as a fourth sentence somebody wrote from memory. Naming them
+// makes an addition visible and keeps the wording one thing (**rules.md §13**).
+const (
+	// whyAdmission: the threshold decides what enters tier 0. Moving it changes
+	// which sources archive, and no check counts that.
+	whyAdmission = "this threshold governs admission to tier 0, not any check, " +
+		"so moving it changes no finding count"
+
+	// whyGate: the threshold reaches a gate verdict but no lint finding. That is a
+	// third category and it did not exist until §9.3 stage 4 applied the archive's
+	// caps to a candidate document — before that these were admission-only, and
+	// saying so is now half true in a way a reader would act on.
+	whyGate = "this threshold changes no lint finding and does change a promote " +
+		"gate verdict: §9.3 stage 4 applies it to a candidate document, so a " +
+		"loosening admits candidates the gate previously refused"
+
+	// whyUnread: nothing reads it. Reported rather than assumed, per §6.5.1, and
+	// cross-checked against standards.Unread by a test — a value that gains a
+	// reader and not a case here would otherwise keep claiming it costs nothing.
+	whyUnread = "nothing reads this threshold yet, so moving it changes no finding"
 )
 
 // Loosened is one threshold that moved in the finding-reducing direction, and
@@ -78,14 +105,32 @@ func Loosenings(bundleDir, ref string) ([]Loosened, error) {
 	return out, nil
 }
 
-// describeLoosening attaches a finding delta when the threshold produces findings.
+// describeLoosening attaches a finding delta when the threshold produces findings,
+// and says why when it does not.
 //
-// **Only the budget thresholds do.** `corpus_budget` and `corpus_warn_fraction`
-// feed `doctor`'s archive-budget diagnostic, so raising either can silence a real
-// finding and the delta is exact. The allowlist and the caps govern *admission* —
-// they change which sources archive, not what any check reports — and
-// `staleness_days` and `in_degree_cut` are read by nothing at all, which is its
-// own problem and is in TODO.
+// Requires: l came from standards.CompareArchive; old and cur are the loaded
+// standards either side of the change.
+// Ensures: either an exact before/after count or a stated reason there is none.
+// Never a zero delta standing in for an unmeasured one — §6.2's argument is that a
+// zero reads as *this cost nothing*, when what happened is that nobody measured it.
+//
+// # The categories, and one that was wrong
+//
+// `corpus_budget` and `corpus_warn_fraction` feed the archive-budget diagnostic, so
+// raising either can silence a real finding and the delta is exact.
+//
+// `staleness_days` **also** produces a count now, and this function said it did not.
+// It read "nothing reads this threshold yet", which was true when it was written and
+// stopped being true when the `stale` check gained its window: widening the window
+// silences `stale` findings, and `standards check --log` was recording that it cost
+// nothing. That is the precise reassurance §6.2 exists to withhold, produced by the
+// tool §6.2 asked for — and it is why the test below cross-checks every case here
+// against `standards.Unread`, which is the one function that already knows.
+//
+// `per_file_cap` and `embedded_payload_cap` are the third category: no lint finding,
+// and a promote-gate verdict, since §9.3 stage 4 applies them to a candidate.
+//
+// `allowlist` is admission only. `in_degree_cut` is genuinely unread.
 func describeLoosening(
 	bundleDir, file string, l standards.Loosening, old, cur *standards.Archive,
 ) Loosened {
@@ -99,13 +144,57 @@ func describeLoosening(
 			return out
 		}
 		out.FindingsBefore, out.FindingsAfter, out.Countable = before, after, true
-	case "staleness_days", "in_degree_cut":
-		out.Why = "nothing reads this threshold yet, so moving it changes no finding"
+	case "staleness_days":
+		before, after, err := staleFindingDelta(bundleDir, old, cur)
+		if err != nil {
+			out.Why = "the corpus could not be read: " + err.Error()
+			return out
+		}
+		out.FindingsBefore, out.FindingsAfter, out.Countable = before, after, true
+	case "per_file_cap", "embedded_payload_cap":
+		out.Why = whyGate
+	case "in_degree_cut":
+		out.Why = whyUnread
 	default:
-		out.Why = "this threshold governs admission to tier 0, not any check, " +
-			"so moving it changes no finding count"
+		out.Why = whyAdmission
 	}
 	return out
+}
+
+// staleFindingDelta counts the stale findings under each window.
+//
+// Requires: bundleDir is a bundle root; old and cur differ in StalenessDays.
+// Ensures: the two counts, or an error when the corpus cannot be read.
+//
+// The corpus is read once and the check run twice, which is what makes the delta
+// exact rather than an estimate: both counts describe the same documents and the same
+// check records, and differ only in the window applied to them. The same shape
+// budgetFindingDelta uses, for the same reason.
+//
+// The clock is `time.Now` and that is a real dependency rather than a seam this
+// forgot: the count is "how many sources are stale *today*", and a fixed clock would
+// answer a question nobody asked. It makes the number a measurement rather than a
+// property, which is what a log entry recording a threshold change wants.
+func staleFindingDelta(bundleDir string, old, cur *standards.Archive) (int, int, error) {
+	const op = "bundle.staleFindingDelta"
+
+	fresh, err := LoadFreshness(bundleDir)
+	if err != nil {
+		return 0, 0, err
+	}
+	snap, err := Snapshot(os.DirFS(bundleDir), IndexState{}, fresh)
+	if err != nil {
+		return 0, 0, &errs.Error{Op: op, Err: err}
+	}
+
+	now := time.Now().UTC()
+	snap.StalenessDays = old.StalenessDays.Value
+	before := len(lint.StaleFindings(snap, now))
+
+	snap.StalenessDays = cur.StalenessDays.Value
+	after := len(lint.StaleFindings(snap, now))
+
+	return before, after, nil
 }
 
 // budgetFindingDelta counts the budget diagnostics under each value.

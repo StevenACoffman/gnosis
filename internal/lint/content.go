@@ -32,7 +32,9 @@ var placeholderPattern = regexp.MustCompile(`\{\{[A-Z0-9_-]+\}\}`)
 // expensive.
 func schemaVersionCheck() Check {
 	return Check{
-		Name: "schema-version",
+		Name:       "schema-version",
+		Categories: []string{"schema-version"},
+		Actions:    []finding.Action{finding.ActionHuman},
 		Applies: func(snap *Snapshot) (bool, string) {
 			if snap.SchemaVersion == 0 {
 				return false, "this build declares no schema version, so nothing can be older than it"
@@ -89,8 +91,10 @@ func schemaVersionMessage(got *int, want int) string {
 // which is exactly why it needs one of its own.
 func placeholderCheck() Check {
 	return Check{
-		Name:    "placeholder",
-		Applies: always,
+		Name:       "placeholder",
+		Categories: []string{"placeholder"},
+		Actions:    []finding.Action{finding.ActionHuman},
+		Applies:    always,
 		Run: func(snap *Snapshot) []finding.Diagnostic {
 			out := make([]finding.Diagnostic, 0)
 			for i := range snap.Documents {
@@ -122,8 +126,10 @@ func placeholderCheck() Check {
 // nobody kept. Getting that wrong reports every parent heading in the corpus.
 func emptySectionCheck() Check {
 	return Check{
-		Name:    "empty-section",
-		Applies: always,
+		Name:       "empty-section",
+		Categories: []string{"empty-section"},
+		Actions:    []finding.Action{finding.ActionHuman},
+		Applies:    always,
 		Run: func(snap *Snapshot) []finding.Diagnostic {
 			out := make([]finding.Diagnostic, 0)
 			for i := range snap.Documents {

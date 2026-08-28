@@ -73,6 +73,10 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)
 	}
+	// The registry lives here and nowhere else, so this is the one place that can fill
+	// it — the same route `schemacmd` uses to hand PlanSchemaDoc its command list.
+	// §5.7.1's point is that the binary describes itself rather than being described.
+	snap.Commands = c.commandNames()
 
 	checks, err := c.selectChecks()
 	if err != nil {
@@ -174,4 +178,20 @@ func reasonFor(ds []finding.Diagnostic) string {
 		}
 	}
 	return root.ReasonNeedsHuman
+}
+
+// commandNames is this binary's registered subcommands, for the `command` check.
+//
+// Read from `c.Config.Command` rather than `c.Command`: this type has its own Command
+// field for the subcommand it registers, and that shadows the embedded root's. Written
+// the short way it compiles, runs, and reports an empty list — which is the shadowing
+// that produced admitcmd's FromStdin, the schema command's empty command list, and a
+// synthesize registration that made every command require --model.
+func (c *Config) commandNames() []string {
+	subs := c.Config.Command.Subcommands
+	out := make([]string, 0, len(subs))
+	for _, sub := range subs {
+		out = append(out, sub.Name)
+	}
+	return out
 }

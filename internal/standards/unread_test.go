@@ -14,6 +14,15 @@ import (
 //
 // The failure message is the point: it tells a maintainer which of the three
 // states to record, rather than reporting a count.
+//
+// **What this test cannot do is check whether the classification is right**, and that
+// is worth saying here because the list below looks like it does. Comparing `Unread()`
+// to a literal is comparing one copy of a list to another; the two agree by
+// construction. `TestTheClassificationAgreesWithTheSource`, at the repository root, is
+// what holds the map to account — it scans for `.<Field>.Value` outside this package,
+// so the compiler's own symbols are the evidence. This one still earns its place: it
+// names the value gnosis deliberately declares and does not read, and deleting that
+// name when a reader lands is a one-line ritual a source scan cannot ask for.
 func TestEveryDeclaredValueIsClassified(t *testing.T) {
 	t.Parallel()
 	// The one value gnosis declares and does not read. §14.4.1 wants it for

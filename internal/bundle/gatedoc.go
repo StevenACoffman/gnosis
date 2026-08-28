@@ -2,7 +2,9 @@ package bundle
 
 import (
 	"strconv"
+	"strings"
 
+	"github.com/StevenACoffman/gnosis/internal/constraint"
 	"github.com/StevenACoffman/gnosis/internal/gate"
 	"github.com/StevenACoffman/gnosis/internal/okf"
 )
@@ -10,6 +12,31 @@ import (
 // claimsKey is the frontmatter list of a document's claims and their addresses
 // (§5.5.1). Each entry carries an id, an anchor, and the evidence offered for it.
 const claimsKey = "gnosis_claims"
+
+// subjectKey names what a claim is about, per claim rather than per document.
+//
+// §5.5.1 puts it here rather than at document level, and refused an inherited
+// default: editing one would silently re-subject every claim that did not override,
+// which is the failure the vocabulary layer exists to catch arriving through a
+// convenience.
+const subjectKey = "subject"
+
+// verifiedKey is OKF §5.2's verification list, read per claim (§5.5).
+const verifiedKey = "verified"
+
+// leadKey is §17.4's conclusion-first summary, per claim.
+const leadKey = "lead"
+
+// constraintKey is §5.4's optional pin: a mapping stating the reading directly, for the
+// case where a precise value exists but not in prose the parser can reach — a number in
+// a table, a code fence, or a figure caption (§10.2.1).
+const constraintKey = "gnosis_constraint"
+
+// limitationsKey is what a concept declares it does not cover (§17.2), per document.
+//
+// Per document rather than per claim, unlike `subject` and `lead`: §17.2's scope is the
+// concept's, and a claim does not have limits of its own — the page does.
+const limitationsKey = "gnosis_limitations"
 
 // claimsOf reads a document's claims out of frontmatter.
 //
@@ -42,6 +69,7 @@ func claimsOf(doc *okf.Document) []gate.Claim {
 			// which is the same fail-open mistake `DryRun bool` makes.
 			Enforced:     boolOr(m, "enforced", true),
 			Text:         stringOr(m, "anchor"),
+			Lead:         stringOr(m, leadKey),
 			Quotes:       stringsOf(m, evidenceKey),
 			ArchivePaths: stringsOf(m, "archive_paths"),
 		})
@@ -66,12 +94,56 @@ func docClaims(doc *okf.Document) []DocClaim {
 		if !ok {
 			continue
 		}
-		out = append(out, DocClaim{
+		claim := DocClaim{
 			ID:           firstString(m, "id", "anchor", strconv.Itoa(i)),
+			Anchor:       stringOr(m, "anchor"),
+			Subject:      stringOr(m, subjectKey),
+			Lead:         stringOr(m, leadKey),
+			Quotes:       stringsOf(m, evidenceKey),
+			Verified:     verifiedOf(m),
 			ArchivePaths: stringsOf(m, "archive_paths"),
-		})
+		}
+		claim.Pin, claim.Pinned = pinOf(m)
+		out = append(out, claim)
 	}
 	return out
+}
+
+// verifiedOf reads a claim entry's OKF §5.2 verification list.
+//
+// Requires: m is a gnosis_claims entry.
+// Ensures: one Verification per well-formed event, in declaration order; an entry
+// missing either field is skipped rather than half-recorded. OKF §11 requires a bare
+// mapping be treated as a one-element list, which is what the string case does.
+func verifiedOf(m map[string]any) []Verification {
+	switch v := m[verifiedKey].(type) {
+	case map[string]any:
+		return oneVerification(v)
+	case []any:
+		out := make([]Verification, 0, len(v))
+		for _, entry := range v {
+			switch e := entry.(type) {
+			case map[string]any:
+				out = append(out, oneVerification(e)...)
+			case string:
+				// A bare actor with no time. Recorded, because OKF §11 says tolerate
+				// it and the actor is the half the trust fold reads (§14.1).
+				out = append(out, Verification{By: e})
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// oneVerification reads a single event mapping, or nothing.
+func oneVerification(m map[string]any) []Verification {
+	by := stringOr(m, "by")
+	if by == "" {
+		return nil
+	}
+	return []Verification{{By: by, At: stringOr(m, "at")}}
 }
 
 // sourcesOf reads a document's OKF sources list.
@@ -145,5 +217,65 @@ func stringsOf(m map[string]any, key string) []string {
 		return out
 	default:
 		return nil
+	}
+}
+
+// pinOf reads a claim's `gnosis_constraint` mapping.
+//
+// Requires: m is a gnosis_claims entry.
+// Ensures: comma-ok. A claim with no pin yields false and **never a zero Constraint**,
+// which would assert a bound of zero — the rule ClaimSubject.Parsed already keeps one
+// layer up, and the reason `op` is checked rather than the value.
+//
+// **A mapping present but unreadable yields false and is not an error here**, which is
+// the one place this differs from the loaders in `standards/`. `Load` reads a whole
+// corpus for `lint`, and OKF §11 requires unknown and malformed frontmatter to be
+// tolerated rather than to fail the read — a corpus that would not open because one
+// claim's pin is mistyped is a corpus nobody can lint back into shape. What must not
+// happen is the pin *silently becoming a parsed value*: an unreadable pin leaves the
+// claim derived, so `constraint-drift` has nothing to compare and says nothing, rather
+// than comparing prose against a bound of zero.
+func pinOf(m map[string]any) (constraint.Constraint, bool) {
+	raw, ok := m[constraintKey].(map[string]any)
+	if !ok {
+		return constraint.Constraint{}, false
+	}
+	op := constraint.OpKind(strings.TrimSpace(stringOr(raw, "op")))
+	if !op.Valid() {
+		return constraint.Constraint{}, false
+	}
+	value, ok := floatOf(raw["value"])
+	if !ok {
+		return constraint.Constraint{}, false
+	}
+	return constraint.Constraint{Op: op, Value: value, Raw: stringOr(raw, "raw")}, true
+}
+
+// floatOf reads a YAML scalar as a number.
+//
+// **The decoder yields `uint64` for `value: 5`**, not `int`, and float64 only for a
+// value written with a decimal point. The first version of this switch covered
+// int/int64/float64 on the reasoning that "a pin stating an integer bound is the commoner
+// case" — the reasoning was right and the type list was wrong, so every whole-numbered
+// pin was silently dropped and the claim fell back to its prose. It reads as a pin that
+// did not take effect, which is indistinguishable from a pin nobody wrote.
+//
+// A negative bound decodes as `int64`, so both signs are listed rather than assumed.
+func floatOf(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	case uint:
+		return float64(n), true
+	default:
+		return 0, false
 	}
 }

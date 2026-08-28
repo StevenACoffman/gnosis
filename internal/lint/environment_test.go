@@ -12,16 +12,17 @@ import (
 // perturb one field at a time, so a finding can only come from what they changed.
 func healthy() lint.Environment {
 	return lint.Environment{
-		Bundle:          "/tmp/kb",
-		OntologyPresent: true,
-		Types:           5,
-		IndexDocPresent: true,
-		StateIgnored:    true,
-		IndexPresent:    true,
-		IndexVersion:    12,
-		SchemaVersion:   12,
-		Documents:       3,
-		IndexedRows:     3,
+		Bundle:           "/tmp/kb",
+		OntologyPresent:  true,
+		Types:            5,
+		IndexDocPresent:  true,
+		SchemaDocPresent: true,
+		StateIgnored:     true,
+		IndexPresent:     true,
+		IndexVersion:     12,
+		SchemaVersion:    12,
+		Documents:        3,
+		IndexedRows:      3,
 	}
 }
 
@@ -71,6 +72,13 @@ func TestBlockingConditions(t *testing.T) {
 		},
 		"no entry point": {
 			mutate:       func(e *lint.Environment) { e.IndexDocPresent = false },
+			wantBlocking: false,
+		},
+		// §5.7 expects a schema document and it is generated, so its absence is a
+		// command away — a warning rather than a block, like every other apparatus
+		// file `doctor` reports.
+		"no schema document": {
+			mutate:       func(e *lint.Environment) { e.SchemaDocPresent = false },
 			wantBlocking: false,
 		},
 		"derived state not ignored": {
@@ -225,10 +233,11 @@ func TestOnlyTheVocabularyAndTheIndexBlock(t *testing.T) {
 		"unloadable standards": {
 			func(e *lint.Environment) { e.StandardsError = "unrecognised key" }, false,
 		},
-		"no entry point":    {func(e *lint.Environment) { e.IndexDocPresent = false }, false},
-		"state not ignored": {func(e *lint.Environment) { e.StateIgnored = false }, false},
-		"no index":          {func(e *lint.Environment) { e.IndexPresent = false }, false},
-		"a drifted index":   {func(e *lint.Environment) { e.IndexedRows = 0 }, false},
+		"no entry point":     {func(e *lint.Environment) { e.IndexDocPresent = false }, false},
+		"no schema document": {func(e *lint.Environment) { e.SchemaDocPresent = false }, false},
+		"state not ignored":  {func(e *lint.Environment) { e.StateIgnored = false }, false},
+		"no index":           {func(e *lint.Environment) { e.IndexPresent = false }, false},
+		"a drifted index":    {func(e *lint.Environment) { e.IndexedRows = 0 }, false},
 		"a damaged audit trail": {
 			func(e *lint.Environment) { e.Audit = lint.AuditHealth{Malformed: []int{2}} }, false,
 		},

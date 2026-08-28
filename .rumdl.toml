@@ -6,7 +6,7 @@
 # Global configuration options
 [global]
 # List of rules to disable (uncomment and modify as needed)
-disable = ["MD013", "MD033", "MD024"]
+disable = ["MD013", "MD033", "MD024", "MD063"]
 
 flavor = "gfm" # GitHub Flavored Markdown with security-sensitive HTML warnings and extended autolinks
 
@@ -15,7 +15,17 @@ flavor = "gfm" # GitHub Flavored Markdown with security-sensitive HTML warnings 
 
 # Additional rules to enable on top of defaults (additive, does not replace)
 # Use this to activate opt-in rules like MD060, MD063, MD072, MD073, MD074
-extend-enable = ["MD060", "MD063", "MD073"]
+#
+# MD063 (heading title case) was enabled here and is now off, because measuring it
+# showed the rule is wrong for this document rather than the document being wrong for
+# the rule. Every heading in SPEC.md is §-numbered, and MD063 counts the number as the
+# first word — so it asks for "1.1.0 a Specimen, Because…" and "6.5.1 a Value Nothing
+# Reads", lowercasing the actual first word of eleven headings. It also asks for
+# "Is Gnosis's" where the tool's name is deliberately lower-case. Running `rumdl fmt`
+# with it enabled would degrade the prose, which is the opposite of what a formatter is
+# for. TODO.md's housekeeping entry recorded that "all of it is formatting rumdl fmt
+# would fix in one pass"; that was true of MD060 and never true of this.
+extend-enable = ["MD060", "MD073"]
 
 # Additional rules to disable on top of the disable list (additive)
 # extend-disable = ["MD041"]

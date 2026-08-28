@@ -29,7 +29,9 @@ import (
 // was mistyped — and they call for opposite responses.
 func archivePathCheck() Check {
 	return Check{
-		Name: "archive-path",
+		Name:       "archive-path",
+		Categories: []string{"archive-path"},
+		Actions:    []finding.Action{finding.ActionGuided},
 		Applies: func(snap *Snapshot) (bool, string) {
 			// Derived applicability, per §12: a corpus whose documents declare no
 			// claims has no addresses to dangle, and reporting nothing found is

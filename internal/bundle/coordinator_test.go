@@ -47,7 +47,7 @@ func TestValidationHappensBeforeTheLock(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	held, err := bundle.AcquireWriterLock(t.Context(), dir)
+	held, err := bundle.AcquireWriter(t.Context(), dir)
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestContentionIsBlockedNotBroken(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	held, err := bundle.AcquireWriterLock(t.Context(), dir)
+	held, err := bundle.AcquireWriter(t.Context(), dir)
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestAPreviewAlsoTakesTheLock(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	held, err := bundle.AcquireWriterLock(t.Context(), dir)
+	held, err := bundle.AcquireWriter(t.Context(), dir)
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestOneWriterAtATime(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			lock, err := bundle.AcquireWriterLock(t.Context(), dir)
+			lock, err := bundle.AcquireWriter(t.Context(), dir)
 			if err != nil {
 				t.Errorf("acquire: %v", err)
 				return
@@ -208,18 +208,18 @@ func TestReleaseIsIdempotent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	lock, err := bundle.AcquireWriterLock(t.Context(), dir)
+	lock, err := bundle.AcquireWriter(t.Context(), dir)
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
 	lock.Release()
 	lock.Release()
 
-	var nilLock *bundle.WriterLock
+	var nilLock *bundle.Writer
 	nilLock.Release()
 
 	// And the lock is genuinely free afterwards.
-	again, err := bundle.AcquireWriterLock(t.Context(), dir)
+	again, err := bundle.AcquireWriter(t.Context(), dir)
 	if err != nil {
 		t.Fatalf("the lock was not released: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestReadersNeedNoWriter(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	held, err := bundle.AcquireWriterLock(t.Context(), dir)
+	held, err := bundle.AcquireWriter(t.Context(), dir)
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}

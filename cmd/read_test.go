@@ -265,3 +265,63 @@ func TestOrphansAreTheUnreachable(t *testing.T) {
 		t.Errorf("orphans = %+v, want exactly the document nothing links to", got.Orphans)
 	}
 }
+
+// TestShowSaysWhenTheIndexIsBehind is the divergence nothing reported.
+//
+// `show --body` reads the file and `search` reads the indexed copy. Both are
+// defensible — the file is the truth, the index is what was searched — and a document
+// edited since the last rebuild renders fresh text while a search still matches the
+// old. The hash was already stored; nothing had asked for it.
+func TestShowSaysWhenTheIndexIsBehind(t *testing.T) {
+	t.Parallel()
+	dir := corpus(t)
+
+	// Before the edit: no note, which is what keeps the note meaningful.
+	_, stderr, err := run(t, "--bundle", dir, "show", "--body", alpha)
+	if err != nil {
+		t.Fatalf("show: %v\n%s", err, stderr)
+	}
+	if strings.Contains(stderr, "index rebuild") {
+		t.Errorf("an up-to-date document was reported as behind:\n%s", stderr)
+	}
+
+	path := filepath.Join(dir, "c", alpha+"-retry-budget.md")
+	raw, rErr := os.ReadFile(path)
+	if rErr != nil {
+		t.Fatalf("read: %v", rErr)
+	}
+	if wErr := os.WriteFile(path, append(raw, []byte("\nEdited since.\n")...), 0o600); wErr != nil {
+		t.Fatalf("write: %v", wErr)
+	}
+
+	_, stderr, err = run(t, "--bundle", dir, "show", "--body", alpha)
+	if err != nil {
+		t.Fatalf("show after the edit: %v\n%s", err, stderr)
+	}
+	if !strings.Contains(stderr, "index rebuild") {
+		t.Errorf("an edited document was not reported as behind:\n%s", stderr)
+	}
+}
+
+// TestShowWithoutTheBodySaysNothingAboutTheIndex keeps the note attached to something
+// a reader can see. Without --body the text on screen did not come from either copy,
+// so there is nothing for the divergence to be about.
+func TestShowWithoutTheBodySaysNothingAboutTheIndex(t *testing.T) {
+	t.Parallel()
+	dir := corpus(t)
+
+	path := filepath.Join(dir, "c", alpha+"-retry-budget.md")
+	raw, rErr := os.ReadFile(path)
+	if rErr != nil {
+		t.Fatalf("read: %v", rErr)
+	}
+	if wErr := os.WriteFile(path, append(raw, []byte("\nEdited since.\n")...), 0o600); wErr != nil {
+		t.Fatalf("write: %v", wErr)
+	}
+
+	if _, stderr, err := run(t, "--bundle", dir, "show", alpha); err != nil {
+		t.Fatalf("show: %v\n%s", err, stderr)
+	} else if strings.Contains(stderr, "index rebuild") {
+		t.Errorf("a note appeared with nothing on screen to attach it to:\n%s", stderr)
+	}
+}

@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"github.com/StevenACoffman/gnosis/internal/gate"
+	"github.com/StevenACoffman/gnosis/internal/scan"
 	"github.com/StevenACoffman/skillet/errs"
 )
 
@@ -23,9 +24,14 @@ type Waiting struct {
 
 // Review reports every quarantined document and the gate's verdict on it.
 //
-// Requires: bundleDir names a bundle. An absent quarantine directory is not an
-// error — a corpus with nothing waiting is the ordinary case and returns an empty
-// slice.
+// Requires: bundleDir names a bundle; rules is the same ruleset a promotion will
+// use. An absent quarantine directory is not an error — a corpus with nothing
+// waiting is the ordinary case and returns an empty slice.
+//
+// The ruleset is a parameter rather than something this loads, and the reason is
+// not layering: a queue built with a different ruleset from the one `promote` uses
+// would report a decision the promotion then contradicts, and a review queue that
+// disagrees with the gate is worse than no queue.
 // Ensures: sorted by path, so two runs are comparable and a review queue does not
 // reorder itself under a reader. No writes: this holds no lock and takes no
 // coordinator, because §4.6 requires that a reader never depend on the writer.
@@ -40,7 +46,7 @@ type Waiting struct {
 // scale where that matters; if it ever does, the self-test hoists out of the loop,
 // and the reason it is inside is that Evaluate is the only entry point that
 // guarantees it ran at all.
-func Review(bundleDir string) ([]Waiting, error) {
+func Review(bundleDir string, rules *scan.Ruleset) ([]Waiting, error) {
 	const op = "bundle.Review"
 
 	paths, err := Quarantined(bundleDir)
@@ -51,7 +57,7 @@ func Review(bundleDir string) ([]Waiting, error) {
 		return []Waiting{}, nil
 	}
 
-	c := &Coordinator{Dir: bundleDir}
+	c := &Coordinator{Dir: bundleDir, Rules: rules}
 	corpus, limits, err := c.gateInputs()
 	if err != nil {
 		return nil, &errs.Error{Op: op, Err: err}
@@ -84,7 +90,7 @@ func (c *Coordinator) waiting(
 		return Waiting{}, err
 	}
 
-	report := gate.Evaluate(c.candidate(rel, before, after), corpus, limits)
+	report := gate.Evaluate(c.candidate(rel, before, after, limits), corpus, limits)
 	failed, unchecked := report.Withheld()
 	return Waiting{
 		Path: rel, Decision: report.Decide(), Failed: failed, Unchecked: unchecked,

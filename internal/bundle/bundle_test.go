@@ -187,3 +187,101 @@ func TestLoadLog(t *testing.T) {
 		}
 	})
 }
+
+// TestSnapshotGathersBothHalvesOfTierZero. The closure check is pure and compares two
+// sets; this is the shell filling them, which is the part that can be wrong without
+// any check noticing — an empty RecordedText would make every archived file look
+// orphaned, and the check would report a corpus with nothing wrong with it.
+func TestSnapshotGathersBothHalvesOfTierZero(t *testing.T) {
+	t.Parallel()
+
+	const (
+		archived  = "evidence/text/aa/aaaa.md"
+		orphaned  = "evidence/text/bb/bbbb.md"
+		recordDir = "evidence/fetch/cc/"
+	)
+	// A record naming the first file and not the second.
+	record := `{"uri":"https://example.org/a.md","source_sha256":"aaaa",` +
+		`"byte_size":4,"disposition":"archived","archive_path":"` + archived + `"}`
+
+	fsys := fstest.MapFS{
+		"c/01932b7c-1f4e-7a3d-9c2b-5e8f0a1b2c3d-a.md": concept(
+			"01932b7c-1f4e-7a3d-9c2b-5e8f0a1b2c3d", "A"),
+		archived:                &fstest.MapFile{Data: []byte("archived text\n")},
+		orphaned:                &fstest.MapFile{Data: []byte("orphaned text\n")},
+		recordDir + "cccc.json": &fstest.MapFile{Data: []byte(record)},
+	}
+
+	snap, err := bundle.Snapshot(fsys, bundle.IndexState{}, bundle.FreshnessState{})
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if !snap.ArchivedText[archived] || !snap.ArchivedText[orphaned] {
+		t.Errorf("ArchivedText = %v, want both files", snap.ArchivedText)
+	}
+	if !snap.RecordedText[archived] {
+		t.Errorf("RecordedText = %v, want the recorded path", snap.RecordedText)
+	}
+	if snap.RecordedText[orphaned] {
+		t.Error("RecordedText names a path no record names")
+	}
+}
+
+// TestAReferencedRecordAccountsForNoFile. A `referenced` record stored no text, so
+// there is no file for it to account for — and counting it would make every weak
+// source look like a record naming an absent file.
+func TestAReferencedRecordAccountsForNoFile(t *testing.T) {
+	t.Parallel()
+
+	record := `{"uri":"https://example.org/big.pdf","source_sha256":"bbbb",` +
+		`"byte_size":9,"disposition":"referenced","reject_reason":"extension-not-allowed"}`
+	fsys := fstest.MapFS{
+		"evidence/fetch/dd/dddd.json": &fstest.MapFile{Data: []byte(record)},
+	}
+
+	snap, err := bundle.Snapshot(fsys, bundle.IndexState{}, bundle.FreshnessState{})
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if len(snap.RecordedText) != 0 {
+		t.Errorf("RecordedText = %v, want nothing for a referenced record", snap.RecordedText)
+	}
+}
+
+// TestSnapshotCarriesEveryStandardsList is the seam that swallowed `Lead`, one layer up.
+//
+// A check reading a lexical class from the snapshot is correct, tested, and useless if
+// the shell never fills the field — `lint`'s `lead` check ran against an empty string for
+// a day for exactly that reason, and its own tests could not see it because they built
+// the snapshot themselves. These lists come from `standards/` rather than from documents,
+// so a bundle declaring none must still get the embedded seeds.
+//
+// **Asserted over a bundle with no `standards/` directory at all**, which is the case
+// that matters: a corpus that declares nothing is the commonest one, and a fallback that
+// silently yielded an empty list would make every check depending on it skip with a
+// reason that reads like a configuration problem.
+func TestSnapshotCarriesEveryStandardsList(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		"c/01932b7c-1f4e-7a3d-9c2b-5e8f0a1b2c3d-a.md": concept(
+			"01932b7c-1f4e-7a3d-9c2b-5e8f0a1b2c3d", "A"),
+	}
+	snap, err := bundle.Snapshot(fsys, bundle.IndexState{}, bundle.FreshnessState{})
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	if !snap.Strength.Declared() {
+		t.Error("Strength is empty; `coverage` would skip on every bundle")
+	}
+	if !snap.Registers.Declared() {
+		t.Error("Registers is empty; `rung` would skip on every bundle")
+	}
+	if len(snap.Indicators.Reason) == 0 {
+		t.Error("Indicators.Reason is empty")
+	}
+	if len(snap.Indicators.Conclusion) == 0 {
+		t.Error("Indicators.Conclusion is empty; §17.4's `lead` check would skip")
+	}
+}

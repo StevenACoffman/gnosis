@@ -53,6 +53,15 @@ type Snapshot struct {
 	// archive-path check can resolve a claim's addresses without touching a disk.
 	ArchivedText map[string]bool
 
+	// RecordedText is the set of archive paths tier 0's fetch records name.
+	//
+	// It is the other half of ArchivedText, and the pair is what makes tier 0's
+	// closure checkable: §4.3.1 makes the records authoritative and the text the
+	// thing they account for, so a path in one set and not the other means the store
+	// and the ledger disagree. Gathered rather than derived because it comes from
+	// reading every record, which is the shell's work.
+	RecordedText map[string]bool
+
 	// SourceChecks is when this user last verified each source version, keyed as
 	// Document.SourceKeys are. Per-user by §4.3.1, which is why it is gathered
 	// rather than derived: two colleagues at one commit hold different values and
@@ -63,6 +72,54 @@ type Snapshot struct {
 	// reported, from standards/. Zero disables the window, which is the state of a
 	// corpus whose standards did not load.
 	StalenessDays int
+
+	// Bounds maps a claim id to the reading its prose parses to (§10.2.1). Empty for a
+	// corpus whose claims name no declared subject.
+	Bounds map[string]*Bound
+
+	// Sources maps an archived file to the source and version it holds, from tier 0's
+	// records. Empty for a corpus that has fetched nothing.
+	Sources map[string]SourceVersion
+
+	// LanguageMarkers is §10.3's lexical class, from standards/.
+	LanguageMarkers []LanguageMarker
+
+	// ArchiveText is the text of the archived files claims actually cite.
+	//
+	// **Only the cited paths.** Reading a corpus's whole archive into a snapshot
+	// would hold every fetched page in memory to re-validate a handful of
+	// quotations, and the archive is the largest thing a bundle owns.
+	ArchiveText map[string]string
+
+	// SchemaDoc is AGENTS.md's text, or empty when the bundle has none.
+	SchemaDoc string
+
+	// Commands are this binary's registered subcommand names.
+	//
+	// Filled by the command layer rather than by `bundle`, because the registry lives
+	// there and nowhere else — the same route `schemacmd` uses to hand PlanSchemaDoc
+	// its list. §5.7.1's point is that the binary describes itself.
+	Commands []string
+
+	// Indicators is the closed lexical class of §9.4.1, from standards/. The reason
+	// words gate segmentation in the shell; the conclusion words are read here.
+	Indicators Indicators
+
+	// Strength is the claim-strength markers of §17.3.1, from standards/.
+	//
+	// Gathered rather than derived, like the vocabulary: the check stays pure and the
+	// closed lexical class stays in data where a corpus can extend it.
+	Strength Strengths
+
+	// Registers is the causal-register class of §17.3.1.1, from standards/. Read by
+	// `coverage`'s second axis, which compares the rung a claim asserts against the
+	// rung its own quotations support.
+	Registers Registers
+
+	// Vocabulary is ontology.toml flattened to what the checks compare against.
+	// Its zero value states that the bundle declares none, which skips the three
+	// checks that read it rather than failing them.
+	Vocabulary Vocabulary
 
 	// HasIndex reports whether the bundle has a derived index at all. A bundle
 	// freshly cloned has none, and in that state every document differs from the
@@ -97,12 +154,41 @@ type Document struct {
 	// form checked.jsonl keys them. Empty for a document citing nothing, whose
 	// freshness is not_applicable rather than unknown.
 	SourceKeys []string
+
+	// Limitations is what this concept declares it does not cover (§17.2). Empty for
+	// a document declaring none.
+	Limitations []string
 }
 
-// Claim is the subset of a claim the checks examine: its identity, and where it
-// says its evidence lives.
+// Claim is the subset of a claim the checks examine: its identity, its address,
+// and where it says its evidence lives.
 type Claim struct {
-	ID           string
+	ID string
+
+	// Anchor is the span of the document this claim addresses (§5.5.1), as the
+	// frontmatter states it. Empty for a claim declaring none, which is not this
+	// package's finding to report — an address that stopped resolving is.
+	Anchor string
+
+	// Lead is the claim's conclusion, stated first (§17.4), or empty when extraction
+	// has written none. §17.4's check reads it; nothing else does yet.
+	Lead string
+
+	// Quotes are the passages this claim offers as evidence, as frontmatter declares
+	// them.
+	//
+	// The passages rather than a count, because `coverage`'s finding has to say how
+	// thin the evidence is and a number cannot be quoted back at a reader. Empty for
+	// a claim offering none, which is a different state from a claim whose quotation
+	// failed to validate — that one is the gate's.
+	Quotes []string
+
+	// Subject is the surface phrase naming what this claim is about, as the author
+	// wrote it. Empty for a claim declaring none. It is the surface rather than the
+	// resolved key because both readings are findings: an unresolvable phrase is
+	// `subject-unknown`, and resolving it here would discard the evidence for that.
+	Subject string
+
 	ArchivePaths []string
 }
 
@@ -123,7 +209,43 @@ type Link struct {
 // examines. When it returns false the check is skipped and the reason is
 // surfaced, rather than the check running and reporting noise.
 type Check struct {
-	Name    string
+	Name string
+
+	// Categories are the finding.Diagnostic categories this check may emit.
+	//
+	// Declared rather than discovered, because the emitted vocabulary is **not
+	// enumerable by inspection**: most categories are string literals inside a Run
+	// body, but `identity` and `index-drift` come out of resolutionCategory, so a
+	// grep for literals finds neither. That made §12's check table unverifiable
+	// against the code — the one direction it can drift in without anybody noticing.
+	//
+	// A test walks the registry and asserts this set against the table, and asserts
+	// that a check firing on a fixture emits only what it declared. The field is a
+	// second place to remember, and what makes it survivable is that both directions
+	// are checked: a category emitted and not declared fails, and a category
+	// declared and absent from the spec fails too.
+	Categories []string
+
+	// Actions are the `finding.Action` values this check may attach to a
+	// diagnostic: whether a tool could fix what it reports, or whether a person
+	// must.
+	//
+	// Declared for the same reason Categories is, and it is the same kind of fact:
+	// an action is a field set inside a Run body, so it is not enumerable by
+	// inspection either — `identity` and `index-drift` both get theirs from
+	// `diagnoseResolution`, which chooses between two depending on the resolution
+	// kind.
+	//
+	// It exists because §12.1's table said what each check emits and not what a
+	// reader could do about it. A finding a tool will fix and one that needs a
+	// person are different work, and a table that cannot tell them apart makes a
+	// reader open the code to find out.
+	//
+	// **Declaring an action is not promising a fixer.** There is no `--fix`, and the
+	// column reports what a fixer *could* do. Building one is a much larger decision
+	// than describing the possibility, and conflating them would ship it by accident.
+	Actions []finding.Action
+
 	Applies func(*Snapshot) (bool, string)
 	Run     func(*Snapshot) []finding.Diagnostic
 }
@@ -141,12 +263,12 @@ type Skip struct {
 }
 
 // Checks returns the Phase 1 registry, ordered by name.
+// Checks returns the registry as of a moment.
 //
 // Requires: nothing.
 // Ensures: every returned check has a non-empty Name, an Applies, and a Run.
 // The slice is freshly built per call, so a caller cannot mutate the registry
 // another caller will see.
-// Checks returns the registry as of a moment.
 //
 // The clock is a parameter because one check needs it and a check that read the
 // clock itself could not be tested for the boundary cases that matter — a document
@@ -162,7 +284,25 @@ func Checks(now time.Time) []Check {
 		schemaVersionCheck(),
 		placeholderCheck(),
 		emptySectionCheck(),
+		archiveClosureCheck(),
 		archivePathCheck(),
+		claimAnchorCheck(),
+		conflictCheck(),
+		coverageCheck(),
+		rungCheck(),
+		dimensionDriftCheck(),
+		constraintDriftCheck(),
+		constraintCoverageCheck(),
+		commandCheck(),
+		evidenceCheck(),
+		languageCheck(),
+		duplicateCheck(),
+		filenameDriftCheck(),
+		limitationsCheck(),
+		leadCheck(),
+		subjectMissingCheck(),
+		subjectUnknownCheck(),
+		ontologyCheck(),
 		staleCheck(now),
 	}
 	sort.Slice(checks, func(i, j int) bool { return checks[i].Name < checks[j].Name })

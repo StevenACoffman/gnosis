@@ -1,6 +1,7 @@
 package ontology_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -205,6 +206,10 @@ func TestIdenticalComparesBehaviourNotProse(t *testing.T) {
 			ontology.Type{Key: "X", Normative: true, ExpectsSubject: true, Template: "t.md"},
 			false,
 		},
+		"episodic differs": {
+			ontology.Type{Key: "X", Normative: true, Episodic: true, Template: "t.md"},
+			false,
+		},
 		"template differs": {
 			ontology.Type{Key: "X", Normative: true, Template: "other.md"},
 			false,
@@ -215,6 +220,44 @@ func TestIdenticalComparesBehaviourNotProse(t *testing.T) {
 			t.Parallel()
 			if got := ontology.Identical(&base, &tc.other); got != tc.want {
 				t.Errorf("Identical = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestEveryBehaviouralFlagReachesIdentical is the case the hand-written table above
+// cannot cover: the one for a flag nobody has added yet.
+//
+// `Identical` decides whether two declarations of one type key are the same type
+// (§5.8.2). A flag added to Type and forgotten here makes two types whose behaviour
+// differs compare identical, and the merge that follows is silent — no error, no
+// finding, just a type that quietly stops driving the check it was declared for.
+//
+// So this enumerates the bool fields off the struct itself rather than listing them.
+// It is the same cross-check `standards.Unread` gets, for the same reason: the list
+// and the truth lived in two places once before, and the truth moved.
+func TestEveryBehaviouralFlagReachesIdentical(t *testing.T) {
+	t.Parallel()
+
+	// Desc-like fields are excluded by design, not by oversight: differing prose is
+	// not a behavioural difference. Any bool, though, is a flag driving something.
+	base := ontology.Type{Key: "X", Template: "t.md"}
+	typ := reflect.TypeOf(base)
+
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		if field.Type.Kind() != reflect.Bool {
+			continue
+		}
+		t.Run(field.Name, func(t *testing.T) {
+			t.Parallel()
+			other := base
+			reflect.ValueOf(&other).Elem().Field(i).SetBool(true)
+
+			if ontology.Identical(&base, &other) {
+				t.Errorf("Identical ignores %s: two types differing only in that flag "+
+					"compare as one, so §5.8.2 would merge declarations whose "+
+					"behaviour differs", field.Name)
 			}
 		})
 	}

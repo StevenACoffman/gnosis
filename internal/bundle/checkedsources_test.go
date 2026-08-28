@@ -36,7 +36,7 @@ func TestAnUncheckedBundleIsNotAnError(t *testing.T) {
 func TestACheckSurvivesARoundTrip(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	err := bundle.RecordChecks(dir, at(21), []bundle.Check{
+	err := writerFor(t, dir).RecordChecks(at(21), []bundle.Check{
 		{URI: "https://example.org/a.md", SourceSHA256: "aaa"},
 	})
 	if err != nil {
@@ -65,12 +65,13 @@ func TestACheckIsAboutAVersionNotAURI(t *testing.T) {
 	dir := t.TempDir()
 	const uri = "https://example.org/a.md"
 
-	if err := bundle.RecordChecks(dir, at(20), []bundle.Check{
+	w := writerFor(t, dir)
+	if err := w.RecordChecks(at(20), []bundle.Check{
 		{URI: uri, SourceSHA256: "version-one"},
 	}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	if err := bundle.RecordChecks(dir, at(21), []bundle.Check{
+	if err := w.RecordChecks(at(21), []bundle.Check{
 		{URI: uri, SourceSHA256: "version-two"},
 	}); err != nil {
 		t.Fatalf("record: %v", err)
@@ -93,8 +94,9 @@ func TestRecheckingOneVersionUpserts(t *testing.T) {
 	dir := t.TempDir()
 	c := []bundle.Check{{URI: "https://example.org/a.md", SourceSHA256: "aaa"}}
 
+	w := writerFor(t, dir)
 	for _, day := range []int{19, 20, 21} {
-		if err := bundle.RecordChecks(dir, at(day), c); err != nil {
+		if err := w.RecordChecks(at(day), c); err != nil {
 			t.Fatalf("record day %d: %v", day, err)
 		}
 	}
@@ -140,7 +142,7 @@ func TestTheFileIsStable(t *testing.T) {
 func writeAndRead(t *testing.T, sources []bundle.Check) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := bundle.RecordChecks(dir, at(21), sources); err != nil {
+	if err := writerFor(t, dir).RecordChecks(at(21), sources); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 	body, err := os.ReadFile(filepath.Join(dir, ".gnosis", "checked.jsonl"))
@@ -156,7 +158,7 @@ func writeAndRead(t *testing.T, sources []bundle.Check) string {
 func TestAMalformedCheckLineIsAnError(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	if err := bundle.RecordChecks(dir, at(21), []bundle.Check{
+	if err := writerFor(t, dir).RecordChecks(at(21), []bundle.Check{
 		{URI: "u", SourceSHA256: "aaa"},
 	}); err != nil {
 		t.Fatalf("record: %v", err)
@@ -181,7 +183,7 @@ func TestAMalformedCheckLineIsAnError(t *testing.T) {
 func TestRecordingNothingIsANoOp(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	if err := bundle.RecordChecks(dir, at(21), nil); err != nil {
+	if err := writerFor(t, dir).RecordChecks(at(21), nil); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".gnosis", "checked.jsonl")); err == nil {
@@ -194,7 +196,7 @@ func TestRecordingNothingIsANoOp(t *testing.T) {
 func TestTheCheckRecordIsPerUser(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	if err := bundle.RecordChecks(dir, at(21), []bundle.Check{
+	if err := writerFor(t, dir).RecordChecks(at(21), []bundle.Check{
 		{URI: "u", SourceSHA256: "aaa"},
 	}); err != nil {
 		t.Fatalf("record: %v", err)

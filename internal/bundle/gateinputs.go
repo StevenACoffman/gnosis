@@ -32,9 +32,12 @@ const sourcesKey = "sources"
 // conformance signal will fail, which is the right place for it to be reported: an
 // error would tell a caller the tool broke, and what actually happened is that
 // their document is malformed.
-func (c *Coordinator) candidate(rel string, before, after []byte) *gate.Candidate {
+func (c *Coordinator) candidate(
+	rel string, before, after []byte, limits gate.Limits,
+) *gate.Candidate {
 	cand := &gate.Candidate{
-		Path: rel, Before: before, After: after, Scan: scanCandidate(after),
+		Path: rel, Before: before, After: after,
+		Scan: scanCandidate(after, c.Rules, limits),
 	}
 
 	doc, err := okf.Parse(after)
@@ -88,9 +91,19 @@ func (c *Coordinator) gateInputs() (*gate.Corpus, gate.Limits, error) {
 	if err != nil {
 		return nil, gate.Limits{}, err
 	}
+	// §9.3 stage 4's bounds come from standards/archive.toml — the archive's own
+	// declared caps, applied to the candidate. Loading a second standards file here
+	// is the price of not inventing a second threshold (§6.5), and it is the same
+	// file the fetch path reads.
+	arch, err := LoadArchiveStandards(c.Dir)
+	if err != nil {
+		return nil, gate.Limits{}, err
+	}
 	limits := gate.Limits{
-		HedgingMax:      promote.HedgingMax.Value,
-		MinPassageWords: quotecheck.MinPassageWords,
+		HedgingMax:         promote.HedgingMax.Value,
+		MinPassageWords:    quotecheck.MinPassageWords,
+		PerFileCap:         arch.PerFileCap.Value,
+		EmbeddedPayloadCap: arch.EmbeddedPayloadCap.Value,
 	}
 
 	return &gate.Corpus{

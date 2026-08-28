@@ -31,6 +31,19 @@ const (
 	ReasonWriterBusy        = "writer_busy"        // another writer holds the bundle
 	ReasonInvalidCommand    = "invalid_command"    // the command was not constructible as asked
 	ReasonGateUnavailable   = "gate_unavailable"   // the check that must approve this write is not built
+
+	// ReasonRefused is a check that ran and failed. There is no route through it:
+	// no actor, no phrase, and no rationale changes the answer (§9.5.1).
+	//
+	// It is distinct from ReasonNeedsHuman and the distinction is load-bearing.
+	// §9.5.1's policy is that "the human path opens for what could not be checked
+	// and stays shut for what was checked and failed", and a *refusal* reported as
+	// needs_human made that policy invisible in the one place a caller reads: the
+	// CLI prompted for a confirmation it would then decline, and a machine caller
+	// branching on the token could not tell a document to fix from a signature to
+	// give. Found by running the command against a candidate carrying an injected
+	// directive — the refusal was correct and the reason it gave was not.
+	ReasonRefused = "refused" // a signal ran and failed; there is no route through
 )
 
 // Exit codes. Findings and errors are deliberately distinct: a CI job needs to

@@ -1,0 +1,121 @@
+# Causal registers: the lexical half of SPEC §17.3.1.1's rung check.
+#
+# Pearl's ladder names three rungs — association (seeing), intervention (doing),
+# counterfactual (imagining). A claim whose wording is causal while its evidence
+# is observational is asserted at one strength and supported at another, which is
+# the same silent upgrade §9.4 refuses for quotations.
+#
+# ## The rung is not stored anywhere, and this file is why that works
+#
+# Both registers are read at check time: the claim's from its wording, and the
+# evidence's from the quotation the corpus already validates verbatim. Only the
+# *gap* is reported. A single stored rung could not express a gap, and the gap is
+# what the interesting case always is — see §17.3.1.1, which refuses a declared
+# `rung` field as self-certification, refuses the constraint (a constraint is a
+# quantity, and "restarting the pod clears the leak" carries no operator), and
+# refuses `links.rel` (causality is a claim, not a relation between documents).
+#
+# ## Roles
+#
+# `intervention` asserts that something *makes* something else happen. These are
+# the words that raise what the evidence has to carry.
+#
+# `association` asserts that two things move together. These are what
+# observational evidence can actually support, and they are declared so the check
+# can tell a quotation that observed from one that said nothing about causation
+# either way. Only the second is silent.
+#
+# There is no `counterfactual` role. The third rung has no lexical class this
+# check could read — "would have" appears in ordinary conditional prose far more
+# often than in a counterfactual claim — and a role with no reliable marker would
+# report the corpus. It is named in §17.3.1.1 and not detected here.
+#
+# ## Editing
+#
+# Lower case; matching is fold-normalised and on word boundaries, so case and
+# whitespace runs do not matter and "cause" does not match "because".
+#
+# Add a word when a real claim asserted causation on observational evidence and
+# this would have caught it — the discipline standards/retrieval-cases.toml asks
+# for, and for the same reason. A word nobody has seen overclaim tells you
+# nothing about whether the check works.
+
+[[register]]
+word = "causes"
+role = "intervention"
+
+[[register]]
+word = "cause"
+role = "intervention"
+
+[[register]]
+word = "caused by"
+role = "intervention"
+
+[[register]]
+word = "leads to"
+role = "intervention"
+
+[[register]]
+word = "results in"
+role = "intervention"
+
+[[register]]
+word = "produces"
+role = "intervention"
+
+[[register]]
+word = "prevents"
+role = "intervention"
+
+[[register]]
+word = "eliminates"
+role = "intervention"
+
+[[register]]
+word = "fixes"
+role = "intervention"
+
+[[register]]
+word = "makes"
+role = "intervention"
+
+[[register]]
+word = "triggers"
+role = "intervention"
+
+[[register]]
+word = "is associated with"
+role = "association"
+
+[[register]]
+word = "associated with"
+role = "association"
+
+[[register]]
+word = "correlates with"
+role = "association"
+
+[[register]]
+word = "correlated with"
+role = "association"
+
+[[register]]
+word = "is linked to"
+role = "association"
+
+[[register]]
+word = "predicts"
+role = "association"
+
+[[register]]
+word = "coincides with"
+role = "association"
+
+[[register]]
+word = "observed alongside"
+role = "association"
+
+[[register]]
+word = "tends to accompany"
+role = "association"

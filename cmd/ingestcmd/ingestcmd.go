@@ -18,6 +18,9 @@ import (
 type Config struct {
 	*root.Config
 
+	// Into names an existing concept the replies should accrete to (§6.3).
+	Into string
+
 	// Model and ModelVersion identify what will answer, and are part of the cache
 	// key (SPEC §6.1). They are flags rather than configuration because a key
 	// component that could change between two lookups is not a key component.
@@ -38,6 +41,8 @@ func New(parent *root.Config) *Config {
 	cfg.Config = parent
 	cfg.Flags = ff.NewFlagSet("ingest").SetParent(parent.Flags)
 	cfg.Flags.StringVar(&cfg.Model, 'm', "model", "", "the model that will answer")
+	cfg.Flags.StringVar(&cfg.Into, 0, "into", "",
+		"accrete the replies to an existing concept instead of filing new documents")
 	cfg.Flags.StringVar(&cfg.ModelVersion, 0, "model-version", "", "its version")
 	cfg.Flags.BoolVar(&cfg.CacheOnly, 0, "cache-only",
 		"emit nothing; fail listing prompts with no cached reply")
@@ -89,18 +94,20 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 		return c.usage(errors.New("--model is required; it is part of the cache key"))
 	}
 
-	lock, err := bundle.AcquireWriterLock(ctx, c.Bundle)
+	w, err := bundle.AcquireWriter(ctx, c.Bundle)
 	if err != nil {
 		if bundle.WriterBusy(err) {
 			return c.fail(root.ReasonWriterBusy, err)
 		}
 		return c.fail(root.ReasonNoBundle, err)
 	}
-	defer lock.Release()
+	defer w.Release()
 
-	pending, err := bundle.PromptsFor(c.Bundle, &bundle.PromptOptions{
+	pending, err := w.Prompts(&bundle.PromptOptions{
 		Model:     relay.Model{Name: c.Model, Version: c.ModelVersion},
 		URIs:      args,
+		Into:      c.Into,
+		Kind:      bundle.PromptAccrete,
 		CacheOnly: c.CacheOnly,
 	})
 	if err != nil {

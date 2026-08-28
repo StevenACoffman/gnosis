@@ -24,8 +24,9 @@ func TestAppendAndReadTheTrail(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
+	w := writerFor(t, dir)
 	for _, op := range []audit.Op{audit.OpFetch, audit.OpAdmit, audit.OpPromote} {
-		err := bundle.AuditVerified(dir, &audit.Row{
+		err := w.Audit(&audit.Row{
 			At: fixedClock()(), Op: op, Actor: "human:priya",
 		})
 		if err != nil {
@@ -76,7 +77,7 @@ func TestAnAbsentTrailIsNotAnError(t *testing.T) {
 func TestAMalformedLineIsCountedAndNamed(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	if err := bundle.AuditVerified(dir, &audit.Row{
+	if err := writerFor(t, dir).Audit(&audit.Row{
 		At: fixedClock()(), Op: audit.OpFetch, Actor: "human:priya",
 	}); err != nil {
 		t.Fatalf("append: %v", err)
@@ -147,7 +148,7 @@ func TestAnInvalidRowIsNotWritten(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	if err := bundle.AuditVerified(dir, &audit.Row{Op: audit.OpFetch}); err == nil {
+	if err := writerFor(t, dir).Audit(&audit.Row{Op: audit.OpFetch}); err == nil {
 		t.Fatal("a row with no actor and no time was written")
 	}
 	got, err := bundle.AuditTrail(dir)
@@ -200,7 +201,7 @@ func TestAPromotionIsRecordedEvenWhenRefused(t *testing.T) {
 func TestTheTrailIsPerUserState(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	if err := bundle.AuditVerified(dir, &audit.Row{
+	if err := writerFor(t, dir).Audit(&audit.Row{
 		At: fixedClock()(), Op: audit.OpFetch, Actor: "human:priya",
 	}); err != nil {
 		t.Fatalf("append: %v", err)

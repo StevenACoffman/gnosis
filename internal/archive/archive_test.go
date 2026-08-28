@@ -18,6 +18,11 @@ func gates() archive.Gates {
 		Allowlist:          []string{".md", ".txt", ".svg"},
 		PerFileCap:         262144,
 		EmbeddedPayloadCap: 8192,
+		// NoScan rather than nil. This package's tests are about the admission
+		// policy, not about §9.3, and a nil now refuses — which is the fail-closed
+		// direction the default was changed to. Saying so is one identifier, and it
+		// is what makes every non-scanning caller findable by grep.
+		ScanText: archive.NoScan,
 	}
 }
 
@@ -192,4 +197,170 @@ func TestDurableIsFalseForTheZeroValue(t *testing.T) {
 func sum(b []byte) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
+}
+
+// TestOversizeDistinguishesItsTwoCaps is the mitigation for a signature that cannot
+// carry the distinction: the two parameters are adjacent int64 byte counts, and
+// nothing in the type system stops a caller swapping them.
+//
+// Each case passes a size that is over one cap and under the other, so a swap makes
+// the reported reason wrong in a way this test sees.
+func TestOversizeDistinguishesItsTwoCaps(t *testing.T) {
+	t.Parallel()
+
+	// 300 bytes of prose with no data URI: over a 100-byte file cap, and its
+	// payload cap is irrelevant because there is no payload.
+	prose := []byte(strings.Repeat("a", 300))
+	// A small file carrying a large data URI: under the file cap, over the payload
+	// cap.
+	payload := []byte("![](data:image/png;base64," + strings.Repeat("A", 200) + ")")
+
+	cases := map[string]struct {
+		data                           []byte
+		perFileCap, embeddedPayloadCap int64
+		want                           archive.RejectReason
+	}{
+		"over the file cap":              {prose, 100, 10_000, archive.ReasonOversize},
+		"under the file cap":             {prose, 10_000, 10_000, archive.ReasonNone},
+		"over the payload cap":           {payload, 10_000, 100, archive.ReasonEmbeddedPayload},
+		"under the payload cap":          {payload, 10_000, 10_000, archive.ReasonNone},
+		"a zero file cap disables it":    {prose, 0, 10_000, archive.ReasonNone},
+		"a zero payload cap disables it": {payload, 10_000, 0, archive.ReasonNone},
+		"both zero is no stage at all":   {payload, 0, 0, archive.ReasonNone},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got := archive.Oversize(tc.data, tc.perFileCap, tc.embeddedPayloadCap)
+			if got.Reason != tc.want {
+				t.Errorf("Oversize = %q, want %q", got.Reason, tc.want)
+			}
+			assertBoundIsCoherent(t, got)
+		})
+	}
+}
+
+// TestAZeroPayloadCapDoesNotFlagEveryDataURI. `hasOversizePayload` compares against
+// the limit it is given, so at zero it would flag *every* data URI — which for a
+// caller holding no standards would report a document about icons as an oversize
+// payload. A disabled cap must disable its check.
+func TestAZeroPayloadCapDoesNotFlagEveryDataURI(t *testing.T) {
+	t.Parallel()
+
+	tiny := []byte("![icon](data:image/gif;base64,R0lGOD)")
+	if got := archive.Oversize(tiny, 10_000, 0); got.Exceeded() {
+		t.Errorf("a disabled payload cap flagged %q", got.Reason)
+	}
+}
+
+// TestABoundNamesTheMeasurementAndTheCap is the whole point of the change: a refusal
+// reading only `embedded-payload` is one an author can argue with and not act on, and
+// the obvious next move is to argue the cap down rather than truncate the example.
+func TestABoundNamesTheMeasurementAndTheCap(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte("![](data:image/png;base64," + strings.Repeat("A", 9000) + ")")
+	got := archive.Oversize(payload, 262_144, 8_192)
+
+	if !got.Exceeded() {
+		t.Fatalf("a 9000-byte payload against an 8192-byte cap passed: %+v", got)
+	}
+	if got.Found != int64(9000+len("image/png;base64,")) {
+		t.Errorf("Found = %d, want the payload's measured length", got.Found)
+	}
+	if got.Limit != 8_192 {
+		t.Errorf("Limit = %d, want the declared cap", got.Limit)
+	}
+	detail := got.Detail()
+	for _, want := range []string{"9017", "8192", "an embedded payload"} {
+		if !strings.Contains(detail, want) {
+			t.Errorf("Detail() omits %q: %q", want, detail)
+		}
+	}
+}
+
+// TestTheLargestPayloadIsReported, not the first. A document with a small icon and a
+// large raster is refused for the raster, and reporting the icon's size would send an
+// author to edit the wrong line.
+func TestTheLargestPayloadIsReported(t *testing.T) {
+	t.Parallel()
+
+	both := []byte(
+		"![icon](data:image/gif;base64," + strings.Repeat("B", 40) + ")\n" +
+			"![big](data:image/png;base64," + strings.Repeat("A", 9000) + ")\n",
+	)
+	got := archive.Oversize(both, 262_144, 8_192)
+	if !got.Exceeded() {
+		t.Fatal("the large payload was not found")
+	}
+	if got.Found < 9000 {
+		t.Errorf("Found = %d, want the larger payload's length", got.Found)
+	}
+}
+
+// TestTheFileBoundNamesTheFile. The two reasons want different wording, because an
+// author truncates a payload and splits a document, and a message that said "an
+// embedded payload" for an oversize file would send them to look for one.
+func TestTheFileBoundNamesTheFile(t *testing.T) {
+	t.Parallel()
+
+	got := archive.Oversize([]byte(strings.Repeat("a", 500)), 100, 10_000)
+	if got.Reason != archive.ReasonOversize {
+		t.Fatalf("reason = %q", got.Reason)
+	}
+	if !strings.Contains(got.Detail(), "the document is 500 bytes") {
+		t.Errorf("Detail() does not name the document's size: %q", got.Detail())
+	}
+	if strings.Contains(got.Detail(), "payload") {
+		t.Errorf("an oversize document was described as a payload: %q", got.Detail())
+	}
+}
+
+// TestTheZeroBoundAssertsNothing. Same discipline as every other zero value here: a
+// value nobody populated must not read as a check that passed.
+func TestTheZeroBoundAssertsNothing(t *testing.T) {
+	t.Parallel()
+
+	var b archive.Bound
+	if b.Exceeded() {
+		t.Error("the zero Bound reports an exceeded cap")
+	}
+	if b.Detail() != "" {
+		t.Errorf("the zero Bound rendered %q", b.Detail())
+	}
+	if b.Reason != archive.ReasonNone {
+		t.Errorf("the zero Bound carries reason %q", b.Reason)
+	}
+}
+
+// assertBoundIsCoherent checks the invariants every Bound has, whatever produced it.
+//
+// Extracted from the table above because the linter reported the complexity and was
+// right: the table's cases vary one thing — which cap is exceeded — and four
+// invariants bolted onto each case made a per-case assertion out of a per-value
+// property. These hold for any Bound, so they belong in one place that says so.
+func assertBoundIsCoherent(t *testing.T, b archive.Bound) {
+	t.Helper()
+
+	if b.Exceeded() != (b.Reason != archive.ReasonNone) {
+		t.Errorf("Exceeded() = %t for reason %q", b.Exceeded(), b.Reason)
+	}
+	if !b.Exceeded() {
+		if b.Detail() != "" {
+			t.Errorf("a passing bound rendered %q", b.Detail())
+		}
+		return
+	}
+	// A refusal that does not name a measurement above a positive cap is the
+	// unactionable refusal this type exists to replace.
+	if b.Limit <= 0 {
+		t.Errorf("a refusal reports a cap of %d", b.Limit)
+	}
+	if b.Found <= b.Limit {
+		t.Errorf("a refusal reports %d bytes, which is not over the cap of %d",
+			b.Found, b.Limit)
+	}
+	if b.Detail() == "" {
+		t.Error("a refusal rendered nothing for a reader")
+	}
 }

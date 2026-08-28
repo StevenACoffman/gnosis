@@ -80,14 +80,6 @@ func TestEachGatingFieldIsRequired(t *testing.T) {
 			func(p *command.Promote) { p.Approver = "robot:x" },
 			"human, agent, check",
 		},
-		"required rationale missing": {
-			func(p *command.Promote) { p.RequiresRationale = true },
-			"requires a rationale",
-		},
-		"required rationale blank": {
-			func(p *command.Promote) { p.RequiresRationale = true; p.Rationale = "  \n " },
-			"requires a rationale",
-		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

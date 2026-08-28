@@ -9,6 +9,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/relay"
 	"github.com/StevenACoffman/skillet/atomicfile"
 	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/skillet/identity"
 )
 
 // promptDir is where emitted prompts land, inside stateDir.
@@ -37,13 +38,23 @@ type Pending struct {
 	Cached bool `json:"cached"`
 }
 
-// PromptOptions is what a caller is asking PromptsFor to do.
+// PromptOptions is what a caller is asking Writer.Prompts to do.
 type PromptOptions struct {
 	// Model is what will answer, and is part of every key.
 	Model relay.Model
 
 	// URIs are the sources to ask about.
 	URIs []string
+
+	// Into names an existing concept the replies should accrete to, bundle-relative.
+	//
+	// Empty is the ordinary case: each reply becomes a new quarantined document.
+	// When set, the prompts are bound to that document (§6.3) and their replies
+	// append evidence to the claims it already makes rather than filing a new page.
+	Into string
+
+	// Kind is what a concept-bound prompt asks for. Ignored when Into is empty.
+	Kind PromptKind
 
 	// CacheOnly suppresses writing. §6.1 says --cache-only "refuses to emit any
 	// prompt whose reply is not already cached", and refusing has to happen here
@@ -52,10 +63,10 @@ type PromptOptions struct {
 	CacheOnly bool
 }
 
-// PromptsFor renders one extraction prompt per archived source and reports which
+// Prompts renders one extraction prompt per archived source and reports which
 // already have answers.
 //
-// Requires: the writer lock is held, since prompts are written under .gnosis/.
+// Requires: nothing beyond holding the lock, which the receiver is.
 // Ensures: one Pending per source, ordered by URI so two runs over one corpus
 // produce the same sequence. A prompt whose reply is cached is **not written**:
 // re-emitting a question that is already answered would invite an agent to answer
@@ -66,10 +77,13 @@ type PromptOptions struct {
 // argument applies directly: a prompt built from a page nobody kept would produce
 // quotations nobody can verify, so every claim it yielded would be unverifiable by
 // construction rather than by accident.
-func PromptsFor(bundleDir string, opts *PromptOptions) ([]Pending, error) {
-	const op = "bundle.PromptsFor"
+func (w *Writer) Prompts(opts *PromptOptions) ([]Pending, error) {
+	const op = "bundle.Writer.Prompts"
 
-	records, err := recordsByURI(op, bundleDir)
+	if err := w.held(op); err != nil {
+		return nil, err
+	}
+	records, err := recordsByURI(op, w.dir)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +97,7 @@ func PromptsFor(bundleDir string, opts *PromptOptions) ([]Pending, error) {
 				Message: op + ": " + uri + " has no fetch record; run `gnosis fetch` first",
 			}
 		}
-		pending, pErr := renderPending(op, bundleDir, opts, &rec)
+		pending, pErr := w.renderPending(op, opts, &rec)
 		if pErr != nil {
 			return nil, pErr
 		}
@@ -95,8 +109,8 @@ func PromptsFor(bundleDir string, opts *PromptOptions) ([]Pending, error) {
 
 // renderPending renders and, when the answer is not already known, writes one
 // prompt.
-func renderPending(
-	op, bundleDir string,
+func (w *Writer) renderPending(
+	op string,
 	opts *PromptOptions,
 	rec *archive.Record,
 ) (Pending, error) {
@@ -110,7 +124,7 @@ func renderPending(
 				"; there is no archived text to extract from",
 		}
 	}
-	text, err := os.ReadFile(filepath.Join(bundleDir, filepath.FromSlash(rec.ArchivePath)))
+	text, err := os.ReadFile(filepath.Join(w.dir, filepath.FromSlash(rec.ArchivePath)))
 	if err != nil {
 		return Pending{}, &errs.Error{Op: op, Err: err}
 	}
@@ -122,7 +136,7 @@ func renderPending(
 		Model:      opts.Model,
 	})
 
-	_, cached, err := LoadCached(bundleDir, prompt.Key)
+	_, cached, err := LoadCached(w.dir, prompt.Key)
 	if err != nil {
 		return Pending{}, err
 	}
@@ -137,16 +151,20 @@ func renderPending(
 	// could not accept.
 	meta := PromptMeta{
 		Key:         prompt.Key,
+		Kind:        PromptSource,
 		URI:         rec.URI,
 		SourceHash:  rec.SourceSHA256,
 		ArchivePath: rec.ArchivePath,
 	}
-	if err := StorePromptMeta(bundleDir, &meta); err != nil {
+	if err := w.bindToConcept(op, opts.Into, opts.Kind, &meta); err != nil {
+		return Pending{}, err
+	}
+	if err := w.StorePromptMeta(&meta); err != nil {
 		return Pending{}, err
 	}
 
-	rel := filepath.ToSlash(filepath.Join(stateDir, promptDir, prompt.Key+".md"))
-	full := filepath.Join(bundleDir, filepath.FromSlash(rel))
+	rel := promptPath(prompt.Key)
+	full := filepath.Join(w.dir, filepath.FromSlash(rel))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
 		return Pending{}, &errs.Error{Op: op, Err: mkErr}
 	}
@@ -185,4 +203,41 @@ func recordsByURI(op, bundleDir string) (map[string]archive.Record, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// bindToConcept points a prompt at an existing document, or leaves it a source prompt.
+//
+// Requires: into is bundle-relative or empty.
+// Ensures: meta is unchanged when into is empty. The hash is recorded so admit can
+// refuse a reply computed against bytes that have since moved (§6.3).
+func (w *Writer) bindToConcept(op, into string, kind PromptKind, meta *PromptMeta) error {
+	if into == "" {
+		return nil
+	}
+	hash, err := w.conceptHash(op, into)
+	if err != nil {
+		return err
+	}
+	meta.Kind, meta.DocumentPath, meta.DocumentHash = kind, into, hash
+	return nil
+}
+
+// conceptHash reads a concept's content hash, so a reply can be refused when the
+// document has moved under it.
+//
+// Requires: rel is bundle-relative.
+// Ensures: ENOTFOUND when the document is not there, which is a caller error worth
+// naming rather than a prompt bound to nothing.
+func (w *Writer) conceptHash(op, rel string) (string, error) {
+	raw, err := os.ReadFile(filepath.Join(w.dir, filepath.FromSlash(rel)))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", &errs.Error{
+				Code:    errs.ENOTFOUND,
+				Message: op + ": " + rel + " is not in this bundle",
+			}
+		}
+		return "", &errs.Error{Op: op, Err: err}
+	}
+	return identity.Hash(string(raw)), nil
 }

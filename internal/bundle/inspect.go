@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/lint"
@@ -31,9 +32,11 @@ func Inspect(ctx context.Context, dir string) (lint.Environment, error) {
 
 	env.OntologyPresent, env.OntologyError, env.Types = inspectOntology(dir)
 	env.Archive, env.StandardsError = inspectArchive(dir)
+	env.GateSources = inspectGateSources(dir)
 	env.TunedButUnread, env.MispinnedStandards = inspectStandardsReach(dir)
 	env.Audit = inspectAudit(dir)
 	env.IndexDocPresent = exists(filepath.Join(dir, "index.md"))
+	env.SchemaDocPresent = exists(filepath.Join(dir, "AGENTS.md"))
 	env.StateIgnored = stateIgnored(dir)
 
 	docs, err := Load(os.DirFS(dir))
@@ -198,4 +201,45 @@ func inspectArchive(dir string) (lint.ArchiveSize, string) {
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// gnosisVersion is the running binary's module version, or "(unknown)".
+//
+// From the build info rather than a constant, because a constant is a second place to
+// remember and the one that goes stale silently. A development build reports
+// "(devel)", which is the honest answer for a binary built from a working tree.
+func gnosisVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info.Main.Version == "" {
+		return "(unknown)"
+	}
+	return info.Main.Version
+}
+
+// inspectGateSources says where each standards file's values come from.
+//
+// Requires: dir is a bundle root, which need not exist.
+// Ensures: one entry per standards file, in a fixed order so two runs report alike.
+//
+// §6.2.2's second rule. It reports rather than diagnoses: a corpus using the seed is
+// the ordinary state and a warning saying so would fire on every bundle ever created.
+// What a reader needs is the version, because that is what locates the entry in
+// gnosis's own log.md recording a seed change.
+func inspectGateSources(dir string) []lint.GateSource {
+	files := []string{
+		standards.ArchiveFileName,
+		standards.PromoteFileName,
+		standards.SampleFileName,
+		standards.IndicatorsFileName,
+	}
+	version := gnosisVersion()
+	out := make([]lint.GateSource, 0, len(files))
+	for _, name := range files {
+		entry := lint.GateSource{File: name, Origin: "bundle"}
+		if !exists(filepath.Join(dir, filepath.FromSlash(name))) {
+			entry.Origin, entry.Version = "seed", version
+		}
+		out = append(out, entry)
+	}
+	return out
 }

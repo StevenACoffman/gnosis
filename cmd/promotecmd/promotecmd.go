@@ -99,7 +99,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 			"--approver must be <kind>:<id>, kind one of human, agent, check"))
 	}
 
-	coordinator := bundle.Coordinator{Dir: c.Bundle, Warn: c.Stderr}
+	coordinator := bundle.Coordinator{Dir: c.Bundle, Warn: c.Stderr, Rules: c.Rules}
 	cmd := &command.Promote{
 		Path:      path,
 		Eff:       effect(c.Apply),

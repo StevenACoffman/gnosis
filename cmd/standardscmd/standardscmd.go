@@ -5,20 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/peterbourgon/ff/v4"
 
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
-	"github.com/StevenACoffman/gnosis/internal/okflog"
-	"github.com/StevenACoffman/skillet/atomicfile"
 )
-
-// logFile is the corpus history, at the bundle root and committed.
-const logFile = "log.md"
 
 // Config holds the configuration for the standards command.
 type Config struct {
@@ -108,27 +101,20 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 // It takes the writer lock: log.md is committed and at the bundle root, so two
 // processes appending at once would interleave (§4.6).
 func (c *Config) file(ctx context.Context, found []bundle.Loosened) error {
-	lock, err := bundle.AcquireWriterLock(ctx, c.Bundle)
+	w, err := bundle.AcquireWriter(ctx, c.Bundle)
 	if err != nil {
 		if bundle.WriterBusy(err) {
 			return c.fail(root.ReasonWriterBusy, err)
 		}
 		return c.fail(root.ReasonNoBundle, err)
 	}
-	defer lock.Release()
+	defer w.Release()
 
-	full := filepath.Join(c.Bundle, logFile)
-	src, err := os.ReadFile(full)
-	if err != nil && !os.IsNotExist(err) {
-		return c.fail(root.ReasonNoBundle, err)
-	}
-
-	today := time.Now().UTC().Format(time.DateOnly)
-	updated := string(src)
+	notes := make([]string, 0, len(found))
 	for i := range found {
-		updated = okflog.Add(updated, today, found[i].LogEntry())
+		notes = append(notes, found[i].LogEntry())
 	}
-	if wErr := atomicfile.WriteFile(full, []byte(updated), 0o640); wErr != nil {
+	if wErr := w.Log(time.Now().UTC(), notes...); wErr != nil {
 		return c.fail(root.ReasonNoBundle, wErr)
 	}
 	return nil

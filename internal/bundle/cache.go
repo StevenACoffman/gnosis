@@ -97,9 +97,12 @@ func LoadCached(bundleDir, key string) (CachedReply, bool, error) {
 // record, whose path is the hash of its own content, this path is the hash of the
 // *question* — so a second answer to one question is a legitimate replacement
 // rather than evidence of tampering.
-func StoreCached(bundleDir string, entry *CachedReply) error {
-	const op = "bundle.StoreCached"
+func (w *Writer) StoreCached(entry *CachedReply) error {
+	const op = "bundle.Writer.StoreCached"
 
+	if err := w.held(op); err != nil {
+		return err
+	}
 	if entry.Key == "" {
 		return &errs.Error{Code: errs.EINVALID, Message: op + ": entry has no key"}
 	}
@@ -107,7 +110,7 @@ func StoreCached(bundleDir string, entry *CachedReply) error {
 	if err != nil {
 		return &errs.Error{Op: op, Err: err}
 	}
-	full := filepath.Join(bundleDir, filepath.FromSlash(CachePath(entry.Key)))
+	full := filepath.Join(w.dir, filepath.FromSlash(CachePath(entry.Key)))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
 		return &errs.Error{Op: op, Err: mkErr}
 	}

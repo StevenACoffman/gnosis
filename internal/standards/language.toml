@@ -1,0 +1,112 @@
+# Language markers: the lexical half of what SPEC §10.3 says is detectable.
+#
+# §10.3 draws the line precisely, because a catalogue of named thinking
+# hindrances is tempting to mechanise wholesale and only part of it can be:
+#
+#   Language  — hedging, weasel words, vagueness, meaningless comparisons,
+#               assuring expressions, gobbledygook   → detectable, lexically
+#   Reasoning — post hoc, begging the question, false dilemma, appeal to
+#               authority, sunk cost, confirmation bias → not detectable
+#
+# "Nothing lexical finds a post hoc inference, and a check that claimed to would
+# be a classifier wearing a rule's name badge." This file is the first column and
+# must stay there.
+#
+# ## This is not standards/promote.toml's hedging_max
+#
+# The promote gate counts softening phrases in a candidate and refuses an
+# admission past `hedging_max` (§9.5). This file feeds `lint`, which reports what
+# the corpus already holds — including every page written by hand that no gate
+# ever saw, and every page admitted before a word was added here.
+#
+# Same words, two moments, two mechanisms. A reader who finds both should not
+# conclude one is broken.
+#
+# ## Roles
+#
+# `hedge`       — softens a claim: "generally", "in some cases"
+# `weasel`      — attributes without a source: "studies show", "experts agree"
+# `comparison`  — compares with no comparison class: "significantly better"
+# `assurance`   — asserts confidence instead of evidence: "obviously", "clearly"
+#
+# ## Editing
+#
+# Lower case; matching is fold-normalised on word boundaries. Add a phrase when a
+# real document said it and the check would have caught something worth catching
+# — §18.4.1 governs the cases, and they are **sentences from a body**, because
+# that is what this check receives.
+
+[[marker]]
+phrase = "studies show"
+role = "weasel"
+rationale = """
+The canonical unsourced attribution. §10.3 names it directly: "studies show" with
+no citation is exactly what a word list can find and a reader cannot check.
+"""
+
+[[marker]]
+phrase = "experts agree"
+role = "weasel"
+rationale = "The same shape as studies-show, appealing to people rather than papers."
+
+[[marker]]
+phrase = "it is widely known"
+role = "weasel"
+rationale = "Asserts consensus without naming who holds it."
+
+[[marker]]
+phrase = "significantly better"
+role = "comparison"
+rationale = """
+§10.3's own example of a meaningless comparison: better than what, measured how.
+The corpus's whole argument is that a claim names its witness (§1.1), and a
+comparison with no second term names nothing.
+"""
+
+[[marker]]
+phrase = "industry-leading"
+role = "comparison"
+rationale = "§10.3's other named example. A comparison against an unnamed field."
+
+[[marker]]
+phrase = "best-in-class"
+role = "comparison"
+rationale = "The same, with the class left out of a phrase that names it."
+
+[[marker]]
+phrase = "obviously"
+role = "assurance"
+rationale = """
+Asserts that the reader should already agree, which substitutes confidence for
+evidence. It is also the word most likely to precede something that is not obvious.
+"""
+
+[[marker]]
+phrase = "clearly"
+role = "assurance"
+rationale = "The same as obviously, and commoner in technical prose."
+
+[[marker]]
+phrase = "needless to say"
+role = "assurance"
+rationale = "Says it anyway, and asks the reader not to examine it."
+
+[[marker]]
+phrase = "of course"
+role = "assurance"
+rationale = "Assures rather than shows. The mildest entry here and the most frequent."
+
+[[marker]]
+phrase = "generally"
+role = "hedge"
+rationale = """
+A hedge, and hedging is not a defect — §17.3.1 makes a hedged claim *correct* where
+an unhedged one would overreach. It is listed so a reader can see the register a
+page is written in, which is why the finding names the words rather than counting
+them.
+"""
+
+[[marker]]
+phrase = "in some cases"
+role = "hedge"
+rationale = "A hedge with no account of which cases, which is the checkable half."

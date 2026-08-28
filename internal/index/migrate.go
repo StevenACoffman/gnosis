@@ -48,7 +48,83 @@ func migrations() []string {
 	all = append(all, linkSchema()...)
 	all = append(all, vocabularySchema()...)
 	all = append(all, sourceSchema()...)
+	all = append(all, claimSummaryNullable()...)
+	all = append(all, verificationSchema()...)
 	return all
+}
+
+// verificationSchema creates the table OKF §5.2's `verified` list projects into.
+//
+// **A table rather than a column**, and §5.5 gives the reason: OKF §5.2 makes `verified`
+// a list of independent *events*, specifically so a human sign-off and an automated pass
+// stay distinguishable. Collapsing it to a column destroys the distinction that makes
+// trust tiers meaningful (§14.1).
+//
+// Keyed by claim, which is where §5.5's schema puts it and which required a decision:
+// OKF's `verified` is document-level, and expanding one to every claim in a document
+// would assert that somebody verified each claim when they verified a page. §5.5.1
+// refused exactly that inheritance for `subject` — "editing it would silently re-subject
+// every claim that did not override" — so gnosis reads `verified` inside a
+// `gnosis_claims` entry and does not expand a document-level list.
+func verificationSchema() []string {
+	return []string{
+		`CREATE TABLE IF NOT EXISTS verifications (
+			claim_id TEXT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+			by       TEXT NOT NULL,
+			at       TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS verifications_claim ON verifications (claim_id)`,
+	}
+}
+
+// claimSummaryNullable makes a claim's summary columns nullable (SPEC §5.5.3).
+//
+// `title`, `description` and `lead` were `NOT NULL DEFAULT ”`, and the empty string is
+// a value: it asserts that a claim *has* no lead, which is false before extraction has
+// written one. §17.4's `lead` check cannot tell that from an author who wrote an empty
+// one, so under the old default it would report every claim in the corpus the first time
+// it ran. `claims.pos` is nullable one column over for the identical reason — zero is a
+// real position, and the empty string is a real lead.
+//
+// **Appended rather than corrected in place, and the reasoning that said otherwise was
+// wrong.** §5.5.3 first claimed a migration could be edited because `schema-shape`
+// reports the mismatch; it does not. `DB.Objects` selects `name FROM sqlite_master`, so
+// the check compares object *names* and is blind to a column definition — an edited
+// migration would leave every existing index with the old constraint and fail at the
+// first NULL insert, as a runtime error nothing had warned about.
+//
+// A drop is safe here and nowhere else: nothing has ever written this table, so there
+// are no rows to preserve. The FTS table is recreated with it because SQLite's
+// external-content tables reference their content table by name, and a dropped content
+// table leaves the index pointing at nothing.
+func claimSummaryNullable() []string {
+	return []string{
+		`DROP TABLE IF EXISTS claims_fts`,
+		`DROP TABLE IF EXISTS claims`,
+		`CREATE TABLE claims (
+			id           TEXT PRIMARY KEY NOT NULL,
+			document_id  TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+			anchor_hash  TEXT NOT NULL,
+			pos          INTEGER,
+			type         TEXT NOT NULL,
+			title        TEXT,
+			description  TEXT,
+			lead         TEXT,
+			status       TEXT NOT NULL DEFAULT 'stable',
+			stale_after  TEXT,
+			generated_by TEXT NOT NULL DEFAULT '',
+			generated_at TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE INDEX claims_document ON claims (document_id)`,
+		`CREATE INDEX claims_type ON claims (type)`,
+		`CREATE INDEX claims_anchor ON claims (document_id, anchor_hash)`,
+		`CREATE VIRTUAL TABLE claims_fts USING fts5(
+			title, description, lead,
+			content = claims,
+			content_rowid = rowid,
+			` + ftsAnalyzer + `
+		)`,
+	}
 }
 
 // SchemaVersion is the version a freshly migrated index reports.
