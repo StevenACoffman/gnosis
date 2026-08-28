@@ -29,7 +29,7 @@ book2skill ──▶ exegesis ──▶ skillsaw ──▶ merge-skills
 
 *   **`skillet`** (Go library): The unified domain core. Holds common definitions, `speclint` frontmatter schemas, `redlines` quality rules, `skilllens` detectors, `testprompts`, `ratchet`, and `calibration` metrics. Ensures all downstream consumers have a single source of truth.
 
-This library powers the four specialized command-line tools, and those power the three agent skills.
+This `skillet` library powers the four specialized command-line tools, and those power the three agent skills.
 
 ```text
 book2skill ──▶ exegesis ──▶ skillsaw ──▶ merge-skills
