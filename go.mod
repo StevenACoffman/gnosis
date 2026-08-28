@@ -43,6 +43,6 @@ require (
 )
 
 require (
-	github.com/StevenACoffman/skillet v0.26.0
+	github.com/StevenACoffman/skillet v0.27.0
 	github.com/StevenACoffman/toerr v0.1.0 // indirect
 )

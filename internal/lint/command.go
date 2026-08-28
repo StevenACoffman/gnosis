@@ -103,10 +103,28 @@ func mentionedCommands(doc string) []string {
 			prose = strings.Replace(prose, body, "", 1)
 		}
 	}
+	return CommandsMentioned(prose)
+}
 
+// CommandsMentioned returns the subcommand names a text names in backticks.
+//
+// Requires: nothing.
+// Ensures: each name once, in first-appearance order; empty for a text naming none. Pure.
+//
+// **Backticked spans only, and that restriction is what makes the answer usable.** Real
+// prose in this repository says "gnosis cannot", "gnosis writes", "gnosis asked" — the
+// tool as the subject of a sentence — so a bare `gnosis \w+` scan reports ordinary
+// English. A check that noisy is a check somebody deletes.
+//
+// **Exported because two texts ask this question and must not answer it differently.**
+// A bundle's AGENTS.md is checked by `command` above; the binary's own help text is
+// checked by a test in `cmd`, since help ships with the binary and is wrong at build time
+// rather than in somebody's corpus. Two extractors would let one text's "mention" mean
+// something the other's does not.
+func CommandsMentioned(text string) []string {
 	seen := map[string]bool{}
-	var out []string
-	for _, span := range codeSpans(prose) {
+	out := make([]string, 0)
+	for _, span := range codeSpans(text) {
 		name, ok := commandName(span)
 		if !ok || seen[name] {
 			continue

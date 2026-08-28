@@ -33,6 +33,14 @@ func vocab() lint.Vocabulary {
 // about could not, and one that tried failed for a reason that looked like a code
 // defect. A helper that shows a reader less than the command does is a helper that
 // tests something other than what ships.
+//
+// **Every message it renders is checked for count-noun agreement**, which is the derived
+// way to enforce §17.5's rule. Three findings shipped saying "1 document declare",
+// "1 claim name" and "1 command that do not resolve", each caught by running the binary
+// and none by a substring assertion — an assertion looking for `1 document` finds it and
+// stops. Putting the check here rather than in a test of its own means every check is
+// covered by the tests it already has, and a check written tomorrow is covered before
+// anybody remembers the rule exists.
 func runNamed(t *testing.T, snap *lint.Snapshot, name string) []string {
 	t.Helper()
 
@@ -45,6 +53,11 @@ func runNamed(t *testing.T, snap *lint.Snapshot, name string) []string {
 		}
 		out := make([]string, 0)
 		for _, d := range c.Run(snap) {
+			for _, bad := range grammarOf(d.Message) {
+				t.Errorf("%s emits %q, where a count of one takes a plural verb; "+
+					"render the count with noun(n, word) so it sits in a noun phrase "+
+					"and no verb has to agree with it:\n%s", name, bad, d.Message)
+			}
 			out = append(out, d.Category+" "+d.Path+": "+d.Message)
 		}
 		return out

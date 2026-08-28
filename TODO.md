@@ -977,6 +977,42 @@ ______________________________________________________________________
   **The test helper was showing less than the command.** It rendered category and message
   and dropped the path, so a test asserting *which document* a finding was about failed in
   a way that looked like a code defect. It now renders what `gnosis lint` prints.
+- [x] **Nothing checked the command names in the tool's own prose.** *Found 2026-08-27 by
+  shipping the defect: a `search --claims` warning advised "run `gnosis extract`", a
+  command that has never existed, and running the binary is what caught it.*
+  **`lint`'s `command` check could not have caught it, and the reason is the design rather
+  than an oversight.** That check asks whether *a bundle's* AGENTS.md names a command that
+  resolves. Help text ships with the binary: it is wrong at build time and identical for
+  every user, so a lint check would ask every corpus in the world to discover our typo.
+  The question belongs in `cmd`'s tests, beside the command-tree walk.
+  **The extractor is shared rather than rewritten.** `lint.CommandsMentioned` is now
+  exported and read by both, so the binary's own text and a corpus's text cannot come to
+  disagree about what a mention is.
+  **Backticked spans only.** A sweep of the real help output finds "gnosis cannot",
+  "gnosis writes", "gnosis asked" — the tool as the subject of a sentence — so a bare
+  `gnosis \w+` scan reports ordinary English, and a check that noisy gets deleted.
+  **No live instance, so this is a guard before the case**, like §5.8.3.1's episodic
+  guard and `constraint-drift`. Confirmed by putting `gnosis extract` back into a
+  `ShortHelp` and watching it fail: a guard that cannot fail reports coverage it does not
+  have.
+- [x] **The count-noun defect had three occurrences and no rule (§17.5).** *"1 document
+  declare", "1 claim name", "1 command that do not resolve" — each caught by running the
+  binary, none by a test, because a substring assertion looking for `1 document` finds it
+  and stops. PLAN recorded it as "three data points for a rule that could be written
+  down"; leaving it there is how it reaches four.*
+  **Enforced inside `runNamed`, which is the derived option.** Every check already renders
+  its messages through that helper, so every check is covered by the tests it already has
+  and one written tomorrow is covered before anybody remembers the rule exists. No list of
+  checks to maintain.
+  **The detector is a closed verb list, and which way it fails is why a list is allowed
+  here.** A verb nobody listed means one defect slips; it can never bless a wrong message.
+  §12.1's hand-maintained list failed the other way — it claimed enforcement that had been
+  deleted — which is why that one had to be derived and this one need not be.
+  **Verbs that are also nouns are deliberately absent.** The first version read "no
+  document is of 1 declared type Reference" as a disagreement, because `reference` was on
+  the list — a false positive that makes `noun`'s own output look like the defect and
+  would have somebody "fix" a correct message by breaking it. *state*, *use*, *report* and
+  *reference* are off the list, and "1 document state" is the miss that buys.
 - [x] **The link-offset decision, recorded at last.** *Decided 2026-08-27 and recorded
   nowhere for a day while I reported it as recorded — the failure this file exists to
   prevent, committed against this file. What remains is not this decision: it is a

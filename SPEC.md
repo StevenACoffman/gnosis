@@ -5848,6 +5848,35 @@ diverge exactly where the check would have earned its keep.
 
 ______________________________________________________________________
 
+### 17.5 a Count in a Finding Sits in a Noun Phrase
+
+**A message must not put a count where a verb has to agree with it.** Three findings
+shipped saying "1 document declare", "1 claim name" and "1 command that do not resolve",
+each written by composing a number with a sentence built for the plural case.
+
+The remedy is mechanical and already in the code: `noun(n, word)` renders "1 quotation"
+and "2 quotations", so the count lands inside a noun phrase and the sentence around it
+never has to inflect. A message that reads correctly at every count is one nobody has to
+proofread twice.
+
+**It is a rule rather than a style note because of how the three were found.** Every one
+was caught by running the binary, and none by a test — a substring assertion looking for
+`1 document` finds it and stops, which is exactly the case where a check reads as passing
+while the output is wrong. Three occurrences is where a comment stops being the remedy
+(§12's argument for `filename-drift`, one layer over).
+
+**Enforced where every check already renders its messages.** The `lint` test helper that
+turns a diagnostic into the line `gnosis lint` prints now scans it for a count of one
+followed by a plural verb. That is the derived option: no list of checks to maintain, and
+a check written tomorrow is covered by the tests it comes with.
+
+The detector is a closed list of verb forms, and **which way it fails is the reason a
+list is acceptable here**: a verb nobody listed means one defect slips through, never a
+wrong message blessed. Verbs that are also ordinary nouns in this vocabulary — *state*,
+*use*, *report*, *reference* — are deliberately absent, because an earlier version read
+"no document is of 1 declared type Reference" as a disagreement and would have had
+somebody "fix" a correct message by breaking it.
+
 ## 18. Testing Requirements
 
 Per the family's standard, and stricter in the places where being wrong is
