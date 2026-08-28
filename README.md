@@ -29,6 +29,16 @@ book2skill ──▶ exegesis ──▶ skillsaw ──▶ merge-skills
 
 *   **`skillet`** (Go library): The unified domain core. Holds common definitions, `speclint` frontmatter schemas, `redlines` quality rules, `skilllens` detectors, `testprompts`, `ratchet`, and `calibration` metrics. Ensures all downstream consumers have a single source of truth.
 
+This library powers the four specialized command-line tools, and those power the three agent skills.
+
+```text
+book2skill ──▶ exegesis ──▶ skillsaw ──▶ merge-skills
+ produce       gate           score        consolidate
+                     │
+    adh ─────────────┴───────────── canonizer
+    (fellow kernel consumers, alongside)
+```
+
 ### 2. The Four CLIs
 
 *   **`exegesis`** (Structural Gate): Lints, validates, and gates incoming skill trees. Proves structural validity (graph links, index consistency) and verifies quotation authenticity via `quotecheck`.
