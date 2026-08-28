@@ -21,8 +21,8 @@ The system is powered by a shared kernel (`skillet`), four specialized command-l
 book2skill ──▶ exegesis ──▶ skillsaw ──▶ merge-skills
  produce       gate           score        consolidate
                      │
-   adh ─────────────┴───────────── canonizer
-   (fellow kernel consumers, alongside)
+    adh ─────────────┴───────────── canonizer
+    (fellow kernel consumers, alongside)
 ```
 
 ### 1. Shared Kernel
