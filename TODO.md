@@ -85,7 +85,7 @@ ______________________________________________________________________
   so the layout is expensive to change once real evidence exists. `log.md` has the
   same shape but is expected to conflict and is human-resolvable, so it stays as
   OKF §9 specifies.
-- [ ] **The write-coordinator transport is decided; building it waits on a trigger.**
+- [x] **The write-coordinator transport is decided; building it waits on a trigger.**
   *Decided 2026-08-24 (§4.6.2.2), and mostly by reading §13 rather than by choosing.
   `gnosis serve` already carries the coordinator and the viewer in one process — two
   servers would be two authorities over one bundle — and that server is authenticated
@@ -114,6 +114,16 @@ ______________________________________________________________________
   **The expected revision now has a name and an owner.** It is the same object as
   §4.6.2.1's diff-bound token, which §13's review queue needs anyway, so it lands with
   the queue rather than as a separate prerequisite nobody had recorded.
+  **Built 2026-09-03 with §13's server, and the trigger fired by being built.** `gnosis
+  serve` opens both listeners over one handler, carries the §8.0 envelope, and takes the
+  approver from the authenticated request — which `web.Command` makes structural by
+  having no approver field, so a body naming one is dropped by the decoder rather than
+  refused by a check.
+  **The diff-bound token is still not built, and now for a stated reason rather than for
+  want of a home.** The escalated path is refused over the wire entirely (§4.6.2.1), so
+  the token would guard a path that does not exist — a mechanism with no reader, which
+  this file has recorded seven times. Its trigger is the first escalated decision
+  somebody needs to complete without a terminal.
 - [x] **The writer lock's contract is a type now, and one caller was not honouring it.**
   *`bundle.Writer` is obtainable only by taking the lock, and every write is a method
   on it — `Audit`, `StoreEvidence`, `StoreCached`, `RecordChecks`, `Prompts`,
@@ -1162,6 +1172,12 @@ ______________________________________________________________________
 - [ ] **Surface definitions where terms are used.** `glossary-18F` is a small
   accessible panel resolving `data-term` attributes inline, as shipped on FEC.gov. A
   glossary nobody opens is not an ontology. Phase 5, with the viewer.
+  **The viewer landed 2026-09-03 and this did not**, which is a scheduling fact rather
+  than a discovery: §13 lists what `serve` provides and does not list this, and the
+  viewer's first pass renders a concept's body escaped rather than as markdown. Inline
+  definitions need a renderer that produces markup, so both belong to the same second
+  pass — and that renderer arrives with its own sanitiser, which is the part worth doing
+  deliberately rather than alongside something else.
 - [x] **Initial `standards/` values are written, and this entry was stale.**
   *Measured 2026-08-23: `standards/archive.toml`, `promote.toml`, `sample.toml` and
   `retrieval-cases.toml` all exist as embedded seeds, every value carrying the rationale
@@ -2634,7 +2650,7 @@ ______________________________________________________________________
   wrong number is visible where a wrong prose sentence is not. Recorded rather than
   automated: a test over a plan table would need plan steps to be identifiers, which
   they are not and should not become.
-- [ ] **Ten of §8's commands were unbuilt and this file named none of them.** *Measured
+- [x] **Ten of §8's commands were unbuilt and this file named none of them.** *Measured
   2026-09-03 by diffing §8.1–8.5's command list against `cmd.register`, which is the
   method that found `warrant` and the only one that can see this: a command absent from
   the registry and absent from the backlog agree with each other.* `miss report` and
@@ -2656,7 +2672,12 @@ ______________________________________________________________________
   the question the file would, and a second answer that can disagree with the first is
   worse than none. SPEC §8.5 and §16.2 are corrected; the trigger is the first
   downstream tool that asks gnosis what changed and cannot use git to find out.
-  `serve` stays Phase 5, which is where §19 puts it.
+  **And `serve` shipped 2026-09-04, which closes this entry.** All ten of §8's commands
+  are now accounted for: seven built, two that named `lint` checks and were corrected in
+  §8.4 rather than written, and `manifest` refused with its reason above. The method that
+  found them — diffing a specification's command list against `cmd.register` — is the
+  part worth keeping, because it is the only one that can see a command absent from both
+  the registry and the backlog.
   **The stated dependency being present is not the same as fitting**, which is what this
   entry got right in one direction and wrong in the other: `skillet/proof` fit exactly
   and `skillet/manifest` did not, and both were in the same sentence as though the

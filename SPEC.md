@@ -716,6 +716,20 @@ The socket listener has only peer credentials for an actor, so the escalated pat
 stays terminal-only there — which §4.6.2.1 already requires and which is now a
 consequence rather than a separate rule.
 
+**Built 2026-09-03, and the escalated path is refused by omission rather than by a
+check.** `web.Command` carries no confirmation field and nothing on the served path sets
+one, so a promotion the gate escalates is refused by the coordinator with `needs_human` —
+the interim rule enforced by a type that cannot express the exception, which is the same
+guarantee `CriticClaim` gets from having no warrant field.
+
+One thing running it settled that reading it did not. The coordinator's refusal says
+"confirm by typing the document's path exactly", which is the right instruction at a
+terminal and an impossible one over the wire — and a reviewer told to type something they
+cannot type concludes the server is broken. The served path appends the remedy that
+applies where it is being read. §8.0 permits exactly this and no more: the status, the
+code, the reason and the data cross unchanged, and `message` "is for a person and MUST
+NOT be parsed".
+
 **Apply is one call, and the "one or two" question dissolves.** `EffectApply` runs
 every gate and writes under a single hold of the writer lock, so §9.4's guarantee is
 structural and needs no second round trip. A preview is therefore *advisory by
@@ -4994,14 +5008,34 @@ arrives in Phase 5.
   it shows too little, even an expert guesses. Contributors are scarce, so each
   item must also be cheap to dismiss — batch actions and defaults, not a form per
   finding.
+  **The first build got this wrong and running it is what showed the difference.** A
+  draft item presented the document's path as its identifier, its summary and its
+  title, and nothing else — no title, no claim, no source. Every test passed, because
+  they asserted the item existed. That is this bullet's own failure mode arriving
+  through the surface written to prevent it, and the fix was to load the draft and
+  show what it says.
 - **No prose editing.** The corpus body is model-written by design. The web UI
   writes warrants, adjudications, and approvals — never concept bodies.
+  Enforced by the route table rather than by care: there is no handler that accepts a
+  body edit, and a test walks what the server answers rather than trusting this
+  sentence.
 
 Requirements:
 
 - **Authenticated**, with reverse-proxy auth supported as a first-class mode
   (`leafwiki` again), so it drops behind existing SSO instead of owning
   credentials.
+  **Built 2026-09-03, and the liveness probe is the one exemption.** An orchestrator
+  probing `/healthz` cannot set a proxy header — it is not a signed-in person — so
+  authenticating the probe marks a working server dead and removes it from rotation.
+  The probe is exempt and touches no dependency, which is what makes the exemption
+  safe: it reveals that a process is listening, which anybody who can reach the port
+  already knows. Every other path stays authenticated, including ones added later,
+  which is why this is a carve-out rather than per-route authentication.
+  **Turning authentication off is refused unless the server is read-only.** §4.6.2.1
+  requires the approver to come from the transport; a transport that authenticates
+  nobody supplies an empty one, and a writable server that accepted decisions anyway
+  would record them as made by nobody.
 - **Every mutation is an atomic git commit** with a descriptive message and an
   audit row, exactly as the CLI's are. There is no web-only write path.
 - Embedded assets; `stdlib net/http` and `html/template`. No SPA build in the

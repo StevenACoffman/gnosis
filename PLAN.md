@@ -446,7 +446,7 @@ Recorded so the Phase 1 interfaces are shaped for them, not built now.
 Two Phase 2 items are easy to under-scope because Phase 1 does not need them and
 both are expensive to retrofit:
 
-- [ ] **The write coordinator** (§4.6). One writer per user, and it owns the *bundle*
+- [x] **The write coordinator** (§4.6). One writer per user, and it owns the *bundle*
   rather than merely the database — serializing SQLite writes while leaving markdown
   writes unserialized coordinates the cache and not the corpus. Readers stay
   independent of it by requirement, which is what keeps Phase 1 unaffected.
@@ -467,6 +467,15 @@ both are expensive to retrofit:
   lock spans compute-and-write and that is free; across two round trips the corpus can move
   between them, so a served coordinator needs one round trip or an expected revision on the
   apply. That is the prerequisite a transport has to meet, not a detail of which one.
+  **Done 2026-09-04, and the trigger fired by being built.** §13's served viewer is the
+  out-of-process writer this waited for, and it arrived with the coordinator in the same
+  process — which is what §4.6.2.2 requires, because two servers would be two authorities
+  over one bundle. One protocol carrying §8.0's envelope, two listeners. The prerequisite
+  named above is met the other way round from how it reads: the served path does not need
+  an expected revision, because it never previews — `EffectApply` gates and writes under
+  one hold of the lock, and the escalated path is refused over the wire entirely
+  (§4.6.2.1). The expected revision is still the right answer for a caller that wants a
+  binding preview, and no caller wants one yet. See §6.57.
 - [x] **Claim anchors before any claim row is written** (§5.5.1). A claim's identity
   and address live in the document. Writing claims first and adding anchors later
   means every claim written in between has an identity no rebuild can recover.
@@ -844,6 +853,9 @@ steps for a test to walk. Rows 2.15–2.33 were reconstructed from the sections 
 | 4.7 — the answer relay       | [x] done | §8.3's `ask` and `file`; §17.0.1's four-state fold is what refuses, and a hand run found an unevidenced claim reaching the prompt — see §6.56                                                                                                                           |
 | 4.8 — `mine`                 | [x] done | §9.6's heuristic tier over a normalized session; repetition rather than sentiment, and it reports rather than files — see §6.56                                                                                                                                         |
 | 4.9 — `manifest`             | [x] done | **Not built, deliberately.** `manifest.Diff` keys on location and a gnosis location is a view; the finding and its trigger are recorded — see §6.56                                                                                                                     |
+| 5.1 — the server             | [x] done | `internal/web` behind three interfaces it declares, because depguard forbids it the corpus; two listeners over one handler; healthz exempt from auth — see §6.57                                                                                                        |
+| 5.2 — the review queue       | [x] done | §13's "enough to decide with" as the item type; drafts carry what they say rather than what they are called — see §6.57                                                                                                                                                 |
+| 5.3 — served decisions       | [x] done | One `Executor` seam onto the same coordinator; the approver comes from the transport and the escalated path is refused by omission — see §6.57                                                                                                                          |
 
 Three findings from the per-step reviews changed the design rather than the code
 around it:
@@ -3524,3 +3536,67 @@ rerank waits on miss-log evidence, and §10.2.1's vacuous-constraint check waits
 declared plausible range per dimension. Both are gated by a section that already argues
 against inventing the missing number, and building either would be the §6.2 violation those
 sections exist to name.
+
+______________________________________________________________________
+
+### 6.57 A Layering Rule That Designed the Server, and Three Defects Only Running It Found
+
+**The constraint arrived before the code and was worth more than the code.** depguard
+already listed `internal/web` among the packages that may not import `internal/bundle`,
+so the server cannot reach the corpus. The obvious reading is an obstacle. What it
+actually decided was the design: the package declares three narrow interfaces — a queue,
+a reader, an executor — and the shell supplies them.
+
+Two things fall out that a comment could not have bought. The whole server is exercised
+against fakes with no git worktree, no SQLite and no writer lock, so the tests are about
+HTTP rather than about fixtures. And a handler **cannot** write the corpus behind the
+coordinator's back, because there is no symbol for it — §13's "there is no web-only write
+path" is enforced by the compiler rather than by review.
+
+**Two rules are enforced by types that cannot express the exception.** `web.Command` has
+no approver field, so §4.6.2.1's "supplied by the transport, never by the payload" is not
+a check somebody can forget — a body naming one is dropped by the decoder. It has no
+confirmation field either, so a promotion the gate escalates is refused by the
+coordinator without this layer deciding anything. That is `CriticClaim`'s guarantee in a
+second place, and both were cheaper to build than the validators they replace.
+
+**Running it found three things, and all three had passing tests over them.**
+
+The liveness probe returned 409. Authentication is outermost so that a route added later
+is protected by default, and `/healthz` was behind it — meaning an orchestrator, which
+cannot set a proxy header because it is not a signed-in person, would mark a working
+server dead and take it out of rotation. `handleHealthz` was written to avoid exactly
+that failure by touching no dependency, and middleware reintroduced it one layer up. The
+tests passed because none of them configured a header.
+
+A queue item showed a filename three times. §13's argument is its own: "if the queue
+shows enough, a non-expert correctly recognizes when to defer; if it shows too little,
+even an expert guesses" — and the first build showed the path as the id, the summary and
+the title, with no title, no claim and no source. The tests asserted the item existed.
+
+And the refusal of an escalated promotion told a web reviewer to "confirm by typing the
+document's path exactly", which is right at a terminal and impossible over the wire. A
+person told to type something they cannot type concludes the server is broken. §8.0
+permits the fix precisely: the verdict crosses unchanged and `message` "is for a person
+and MUST NOT be parsed", so the remedy is corrected for where it is read.
+
+**A fourth was found by the socket path, and it is the one an operator hits first.** A
+socket under a long temporary directory fails with "bind: invalid argument" — the
+kernel's `sun_path` limit, named nowhere. Trying it out is how anybody would first use
+`--socket`, so the likeliest first experience of the feature was an error that says
+nothing. It is now a sentence naming the limit and the fix.
+
+**Two linter findings were design signals rather than noise.** `contextcheck` refused
+`context.Background()` in the shutdown path; the fix — `context.WithoutCancel(ctx)` — is
+more correct than what I wrote, because it keeps the context's values while dropping only
+the cancellation. And `forbidigo` caught a `time.Sleep` in a test whose own comment
+explained why sleeping was the wrong answer; the replacement synchronises on the server
+reporting its address, which is deterministic.
+
+**What is not built, so the absence reads as a decision.** Session credentials: §13 wants
+reverse-proxy auth so the server "drops behind existing SSO instead of owning
+credentials", and a login form would be gnosis owning them. §4.6.2.1's queue token: it
+replaces the confirmation phrase and needs the escalated path over the wire, which is
+refused — building the token before the path it guards would be a mechanism with no
+reader. And `glossary-18F`'s inline definitions (TODO:1162), which §13 does not list and
+which belong with the viewer's second pass.

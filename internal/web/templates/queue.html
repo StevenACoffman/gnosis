@@ -1,0 +1,32 @@
+{{define "queue"}}{{template "layout" .}}{{end}}
+{{define "body"}}
+<h1>{{.Title}}</h1>
+{{if not .Items}}<p class="empty">Nothing is waiting for a person.</p>{{end}}
+{{range .Items}}
+<section class="item">
+  <h2>{{.Kind}}: {{.Summary}}</h2>
+  {{if .Why}}<p class="why">{{.Why}}</p>{{end}}
+  <div class="sides">
+  {{range .Sides}}
+    <div class="side">
+      <h3>{{if .Title}}{{.Title}}{{else}}{{.Ref}}{{end}}</h3>
+      <p>{{.Text}}</p>
+      <p class="signals">trust {{.Trust}} · durability {{.Durability}}{{if .Centrality}} · centrality {{.Centrality}}{{end}}</p>
+      {{if .Sources}}
+      <table>
+        <tr><th>source</th><th>author</th><th>used</th><th>modified</th><th>archived</th></tr>
+        {{range .Sources}}
+        <tr>
+          <td>{{.Resource}}</td><td>{{.Author}}</td><td>{{if .UsageCount}}{{.UsageCount}}{{end}}</td>
+          <td>{{.LastModified}}</td><td>{{if .Archived}}yes{{else}}no{{end}}</td>
+        </tr>
+        {{end}}
+      </table>
+      {{else}}<p class="signals">no sources declared</p>{{end}}
+    </div>
+  {{end}}
+  </div>
+  <p class="signals">resolve with <code>{{.Action}}</code> on <code>{{.ID}}</code>, with a rationale</p>
+</section>
+{{end}}
+{{end}}

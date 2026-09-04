@@ -161,3 +161,32 @@ func quarantinePath(op, bundleDir, rel string) (string, error) {
 	}
 	return filepath.Join(bundleDir, stateDir, quarantineDir, clean), nil
 }
+
+// LoadQuarantined reads every quarantined draft as a document.
+//
+// Requires: bundleDir names a bundle, which need not have a quarantine.
+// Ensures: documents whose Path is bundle-relative — the same address `Quarantined` and
+// `Review` use — so a caller can join them without translating. An empty slice for a
+// corpus with nothing waiting, which is the ordinary case.
+//
+// **The quarantine mirrors the bundle layout, which is what makes this one call.** A
+// promotion is a move rather than a translation (`Writer.Quarantine`'s rule), so the
+// drafts parse with the same loader the corpus does and a draft's path is already the
+// path it will have. A second parser for drafts would be a second set of answers about
+// what a document says, and the queue exists to show a reviewer what the gate saw.
+func LoadQuarantined(bundleDir string) ([]Document, error) {
+	const op = "bundle.LoadQuarantined"
+
+	root := filepath.Join(bundleDir, stateDir, quarantineDir)
+	if _, err := os.Stat(root); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return []Document{}, nil
+		}
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+	docs, err := Load(os.DirFS(root))
+	if err != nil {
+		return nil, &errs.Error{Op: op, Err: err}
+	}
+	return docs, nil
+}

@@ -1,0 +1,16 @@
+{{define "concept"}}{{template "layout" .}}{{end}}
+{{define "body"}}
+<h1>{{.Page.Title}}</h1>
+<p class="signals">{{.Page.Type}} · trust {{.Page.Trust}}{{if .Page.Freshness}} · {{.Page.Freshness}}{{end}} · <code>{{.Page.ID}}</code></p>
+{{if .Page.Findings}}
+<section class="item">
+  <h2>open findings</h2>
+  <ul>{{range .Page.Findings}}<li>{{.}}</li>{{end}}</ul>
+</section>
+{{end}}
+<article>{{.Page.Body}}</article>
+{{if .Page.Links}}
+<h2>links</h2>
+<ul>{{range .Page.Links}}<li><a href="/c/{{.ID}}">{{.Title}}</a> <code>{{.ID}}</code></li>{{end}}</ul>
+{{end}}
+{{end}}

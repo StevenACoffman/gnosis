@@ -42,6 +42,7 @@ import (
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/cmd/schemacmd"
 	"github.com/StevenACoffman/gnosis/cmd/searchcmd"
+	"github.com/StevenACoffman/gnosis/cmd/servecmd"
 	"github.com/StevenACoffman/gnosis/cmd/showcmd"
 	"github.com/StevenACoffman/gnosis/cmd/standardscmd"
 	"github.com/StevenACoffman/gnosis/cmd/supersedecmd"
@@ -148,6 +149,7 @@ func register(r *root.Config) {
 	askcmd.New(r)
 	filecmd.New(r)
 	minecmd.New(r)
+	servecmd.New(r)
 	gatecmd.New(r)
 	// register new commands here
 }

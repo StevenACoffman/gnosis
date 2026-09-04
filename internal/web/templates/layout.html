@@ -1,0 +1,13 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — gnosis</title>
+<style>{{template "style"}}</style>
+</head>
+<body>
+<header><a href="/">gnosis</a> <a href="/queue">review queue</a></header>
+<main>{{template "body" .}}</main>
+</body>
+</html>{{end}}
