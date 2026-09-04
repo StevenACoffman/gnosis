@@ -1,11 +1,14 @@
 package bundle
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/relay"
 	"github.com/StevenACoffman/skillet/atomicfile"
 	"github.com/StevenACoffman/skillet/errs"
@@ -61,6 +64,10 @@ type PromptOptions struct {
 	// rather than in the report: a caller that learned about the misses only after
 	// the prompts were on disk would find them already emitted.
 	CacheOnly bool
+
+	// Warn is where a note that is not a failure goes, or nil to discard one — the
+	// channel `Coordinator.Warn` and `CriticOptions.Warn` already are.
+	Warn io.Writer
 }
 
 // Prompts renders one extraction prompt per archived source and reports which
@@ -172,7 +179,27 @@ func (w *Writer) renderPending(
 		return Pending{}, &errs.Error{Op: op, Err: wErr}
 	}
 	pending.Path = rel
+	// The miss is recorded after the prompt is on disk, so the log never claims a
+	// consultation that did not happen — and a cached answer never reaches here,
+	// which is what makes this count model calls rather than gnosis runs (§6.4).
+	w.noteMiss(&Miss{
+		Op: string(missOpFor(opts.Kind)), Reason: gnosis.MissNoPath,
+		Key: prompt.Key, Candidate: rec.URI, At: time.Now().UTC(),
+	}, opts.Warn)
 	return pending, nil
+}
+
+// missOpFor names the operation a prompt kind asks about, in §6.4's vocabulary.
+//
+// It is a translation rather than a second name for the kind: `PromptSource` and
+// `PromptAccrete` are what a *reply* will be applied as, and the miss log records what
+// was *asked* — which for both is an extraction from archived text. Reusing the kind
+// verbatim would make the report distinguish two rows that answer one question.
+func missOpFor(kind PromptKind) PromptKind {
+	if kind == PromptAccrete {
+		return "accrete"
+	}
+	return "extract"
 }
 
 // recordsByURI indexes tier 0 by source URI, keeping the durable record when a

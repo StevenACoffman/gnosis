@@ -49,6 +49,15 @@ type Result struct {
 	// checked.jsonl existed and nothing showed it, which made staleness a fact
 	// about the corpus that the corpus did not tell anyone.
 	Freshness bundle.DocFreshness `json:"freshness"`
+
+	// Trust is how far this document's claims have been confirmed (§14.1).
+	//
+	// Beside the freshness and never composed with it: §14.4 records that the two
+	// axes are orthogonal and neither ordering dominates, so a single word covering
+	// both would answer neither question. The fold behind it has been in the domain
+	// since Step 2.12 with no caller, which made a derived signal the corpus could
+	// compute and never showed anybody.
+	Trust bundle.DocTrust `json:"trust"`
 }
 
 // New registers the show command under parent.
@@ -119,6 +128,12 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 	if fresh, fErr := bundle.FreshnessFor(c.Bundle, detail.Path, time.Now().UTC()); fErr == nil {
 		result.Freshness = fresh
 	}
+	// The same reading applies to the tier: the zero value is `unverified`, which is
+	// the honest answer when the fold did not run, and it is the answer OKF §11
+	// requires a document with no trust frontmatter to keep.
+	if trust, tErr := bundle.TrustFor(c.Bundle, detail.Path); tErr == nil {
+		result.Trust = trust
+	}
 	if c.Body {
 		if result.Body, err = c.readBody(detail.Path); err != nil {
 			return c.fail(root.ReasonNoBundle, err)
@@ -151,9 +166,18 @@ func (c *Config) report(result *Result) error {
 		return nil
 	}
 
-	_, _ = fmt.Fprintf(c.Stdout, "%s\n%s\n%s\n%s: %s\n",
-		result.Title, result.Path, result.ID,
+	_, _ = fmt.Fprintf(c.Stdout, "%s\n%s\n%s\n",
+		result.Title, result.Path, result.ID)
+	// **Both state lines are labelled, and neither was until there were two.** The
+	// freshness line printed a bare `not_applicable:` and read unambiguously while it
+	// was the only word of its kind on screen; a second one under it made both
+	// ambiguous, since `unverified` and `not_applicable` are states of different
+	// axes and nothing said which. Found by running the command, which is the fifth
+	// time in this plan's history.
+	_, _ = fmt.Fprintf(c.Stdout, "freshness %s: %s\n",
 		result.Freshness.State, result.Freshness.Why)
+	_, _ = fmt.Fprintf(c.Stdout, "trust %s: %s\n",
+		result.Trust.State, result.Trust.Why)
 	// Beside the freshness and not folded into it. §14.3.2 keeps the two signals
 	// apart because they answer different questions, and the pair a reader most
 	// needs is a document that was checked yesterday and has lost its support.
@@ -161,6 +185,7 @@ func (c *Config) report(result *Result) error {
 		_, _ = fmt.Fprintf(c.Stdout, "upstream: %s\n", d)
 	}
 	writeClaims(c.Stdout, result.Freshness.Claims)
+	writeTrust(c.Stdout, result.Trust.Claims)
 	if result.Reindex {
 		// To stderr: the document rendered, and this is a note about the cache
 		// rather than part of the answer. A reader piping stdout to a file still
@@ -191,7 +216,7 @@ func writeClaims(w io.Writer, claims []bundle.ClaimFreshness) {
 	if len(claims) == 0 {
 		return
 	}
-	_, _ = fmt.Fprintf(w, "\nclaims:\n")
+	_, _ = fmt.Fprintf(w, "\nclaim freshness:\n")
 	for i := range claims {
 		cl := &claims[i]
 		what := cl.Anchor
@@ -209,6 +234,47 @@ func writeClaims(w io.Writer, claims []bundle.ClaimFreshness) {
 		// one page from four pages.
 		for _, src := range cl.Sources {
 			_, _ = fmt.Fprintf(w, "    source: %s\n", src)
+		}
+	}
+}
+
+// writeTrust renders the per-claim tiers, and only when there is something to
+// render.
+//
+// **Silent unless some claim carries a verification**, which is not the same
+// condition as "the document declares claims". Every claim in this corpus is
+// unverified today, so a block keyed on claims existing would print `unverified`
+// once per claim on every document in every corpus — the noise defect this
+// repository has now shipped and withdrawn three times (`type-unused` on a fresh
+// bundle, `subject-unknown` before the vocabulary declares a subject, the
+// first unread-value check in `doctor`). The document line above already carries the
+// answer for a page nobody has verified, including the sentence saying which of the
+// two reasons it is.
+//
+// The actors are printed rather than counted, for the reason ClaimTrust.By keeps
+// them: two verifications by one agent and two by two people are the same number and
+// different evidence.
+func writeTrust(w io.Writer, claims []bundle.ClaimTrust) {
+	verified := false
+	for i := range claims {
+		if len(claims[i].By) > 0 {
+			verified = true
+			break
+		}
+	}
+	if !verified {
+		return
+	}
+	_, _ = fmt.Fprintf(w, "\nclaim trust:\n")
+	for i := range claims {
+		cl := &claims[i]
+		what := cl.Anchor
+		if what == "" {
+			what = cl.ID
+		}
+		_, _ = fmt.Fprintf(w, "  %s: %s\n", cl.State, what)
+		for _, by := range cl.By {
+			_, _ = fmt.Fprintf(w, "    verified by: %s\n", by)
 		}
 	}
 }

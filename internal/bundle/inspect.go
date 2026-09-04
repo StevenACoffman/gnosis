@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/ontology"
@@ -44,6 +45,17 @@ func Inspect(ctx context.Context, dir string) (lint.Environment, error) {
 		return env, &errs.Error{Op: op, Err: err}
 	}
 	env.Documents = len(docs)
+	env.Adjudicators = len(adjudicators(docs))
+	env.Authority = gnosis.FoldAuthority(env.Adjudicators)
+
+	// The previous authority comes from the committed log rather than from a stored
+	// baseline, which is what makes this comparison possible at all: `log.md` travels
+	// with the corpus, so two colleagues at one commit read the same announcement.
+	logLines, _, err := LoadLog(os.DirFS(dir))
+	if err != nil {
+		return env, &errs.Error{Op: op, Err: err}
+	}
+	env.Announced, env.AnnouncedFound = LastAnnouncedAuthority(logLines)
 
 	idx, err := LoadIndex(ctx, dir)
 	if err != nil {

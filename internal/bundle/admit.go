@@ -49,6 +49,17 @@ func (c *Coordinator) admit(
 		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
 	}
 
+	// A key belonging to another command is refused here rather than discovered
+	// downstream. `ParseReply` would reject a verdict or an answer for having no
+	// title, which is a true statement about the wrong thing: the reply is well formed
+	// and the command is not the one that takes it. A caller told "title is empty"
+	// would go and add a title.
+	if filedBy, elsewhere := admittedElsewhere(meta.Kind); elsewhere {
+		return gnosis.Blocked(gnosis.ReasonNeedsHuman,
+			"key "+cmd.Key+" is a "+string(meta.Kind)+" prompt; its reply is filed with "+
+				filedBy, map[string]any{"key": cmd.Key, "kind": string(meta.Kind)}), nil
+	}
+
 	reply, parseErr := relay.ParseReply([]byte(cmd.Reply))
 	if cErr := c.cacheReply(op, w, cmd, &meta); cErr != nil {
 		return gnosis.Outcome{}, cErr
@@ -91,6 +102,10 @@ func (c *Coordinator) applyReply(
 	case PromptSynthesize:
 		return c.synthesizeReply(op, w, cmd, reply, meta, k)
 	case PromptSource, PromptKindUnset:
+	case PromptCritic, PromptAsk:
+		// Unreachable: admittedElsewhere refuses both before the reply is parsed.
+		// Named rather than defaulted so the compiler keeps asking, which is the whole
+		// value of an exhaustive switch over a kind that grows.
 	}
 	if !cmd.Eff.Writes() {
 		return gnosis.OK(map[string]any{
@@ -421,4 +436,31 @@ func describe(i int, text string) string {
 		text = text[:width] + "…"
 	}
 	return "claim " + strconv.Itoa(i+1) + ": " + text
+}
+
+// admittedElsewhere reports whether a prompt kind's reply belongs to another command,
+// and names the command.
+//
+// Requires: nothing.
+// Ensures: the invocation that takes this kind of reply, or false when `admit` is the
+// right command for it. Pure.
+//
+// **A function rather than two comparisons at the call site**, because the list grew: a
+// second kind that `admit` does not take arrived a phase after the first, and the
+// pattern the first one set was a condition naming one constant. The next one changes
+// this function and nothing else.
+func admittedElsewhere(kind PromptKind) (filedBy string, elsewhere bool) {
+	switch kind {
+	case PromptCritic:
+		return "`gnosis critic --response`, because a verdict is not a document", true
+	case PromptAsk:
+		return "`gnosis file`, which puts the answer through the promote gate", true
+	case PromptSource, PromptAccrete, PromptSynthesize, PromptKindUnset:
+		return "", false
+	default:
+		// An unknown kind is `admit`'s problem to report, and the switch above is
+		// where it gets reported — routing it away from here would send the caller to
+		// a command that does not know about it either.
+		return "", false
+	}
 }

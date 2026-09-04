@@ -35,6 +35,28 @@ const (
 	// other exists to. A single kind with a mode would give two contracts one name,
 	// and the reply that arrives is the one thing neither can re-ask about.
 	PromptSynthesize PromptKind = "synthesize"
+
+	// PromptCritic asks a cold critic whether a claim's source supports it (§10.5).
+	// The reply becomes findings a caller reads and a coverage row a later prompt
+	// reads; nothing it says reaches the corpus.
+	//
+	// **Its own kind rather than a mode of the others**, for PromptSynthesize's
+	// reason one constant up: the three that exist all end in a document, and this
+	// one ends in an opinion. A single kind with a mode would give two contracts one
+	// name, and the reply that arrives is the one thing neither can re-ask about.
+	PromptCritic PromptKind = "critic"
+
+	// PromptAsk asks for an answer to one question, assembled from the claims
+	// retrieved for it (§8.3). The reply becomes a candidate concept that `gnosis
+	// file` puts through the promote gate; nothing it says reaches the corpus
+	// unreviewed.
+	//
+	// **It is the one kind that names no archived source, and that is what it means.**
+	// The other four are about text somebody fetched; this one is about claims the
+	// corpus already holds, whose own evidence was checked when they were admitted. A
+	// caller validating it against an archive path would be asking the wrong question
+	// of it.
+	PromptAsk PromptKind = "ask"
 )
 
 // PromptKind is what a prompt asks about.
@@ -86,6 +108,44 @@ type PromptMeta struct {
 	// DocumentPath is the concept this prompt asks about, bundle-relative. Empty
 	// for a source prompt.
 	DocumentPath string `json:"document_path,omitempty"`
+
+	// Model is what the prompt was rendered for.
+	//
+	// It is already inside the key, and it is recorded here because a key is opaque:
+	// a coverage row saying which model covered an angle is the difference between
+	// "somebody looked" and "this model looked", and §10.5's ledger is most useful
+	// exactly where two models covered different ground. `CachedReply` repeats it
+	// for the same reason one field over.
+	Model string `json:"model,omitempty"`
+
+	// DocumentID is the identifier of the document a critic prompt asks about.
+	//
+	// **The identifier rather than the path**, because the coverage ledger is keyed
+	// on it: a ledger keyed by path loses a claim's steering history the moment
+	// somebody retitles the concept, since §5.1.1 changes the slug. It is §5.4's
+	// rule about durable edges applied one tier down, to derived state that still
+	// wants to survive a rename. DocumentPath is kept beside it because a reader
+	// needs one, which §5.6 makes a view rather than a second address.
+	DocumentID string `json:"document_id,omitempty"`
+
+	// ClaimID is the claim a critic prompt asks about, within DocumentPath. Empty for
+	// every other kind.
+	//
+	// A critique is about one assertion, not a page: §10.5 samples claims, and a
+	// coverage row keyed by document would tell a later critic that a page had been
+	// looked at when one sentence on it had.
+	ClaimID string `json:"claim_id,omitempty"`
+
+	// Cites are the claim references an ask prompt offered, and therefore the whole
+	// set an answer to it may cite. Empty for every other kind.
+	//
+	// **Stored because the check cannot be made without it.** A citation naming a
+	// claim the prompt never carried is the failure this relay is arranged to catch,
+	// and by the time the reply arrives the retrieval that produced the prompt is
+	// gone: re-running the query would compare the answer against a *different* set,
+	// which is not the same check and would pass an answer resting on claims nobody
+	// showed the model.
+	Cites []string `json:"cites,omitempty"`
 
 	// DocumentHash is that document's content hash when the prompt was emitted.
 	//
@@ -152,13 +212,58 @@ func (m *PromptMeta) kindProblems() []string {
 		bad = append(bad, m.documentProblems()...)
 	case PromptAccrete:
 		bad = append(bad, m.documentProblems()...)
+	case PromptCritic:
+		bad = append(bad, m.criticProblems()...)
+	case PromptAsk:
+		bad = append(bad, m.askProblems()...)
 	case PromptKindUnset:
 		bad = append(bad, "kind is unset; a prompt nobody characterised cannot be "+
 			"answered, and defaulting one would file a rewrite as a new document")
 	default:
-		bad = append(bad, "kind "+string(m.Kind)+" is not source, accrete or synthesize")
+		bad = append(bad, "kind "+string(m.Kind)+
+			" is not source, accrete, synthesize, critic or ask")
 	}
 	return bad
+}
+
+// askProblems names what an answer prompt is missing.
+//
+// Its own function rather than a sixth arm with a body, which is `criticProblems`'s
+// reason and the same linter finding that produced it: a switch whose arms carry logic
+// is one whose complexity grows with the vocabulary.
+//
+// **The claims are the whole requirement, and the absence of the others is the point.**
+// An answer prompt rests on claims that were gated when they were admitted, so there is
+// no archived source for this meta to point at — inventing a requirement to make this
+// arm look like its neighbours would refuse a well-formed prompt.
+func (m *PromptMeta) askProblems() []string {
+	if len(m.Cites) == 0 {
+		return []string{"an answer prompt names no claims, so every citation in a " +
+			"reply to it would be one the prompt did not carry"}
+	}
+	return nil
+}
+
+// criticProblems names what a critic prompt is missing.
+//
+// Its own function rather than a fourth arm of the switch, which the complexity limit
+// asked for and reading it agrees with: a critic prompt needs everything a concept
+// prompt needs *and* the claim, and stating that as composition says it once.
+func (m *PromptMeta) criticProblems() []string {
+	var bad []string
+	if len(m.ArchivePaths) == 0 && strings.TrimSpace(m.ArchivePath) == "" {
+		bad = append(bad, "a critic prompt names no archived source, so the claim "+
+			"would be judged against nothing")
+	}
+	if strings.TrimSpace(m.ClaimID) == "" {
+		bad = append(bad, "a critic prompt names no claim; a verdict about a whole "+
+			"page cannot be filed against the assertion it concerns")
+	}
+	if strings.TrimSpace(m.DocumentID) == "" {
+		bad = append(bad, "a critic prompt names no document identifier, so its "+
+			"coverage could only be keyed by a path that changes on a retitle")
+	}
+	return append(bad, m.documentProblems()...)
 }
 
 // documentProblems names what a concept-bound prompt is missing.

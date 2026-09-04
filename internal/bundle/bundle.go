@@ -69,6 +69,26 @@ type Document struct {
 	// Empty for a document declaring none, which is a finding only on a normative
 	// type.
 	Limitations []string
+
+	// Status is OKF §5.4's lifecycle value for this concept, as declared. Empty for a
+	// document declaring none, which OKF reads as current — `scope.go` names the
+	// default rather than spreading the reading across comparisons.
+	Status string
+
+	// Challenges are the contests readers have filed against this document
+	// (§10.7.4). Empty for a document nobody has challenged.
+	Challenges []gnosis.Challenge
+
+	// Resources are the sources this document declares in OKF's `sources` list,
+	// verbatim.
+	//
+	// **Not named Sources, because SourceKeys already means something narrower**
+	// and a reader would have to disambiguate two fields whose names are
+	// synonyms: SourceKeys are the archive paths a claim's evidence names, and
+	// these are what the author declared the page rests on. A `referenced` source
+	// has no archived text and therefore no archive path, so this list is the only
+	// place it can appear (§14.4).
+	Resources []string
 }
 
 // DocClaim is a claim's identity and its evidence addresses, as the document
@@ -118,6 +138,25 @@ type DocClaim struct {
 	// human-readable text, which is what making the prose authoritative was for.
 	Pin    constraint.Constraint
 	Pinned bool
+
+	// Warrant is the record of a human adjudication (§10.6.4), or the zero value for
+	// a claim carrying none — which `Adjudicated` reports as false, and which is
+	// how §10.4's provenance class is derived rather than declared.
+	Warrant gnosis.Warrant
+
+	// Status is OKF §5.4's lifecycle value for this claim, as declared. Empty for a
+	// claim declaring none, which OKF reads as current — and `deprecated` is what
+	// supersession writes (§10.4), never a deletion.
+	Status string
+
+	// Supersedes are the claims this one replaced after an adjudicated conflict
+	// (§10.4). Empty for a claim replacing nothing.
+	//
+	// It is here because it is the **checkable** half of "this claim was
+	// adjudicated": a warrant is a record somebody chose to write, while a
+	// supersession is an edge the corpus can see whether or not the decision behind
+	// it was ever recorded. That asymmetry is what `warrant` reports.
+	Supersedes []string
 
 	// Subject is the surface phrase naming what this claim is about (§5.5.1), as
 	// the author wrote it — an alias is resolved by the checks, not here. Empty for
@@ -262,6 +301,11 @@ func read(fsys fs.FS, path string) Document {
 	doc.Limitations = stringsOf(parsed.Fields, limitationsKey)
 	doc.StaleAfter = staleAfter(parsed)
 	doc.SourceKeys = sourceKeys(doc.Claims)
+	doc.Resources = resourcesOf(parsed)
+	doc.Challenges = challengesOf(parsed)
+	if status, ok := parsed.Text(statusKey); ok {
+		doc.Status = status
+	}
 
 	if rawID, ok := parsed.Text(idKey); ok {
 		if id, idErr := gnosis.ParseID(rawID); idErr == nil {

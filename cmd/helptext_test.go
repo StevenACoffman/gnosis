@@ -1,8 +1,14 @@
 package cmd_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
+	"io/fs"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -150,5 +156,99 @@ func helpTexts(r *root.Config) []helpString {
 	walk(r.Command.Subcommands, "")
 
 	sort.Slice(out, func(i, j int) bool { return out[i].Where < out[j].Where })
+	return out
+}
+
+// TestFindingMessagesNameOnlyCommandsThatResolve extends the guard above to the text
+// a check emits, which is the half it could not see.
+//
+// The `unanswered-challenge` finding advises answering with a command, and that mention
+// lives in a diagnostic rather than in help text — so the test above, which walks the
+// command tree's own strings, is blind to it. A finding is where the failure hurts most:
+// help is read once, and a finding is read by whoever is already trying to fix
+// something.
+//
+// **It reads string literals from the AST, not the file's text**, and the first version
+// did the latter — which reported eight mentions of which six were *comments about* the
+// problem, including this package's own note recording the `gnosis extract` defect and
+// `internal/lint/command.go`'s `gnosis frobnicate` example. A guard that reports the
+// documentation of a bug as the bug is the noisy check §12 says gets deleted.
+//
+// A message assembled from a variable is still missed, because each literal is scanned
+// alone: `"run `+"`"+`gnosis " + name` carries no complete span. That is the safe
+// direction — the scan can under-report and can never bless a wrong instruction.
+func TestFindingMessagesNameOnlyCommandsThatResolve(t *testing.T) {
+	t.Parallel()
+
+	r := root.New(nil, io.Discard, io.Discard)
+	cmd.RegisterForTest(r)
+	registered := registeredNames(r)
+
+	// `..` rather than a path computed from os.Getwd, which rules.md forbids: `go
+	// test` runs a test binary in its own package's directory, so the module root is
+	// one level up from `cmd/` and nothing has to ask where it is.
+	err := filepath.WalkDir("..", func(path string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case d.IsDir():
+			return skipUnscanned(d)
+		case !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go"):
+			return nil
+		}
+		mentionsResolve(t, path, registered)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking the repository: %v", err)
+	}
+}
+
+// skipUnscanned keeps the walk out of directories that hold no source.
+func skipUnscanned(d fs.DirEntry) error {
+	if d.Name() == ".git" || d.Name() == "bin" {
+		return fs.SkipDir
+	}
+	return nil
+}
+
+// mentionsResolve reports every command one file names that does not exist.
+func mentionsResolve(t *testing.T, path string, registered map[string]bool) {
+	t.Helper()
+
+	for _, text := range stringLiterals(t, path) {
+		for _, name := range lint.CommandsMentioned(text) {
+			if !registered[name] {
+				t.Errorf("%s names `gnosis %s`, which is not a registered command; "+
+					"a reader told to run it cannot tell a stale instruction from "+
+					"their own mistake", path, name)
+			}
+		}
+	}
+}
+
+// stringLiterals is every string constant in one Go file, unquoted.
+//
+// Comments are excluded by construction, which is the whole reason this parses rather
+// than greps: a comment explaining a defect names the command that caused it, and a
+// guard that cannot tell the two apart reports the record of a fix as the fix's absence.
+func stringLiterals(t *testing.T, path string) []string {
+	t.Helper()
+
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", path, err)
+	}
+	var out []string
+	ast.Inspect(file, func(n ast.Node) bool {
+		lit, ok := n.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		if text, uErr := strconv.Unquote(lit.Value); uErr == nil {
+			out = append(out, text)
+		}
+		return true
+	})
 	return out
 }

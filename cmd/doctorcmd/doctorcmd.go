@@ -92,6 +92,13 @@ func (c *Config) render(result *Result) error {
 	if line := seededGates(env.GateSources); line != "" {
 		_, _ = fmt.Fprintln(c.Stderr, line)
 	}
+	// The authority and the count behind it, on their own line rather than folded
+	// into the summary: §10.6.3 requires a move to be announced *and to say why*,
+	// and the count is the why. Announcing the **move** needs a previous value
+	// nothing stores — the same baseline `newly-orphaned` waits on — so what ships is
+	// the current state, which is the half a reader can act on today.
+	_, _ = fmt.Fprintf(c.Stderr, "adjudication authority: %s (%s)\n",
+		env.Authority, adjudicatorCount(env.Adjudicators))
 	_, _ = fmt.Fprintf(c.Stderr,
 		"%s: %d document(s), %d indexed, %d type(s), schema %d/%d; %d finding(s)\n",
 		env.Bundle, env.Documents, env.IndexedRows, env.Types,
@@ -101,6 +108,22 @@ func (c *Config) render(result *Result) error {
 		return root.ExitError(root.CodeFindings)
 	}
 	return nil
+}
+
+// adjudicatorCount renders the population behind the authority.
+//
+// The count sits in a noun phrase so no verb has to agree with it (§17.5), and the
+// zero case says what it means rather than reading as an error: a corpus nobody has
+// adjudicated in is at `sole`, which requires nothing and is a supported
+// configuration.
+func adjudicatorCount(n int) string {
+	if n == 0 {
+		return "no adjudicator has signed anything yet"
+	}
+	if n == 1 {
+		return "1 distinct human adjudicator"
+	}
+	return fmt.Sprintf("%d distinct human adjudicators", n)
 }
 
 // fail adapts root's reporting to this command's name. Reaching it means the

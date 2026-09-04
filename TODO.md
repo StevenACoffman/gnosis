@@ -900,22 +900,46 @@ ______________________________________________________________________
   **The trigger that would change it**: a claim-level search result a reader cannot
   identify from its lead alone. The columns stay in the schema so adding them later is a
   migration nobody has to design.
-- [ ] **Five specified checks remain, and none is buildable today.** *Down from twelve,
-  then from six when `constraint-drift`'s recorded blocker turned out to be wrong.
-  Re-measured 2026-08-27 against the tree rather than against these entries: `Warrant` and
-  `Challenge` appear nowhere in it, §14.4's durability classes are specified and unbuilt,
-  and nothing stores a previous link state. `filename-drift`, `limitations`, `duplicate`, `command`, `evidence` and
-  `language` were built; the six left each name their blocker below, because "unbuilt"
-  and "unbuildable" have been confused four times in this file and counting them together
-  is what caused it.*
+- [ ] **Two specified checks remain: `newly-orphaned`, which needs a baseline nothing
+  stores, and `gap`, which §12's own table marks as not deterministic.** *Everything else
+  in this entry was built, and each struck line keeps what building it turned up.*
+  **The count's own history is the reason the list is kept rather than trimmed.** Twelve,
+  then six when `constraint-drift`'s recorded blocker turned out to be wrong, then back to
+  six when `warrant` turned out to have been missed by every count, then two on 2026-09-02
+  when `durability`, `warrant`, `co-sign` and `unanswered-challenge` landed. It has been
+  wrong in both directions, and each time for the same reason: "unbuilt" and "unbuildable"
+  were counted together. Every line below names its blocker or says what closed it.
+  **`warrant` is the fifteenth check and was named by none of the three counts** — not by
+  §12.1's thirteen, not by "`coverage` was the fourteenth", not by this entry's five.
+  *Found 2026-09-02 by diffing §12's list against `lint.Checks()` rather than against
+  either table.* It is the same blind spot §12.1 records — a row absent from the enforced
+  table and a checker absent from the registry agree with each other — and it survived a
+  pass that was **looking for exactly this**, which is the part worth keeping: the count
+  was recomputed from the two tables, and the check missing from both is invisible to
+  that method by construction. The list in §12 is the only surface that names it, and
+  nothing walks that list.
   - `newly-orphaned` — needs a **baseline**. Nothing stores a previous link state, and
     "had an inbound link before" is not derivable from one commit.
-  - `durability` — needs §14.4's durability classes and §14.4.1's centrality. Neither
-    exists.
-  - `co-sign` — needs `gnosis_warrant`. §10.6's warrants are unbuilt and nothing reads
-    the key.
-  - `unanswered-challenge` — needs `gnosis_challenges` and a window in `standards/`.
-    Nothing writes challenges.
+  - ~~`durability`~~ — **built 2026-09-02.** It needed §14.4's four states and
+    §14.4.1's centrality, and neither existed; both do now. Two things it turned up are
+    in PLAN §6.48: the claim grain cannot express a `referenced` source, so the signal
+    is computed per document — which is what §12's row said all along — and §14.4.1's
+    two boundaries collapse to one, because there are only two treatments and a
+    document between a median and a cut would belong to no class.
+  - ~~`warrant`~~ — **built 2026-09-02**, and the entry's own blocker dissolved rather
+    than being cleared: the *adjudicated* class is derived from carrying a warrant, and
+    the half of §12's row that needs an independent marker reads `gnosis_supersedes`,
+    which is structural evidence rather than an author's assertion. A `class:` key was
+    refused for exactly the reason recorded here — it would let a claim assert the class
+    the check exists to verify.
+  - ~~`co-sign`~~ — **built 2026-09-02** with the rest of §10.6.4. Escalation is
+    computed, not declared: normative by type, or load-bearing by §14.4.1's centrality.
+    An override with a recorded reason passes, because a gate whose overrides are
+    countable is still a gate.
+  - ~~`unanswered-challenge`~~ — **built 2026-09-02** with `gnosis challenge` as its
+    writer and `standards/challenge.toml` as its window. The window is 30 days and its
+    rationale says plainly that no corpus has yet carried a challenge, so the number is
+    chosen for what it makes visible rather than measured.
   - `constraint-drift` — **built 2026-08-27, and this line was wrong about its own
     blocker.** *"No corpus has a pin" was not the obstacle: a pin **could not be
     expressed**. Nothing parsed `gnosis_constraint`, `DocClaim` had no field for one, and
@@ -2507,3 +2531,187 @@ ______________________________________________________________________
   history — and adding the key before something displays it would repeat the mistake this
   project has recorded three times. So this is **no longer blocked on the warrant**; it is
   blocked on the queue.
+- [x] **`PLAN.md`'s progress table stopped at Step 2.14 while its narrative ran to
+  §6.46.** *Closed 2026-09-03, and verified rather than asserted: the table now runs to
+  `3.7 — critic`, every discrete item in §4 and §6 carries `[ ]` or `[x]`, and
+  `grep -c '[ ] open' PLAN.md` reports zero. The retrospective sections deliberately
+  carry no boxes — a checkbox on a finding invites reading it as work — and that
+  exception is stated above the table rather than left to be inferred.* Original:
+  *Measured 2026-09-02: the table's last row is `2.14 — accounting fixes`, and
+  §6.19 through §6.46 — the §14 backlog, tiers 2 and 3, `gnosis schema`, the subject
+  decision, the operator patterns, `coverage`, the conflict frame, twelve checks becoming
+  six — have no row at all.* A reader consults the table first, so the plan understates
+  its own state by roughly a dozen passes.
+  **It is the §12.1 blind spot one document over.** That table drifts only in the
+  direction nothing can see — a row absent and a checker absent agree — and this one
+  drifts the same way: a pass with no row and no reader is silent. The difference is that
+  §12.1's is checked against the registry in both directions and this one is checked
+  against nothing, because there is no registry of plan steps to walk.
+  **The remedy is the cheaper half of that**: the discrete items carry `[ ]`/`[x]` now, so
+  what is open is greppable rather than inferred from prose, and a pass that lands adds a
+  row in the same edit that adds its §6 section. A derived check would need plan steps to
+  be identifiers, which they are not and should not become.
+- [x] **A retrospective section stated an open question that was closed an hour later, and
+  nothing pointed forward.** *`PLAN.md` §6.46 ends "three data points for a rule that
+  could be written down"; SPEC §17.5 wrote it down, `runNamed` enforces it, and `TODO.md`
+  records it closed. The rule existed before the sentence saying it did not was a day
+  old.* Confirmed by commit order rather than by reading: §6.46 landed in `08d2de6` and
+  §17.5 in `873bafd`.
+  **The failure is not the staleness, it is the direction.** A §6 section is a record of
+  what a pass turned up, so it is correct that it is not edited afterwards — but a reader
+  who arrives at it has no way to learn the question was settled, and the sentence reads
+  as a live gap. Two of the seven open entries in this file were closed the same way and
+  were only found by re-measuring against the tree.
+  **The remedy is one sentence, not a process**: a §6 paragraph that names something still
+  open must name where it is tracked — this file — and the entry here is what gets closed.
+  A retrospective that owns a backlog item is a backlog kept in two places, which is the
+  shape §12.1's hand-maintained list was replaced for.
+  **Stated and swept 2026-09-03.** The convention is written above §6's table, beside the
+  checkbox rule it is the prose half of, and six sections gained a pointer: five naming
+  the entry here that holds the question, and one naming the §6 section that closed it.
+  The sweep was bounded to sentences that read as a live gap rather than run over every
+  section, because a pointer on a decision nobody need revisit is the noise this is
+  supposed to remove.
+- [ ] **§10.6's adjudication window is not declared, so the authority rises and never
+  falls.** *Built around on 2026-09-02: `bundle.adjudicators` counts distinct `human:`
+  actors across the corpus's whole history, because §10.6 counts them "within a declared
+  window" and nothing declares one.* A colleague who left last year therefore still holds
+  a corpus at `paired`, and the co-signature they cannot supply is required of everybody
+  else.
+  **Inventing the window is what §6.2 refuses**, and this one is not a threshold nobody
+  can argue with — it decides who the corpus thinks it has. **The trigger is observable
+  and needs no number**: the first corpus whose authority requires a co-signer nobody
+  active can supply. Until then §10.6.3's override is the escape hatch, it is permitted
+  at `paired`, and it leaves exactly the trail that would make the case for a window.
+  Not a blocker for anything: `co-sign` reads the authority *the warrant records*
+  (§10.6.3), so a decision made under a authority that has since moved is unaffected.
+- [x] **A tier change is reported and not announced (§10.6.3).** *`gnosis doctor` prints
+  the derived authority and the count behind it; what it cannot say is that the authority
+  **moved**, because nothing stores a previous value.* Same baseline `newly-orphaned`
+  waits on, and the same shape: a state a rebuild re-derives, compared against one it
+  cannot.
+  **The cheapest home is `log.md` rather than a stored baseline**, following §6.2's
+  precedent for a threshold change — a decision with a reason, in the tier a colleague
+  reads. That makes the announcement a *write* rather than a comparison, which is why it
+  waits for a write command that has reason to touch the corpus: `adjudicate` is the
+  obvious one, since an authority moves when somebody adjudicates for the first time.
+  **Built 2026-09-03, and the baseline this waited on turned out not to be needed.**
+  `log.md` *is* the stored previous value: `adjudicate` announces the move it causes and
+  `LastAnnouncedAuthority` reads the last announcement back, so the comparison is against
+  a committed line every colleague already pulls rather than against a per-user file two
+  colleagues could disagree about. `doctor` gained the other half — a corpus whose
+  derived authority nobody announced is reported, which is what catches a `verified` list
+  edited by hand. The sentence is `gnosis.AuthorityMove.String`'s, written once, so the
+  log entry and the diagnostic cannot describe one event two ways.
+- [ ] **The two-claim conflict residue has no producer, and the critic is waiting for
+  it.** *§10.3 routes semantic contradiction between claims that survive the decidable
+  predicates to `gnosis critic` — "a cold-critic prompt that sees the two claims and
+  their sources but never the reasoning that produced either". Step 3.7 built the
+  single-claim critique (§10.5's sample) and not that one, because it has no CLI surface
+  in §8.4 and, more to the point, nothing emits the pairs.*
+  **`conflict` reports what it can decide and says nothing about what it cannot.** §10.2.0
+  records that it implements one of six predicates deliberately; the pairs it declines
+  are not collected anywhere, so a critic prompt about them would have to re-derive the
+  candidate set — which is §6.2's selector, in a check that performs no I/O.
+  **The trigger is the producer, not the prompt.** The prompt is this relay with a
+  different template and a two-claim `CriticClaim`; what does not exist is something that
+  says *these two claims are worth a person's or a model's attention and no predicate can
+  separate them*. When `conflict` grows that output, the critic reads it.
+- [x] **Three progress rows said `open` for a day after the work landed, and I reported
+  them done.** *Closed 2026-09-03: rows 3.4, 3.5 and 3.6 read `[x] done`, and the count
+  that would have caught it is now what gets run before reporting a step complete. The
+  lesson stays recorded because the remedy is a habit rather than a mechanism, and a
+  habit with no written reason is the first thing dropped by whoever is in a hurry.* *Found 2026-09-02 while counting the table: rows 3.4, 3.5 and 3.6 still
+  read `[ ] open` after `challenge`, `adjudicate` and `supersede` shipped, because the
+  edits that were supposed to close them matched an unpadded table row and `rumdl fmt`
+  had already padded it. The replacement silently did nothing and nothing checked.*
+  **It is the entry two above this one, recurring within the day it was written.** That
+  one says a claim about the record is not the record; this is the same failure in the
+  mechanism added to prevent it, which is worth more as evidence than as an
+  embarrassment: a checkbox is greppable, and I did not grep.
+  **The remedy is the count, not more care.** `grep -c '\[ \] open' PLAN.md` before
+  reporting a step complete takes a second and cannot be forgotten quietly, because a
+  wrong number is visible where a wrong prose sentence is not. Recorded rather than
+  automated: a test over a plan table would need plan steps to be identifiers, which
+  they are not and should not become.
+- [ ] **Ten of §8's commands were unbuilt and this file named none of them.** *Measured
+  2026-09-03 by diffing §8.1–8.5's command list against `cmd.register`, which is the
+  method that found `warrant` and the only one that can see this: a command absent from
+  the registry and absent from the backlog agree with each other.* `miss report` and
+  `gate` were built the same day; `conflict` and `stale` turned out to name functions that
+  shipped as `lint` checks, and §8.4 is corrected rather than the commands written.
+  **What remains, and none of it is blocked.** `ask` and `file` (§8.3's answer relay),
+  `export`, `manifest` and `proof create` (§8.5 — and `skillet/manifest` and
+  `skillet/proof` both exist in v0.27.0, so the stated dependency is present), `mine`
+  (§10.2's heuristic tier), and `serve` (§13, Phase 5). §19 puts the first six in
+  Phase 4, so they are **scheduled rather than gated** — the distinction this entry
+  exists to keep, because "not built" has been confused with "not buildable" five times
+  now.
+  **Five of the six shipped 2026-09-03 and the sixth was refused with its reason.**
+  `ask`, `file`, `export`, `proof create` and `mine` are built and registered. `manifest`
+  is **not**, and the finding is the one `ruleset/conflict` recorded: `manifest.Diff`
+  matches entries by **location**, and a gnosis location is a view §5.1.1 changes on
+  every retitle — so a manifest over this corpus would report a renamed concept as one
+  removed and one added. For a committed corpus `git diff --name-only` already answers
+  the question the file would, and a second answer that can disagree with the first is
+  worse than none. SPEC §8.5 and §16.2 are corrected; the trigger is the first
+  downstream tool that asks gnosis what changed and cannot use git to find out.
+  `serve` stays Phase 5, which is where §19 puts it.
+  **The stated dependency being present is not the same as fitting**, which is what this
+  entry got right in one direction and wrong in the other: `skillet/proof` fit exactly
+  and `skillet/manifest` did not, and both were in the same sentence as though the
+  question were availability.
+- [ ] **§9.6's outcome labelling needs a vocabulary nobody can write yet.** *Found
+  2026-09-03 while building `gnosis mine`.* The reference implementation "labels outcomes
+  from feedback signals", which means reading what disappointment sounds like — and a
+  vocabulary of that is a `standards/` value with a rationale (§6.2), which nobody can
+  write from measurement until a corpus has mined enough sessions to measure.
+  **What shipped instead is stronger for the two halves it does cover.** Retry chains and
+  recurring intents both reduce to *the same question asked more than once* — within a
+  session it is a retry by definition, across sessions it is one nobody wrote down — and
+  that comparison uses the corpus's own fold and carries no number anybody chose. The
+  sentiment reading would have been a second, weaker way to detect what repetition
+  detects exactly.
+  The trigger is a corpus with enough mined sessions to write the vocabulary from
+  measurement rather than from imagination.
+- [ ] **`gnosis_conflicts` is specified in §5.4 and nothing reads or writes it.** *Found
+  in the same pass, by reading the frontmatter table against the parsers.* §5.4 gives it
+  a meaning — "open contradiction findings, each naming a concept id and a finding id" —
+  and §6.2's candidate selector names it as its fourth rule: "claims whose
+  `gnosis_conflicts` names the incoming source". Neither exists.
+  **It is the same shape as the two-claim residue below**, and probably the same work:
+  the key is where a conflict finding would be *committed* so that a later selector can
+  read it back, which is what `conflict` has nowhere to put its output today. Worth
+  building with that producer rather than before it — a frontmatter family nothing writes
+  is the mistake this file has recorded seven times.
+- [x] **`relay.CriticReply.NotExamined` carries less than the family type it mirrors.**
+  *`finding.Unexamined` is `{Aspect, Reason}` with a `Valid()` that requires both, and
+  skillet's comment on it is explicitly about parsing a critic's reply. gnosis's critic
+  carries `not_examined: []string` — which aspect, never why not.* Found while building
+  the findings gate, which reads `finding.Unexamined` through and prints both halves.
+  **The reason is the half that makes an unexamined aspect actionable.** "The source's
+  methodology" tells a reader nothing; "the excerpt does not include it" tells them
+  whether a better excerpt would fix it. §10.5's whole argument for the block is that a
+  gap must be legible, and half of it is not.
+  **The cost is a prompt change, which is cheap now and expensive later.** Every critic
+  cache key is a hash of the prompt (§6.1), so changing the reply format re-asks every
+  critique — and today that is nothing, because the format is one day old and no corpus
+  holds a coverage ledger. Waiting makes it a migration.
+  **Taken 2026-09-03, at the price the entry named.** `NotExamined` is
+  `[]finding.Unexamined` from the reply through `Critique`, `CoveredAngles`, `Verdict`
+  and the prompt that steers the next critic; an entry naming an aspect with no reason is
+  refused rather than half-recorded, which is `Valid()`'s rule and not a second one. The
+  ledger reads the old bare-string shape as an aspect whose reason says where it came
+  from — "recorded before critiques carried a reason" — rather than inventing one or
+  failing the load of the one file whose purpose is being matched against later. A corpus
+  written before the change and one written after it were read back in the same run.
+- [x] **The supersession edge named a path where §5.4 requires an identifier.** *Found
+  2026-09-03 while reading §5.4 for `--status`, and corrected the same day: the edge is
+  `<gnosis_id>#<claim-id>`, the coverage ledger moved with it, and §10.4 now records why
+  the two sections only appeared to disagree.* The path form reads better and breaks on
+  the first retitle, because §5.1.1 puts the slug in the path — so the edge would have
+  named a file that does not exist, pointing at the one claim nobody looks at any more.
+  **What it cost to find was one reading and what it would have cost later is a
+  migration**, which is the argument for reading a specification section against the code
+  that implements a *different* one: the defect was in a write path nobody was going to
+  re-open.

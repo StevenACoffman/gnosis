@@ -92,8 +92,9 @@ func traceableEvidence(snap *Snapshot) bool {
 		return false
 	}
 	for i := range snap.Documents {
-		for _, claim := range snap.Documents[i].Claims {
-			if len(claim.ArchivePaths) > 0 {
+		claims := snap.Documents[i].Claims
+		for j := range claims {
+			if len(claims[j].ArchivePaths) > 0 {
 				return true
 			}
 		}
@@ -157,7 +158,7 @@ func divergence(text, uri string, sites []claimSite) *finding.Diagnostic {
 	// shows only a verdict erodes trust in the whole queue.
 	var b strings.Builder
 	b.WriteString("the same claim rests on ")
-	b.WriteString(noun(len(versions), "version"))
+	b.WriteString(Noun(len(versions), "version"))
 	b.WriteString(" of ")
 	b.WriteString(uri)
 	b.WriteString(": ")

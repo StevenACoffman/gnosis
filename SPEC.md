@@ -2307,6 +2307,26 @@ log is what converts that into a countable observation, which is the whole reaso
 recurs is a deterministic check waiting to be written; that is the backlog that
 shrinks the model's surface area over time.
 
+**Built 2026-09-03, and two things it settled.**
+
+**The reason carries two classes, because "a recurring reason is a check waiting to be
+written" is true of one of them and false of the other.** Extraction has no
+deterministic path — §19 records why a deterministic phase cannot say where one claim
+ends — so `no_deterministic_path` recurs for as long as the corpus ingests anything and
+names no work. `no_deterministic_predicate` is the backlog: a path ran and decided
+nothing, which today means the critic (§17.1's question is not one any check answers)
+and will mean conflict adjudication with `checks_run` non-empty and `checks_fired`
+empty. `MissReason.Actionable` is the property, so the distinction lives on the value
+rather than in a rule each emitter remembers, and the actionable groups sort first — by
+count alone the unactionable line tops every run.
+
+**A count of rows is not a count of consultations**, which running it showed. Two
+`ingest` runs over one unanswered source write the same prompt twice, because nothing is
+cached to skip; the log rightly holds two rows and the report counts one *question*, by
+prompt key. Both numbers are reported: the gap is the times somebody re-ran a prompt
+nobody had answered, which is a fact about how the relay is used rather than about the
+corpus. A cache hit writes no row at all — it asked nothing.
+
 #### 6.4.1 a Miss Log Measures Coverage, Never Correctness
 
 Stated here because the log is cited elsewhere as evidence for things it cannot
@@ -2733,26 +2753,58 @@ cost of avoiding it is one join against `links` and `documents`.
 
 ```text
 gnosis lint [--check <name>] [--check-value]  the deterministic health pass (§12)
-gnosis conflict [--path P]           contradiction detection (§10)
-gnosis adjudicate <finding-id>       record a human decision; write the warrant
-gnosis challenge <path> --class C    a reader contests an accepted claim (§10.7)
+gnosis lint --check conflict         contradiction detection (§10) — see below
+gnosis adjudicate --claim ID --by A --rationale R <path>  record a decision (§10.6)
+gnosis challenge --class C --rationale R --by A <path>    contest a claim (§10.7)
 gnosis challenge --list [--unanswered]  open challenges, oldest first
-gnosis stale [--refresh]             freshness: compare archived text to upstream
-gnosis supersede <old> <new>         status: deprecated + gnosis_supersedes edge
+gnosis lint --check stale            freshness: the date half; drift is `fetch --recheck`
+gnosis supersede --loser-claim ID --winner-claim ID <old-path> <new-path>  §10.4
 gnosis log [--since]                 read/append log.md (OKF §9)
-gnosis critic [--path P] [--sample N]  cold-critic prompt over a claim, or a sample
-gnosis gate <findings-file>          block on error-severity findings; runs its self-test
+gnosis critic --model M [--path P] [--sample N]   emit cold-critic prompts (§10.5)
+gnosis critic --key K --response FILE   file a critic's verdict
 gnosis miss report                   aggregate the miss log (§6.4)
-gnosis audit [--since] [--who] [--reversed]   read the audit trail (§10.6.5)
+gnosis gate <findings-file>          block on error-severity findings; runs its self-test
+gnosis audit [--since] [--reversed] [--outstanding] [--gained] …  read the trail (§15)
 ```
+
+**Two rows here named commands that were never built, and the function shipped
+elsewhere.** `conflict` and `stale` are `lint` checks: §10.2.0 records that conflict
+implements the two decidable predicates as checks, and §12 splits `stale` between the
+date comparison — a check — and the drift comparison, which needs the network and
+belongs to `fetch --recheck`. The rows said otherwise for two phases, which is the same
+blind spot §12.1 names one section over: a command absent from the registry and absent
+from anybody's backlog agree with each other. Corrected 2026-09-03, when a diff of this
+list against the registry found ten unbuilt names and `TODO.md` mentioned none of them.
 
 ### 8.5 Family Interop
 
 ```text
 gnosis export --format okf|jsonl     bundle export
-gnosis manifest [--check]            emit skillet/manifest over the corpus
-gnosis proof create --out P          proof packet binding corpus + tier-0 digests
+gnosis proof create --arc A --out P  proof packet binding corpus + tier-0 digests
 ```
+
+**`gnosis manifest` was specified here and is not built, because the package it names
+keys on the one thing this corpus refuses to key on.** `skillet/manifest.Diff` matches
+entries **by location**, and documents why: a slug is not unique across the runtime roots
+a skill tree spans. A gnosis concept's location is a *view* — §5.1.1 puts the slug in the
+path and §5.4 requires identifiers, never paths — so a manifest over this corpus would
+report every retitled concept as one removed and one added. That is not a mapping detail;
+it is what `Diff` is built on, and it is the defect §10.4's edge shipped with for one day.
+
+The two packages share a **shape** — a hashed inventory answering "what changed since a
+baseline" — and a shape is followed rather than imported, which is exactly what
+`ruleset/conflict` records one section over. Nothing was built, because for a committed
+corpus `git diff --name-only` already answers the question, and a JSON file duplicating
+it would be a second answer that can disagree with the first. The trigger is the first
+downstream tool that asks gnosis what changed and cannot use git to find out.
+
+**`export` and `proof create` share one predicate**, `bundle.Portable`, which names the
+shareable half of a bundle: everything except `.gnosis/`. That directory holds the audit
+trail, the prompt cache, the miss log and the coverage ledger — per-user and derived, so
+two colleagues at one commit have different ones and are both right. An export carrying
+it would publish a colleague's session history to whoever the bundle was shared with, and
+a proof packet covering it would fail to verify for a reader who had done nothing but run
+a query.
 
 ______________________________________________________________________
 
@@ -3179,6 +3231,31 @@ cooperation:
   labels outcomes from feedback signals, with **no API and fully offline**. An
   optional `llm_mine` enriches and falls back to heuristic on error. `gnosis mine` implements the heuristic tier; the LLM tier is a prompt like every other.
 
+**Built 2026-09-03, and two things above it are corrected by having built it.**
+
+**`mine` reports and never files.** The bullet above says the Stop-hook companion "files
+wiki-touching turns as candidate answers, subject to §8.3's `file` gate". It cannot: a
+chat answer cites no archived source, and the promote gate fails a document declaring
+none — "a document asserting claims and citing nothing is exactly what this corpus exists
+to refuse" (§9.5). An automatic filer would fill quarantine with drafts that can never
+promote, which is a queue that only grows and a reader who learns to ignore it. So the
+companion hands the session over, `mine` reports the questions somebody had to ask more
+than once, and writing one up means `fetch` and `ingest`, where evidence exists.
+
+**Retry chains are detected by repetition rather than by feedback.** "A prompt re-asked
+after negative feedback" needs a vocabulary of what disappointment sounds like; a
+vocabulary is a `standards/` value with a rationale (§6.2) and nobody can write that
+rationale from measurement yet. Re-asking is observable without any of it — it *is* what
+re-asking means — and the same comparison at a wider scope gives the recurring-intent
+half: a question asked in two sessions is one nobody wrote down. Labelling outcomes from
+feedback signals stays unbuilt, and its trigger is a corpus with enough mined sessions to
+write that vocabulary from measurement.
+
+**The hook's configuration format is deliberately not specified here.** `gnosis mine
+--session -` reads a transcript from stdin and that is the whole contract; a hook config
+written into this specification would be another tool's format kept in a second place,
+which is the rot this section's own "one normalizing seam" sentence is about.
+
 Session-store adapters follow `skillopt_sleep`'s shape — one normalizing seam so
 a foreign format change is one file — since reading another tool's on-disk format
 will rot.
@@ -3518,7 +3595,11 @@ Verdicts return as `finding.Diagnostic`.
 
 **The critic is blinded, and this is a requirement.** The prompt MUST NOT include
 the existing adjudication, warrant, status, trust tier, or verification history of
-either claim. The reason is expectancy bias — a judge shown the conclusion a
+either claim. *Enforced by construction since 2026-09-02*: `relay.CriticClaim` carries
+a text, a lead and its quotations, and `relay` imports nothing of gnosis's domain, so
+there is no field a warrant could travel in. What a type cannot prevent is the
+projection folding one into a field that does exist — a rationale appended to the claim
+text — and that is where the test is. The reason is expectancy bias — a judge shown the conclusion a
 corpus already reached tends to find support for it, and its agreement then
 carries no information beyond the fact that it was told. That is the failure a
 double-blind trial is designed against, and here it costs nothing but prompt
@@ -3567,6 +3648,20 @@ Supersession, never deletion: the losing claim gets `status: deprecated`
 a `gnosis_supersedes` edge. The corpus can always answer what we believed in
 March and why we changed.
 
+**The edge names `<gnosis_id>#<claim-id>`, and this section and §5.4 looked as though
+they disagreed.** This one says the unit is a *claim*; §5.4 says the key names
+"**identifiers, never paths**… an edge that survives reorganization is the point". Both
+hold, and the reference form is what reconciles them: the document's identifier
+addresses the concept durably and the claim identifier addresses the assertion within
+it. *Corrected 2026-09-03 — the first implementation wrote `<path>#<claim>`, which reads
+better and breaks on the first retitle, because §5.1.1 puts the slug in the path.* A
+reader still sees a path: §5.6 makes the presented form a view that resolves **to** the
+canonical one, so the command prints the page and the frontmatter records the identifier.
+
+**A losing document with no `gnosis_id` is refused rather than referenced some other
+way.** §5.1.2 quarantines an unidentified document precisely because nothing durable can
+point at one, and writing an edge to it would commit a reference that can never resolve.
+
 Because this fires only on the loser of an **adjudicated conflict**, a claim of an
 `episodic` type is never superseded — its claims are ineligible for conflict detection
 (§5.8.3.1), so there is nothing to adjudicate. That is a consequence of the type rather
@@ -3602,7 +3697,22 @@ analysis maximized X; it did not examine Y" — and `prism-reflect` persists a
 constraint report that later runs read to steer away from exhausted angles.
 
 `gnosis critic` replies carry an additive `examined` / `not_examined` block,
-persisted to `.gnosis/coverage.jsonl` and fed into subsequent critic prompts.
+persisted to `.gnosis/coverage.jsonl` and fed into subsequent critic prompts. Each
+unexamined entry names an **aspect and a reason**, and an entry carrying one without the
+other is refused rather than half-recorded.
+
+**Built 2026-09-02, and four things it settled.** The ledger **appends** rather than
+upserting, unlike `checked.jsonl` and `retrieved.jsonl`, because here the sequence is
+what is consumed: steering away from *exhausted* angles means the union across
+critiques, and one row per claim would discard what an earlier critic covered. An angle
+declared unexamined and later examined is **subtracted**, so the next prompt is not sent
+back to finished ground. A verdict's severity is gnosis's and not the model's —
+`relay.CriticFinding` has no severity field, so a reply has nowhere to ask for one — and
+every category is namespaced `critic:`, before a collision rather than after the one
+§12.1 records. And because the coverage goes into the prompt, and the prompt's hash into
+the key, **a second critique is a different question with a different key**: §6.1's cache
+cannot serve the first answer to it, which is the property that makes steering work at
+all.
 
 **This does not compromise cold-context independence**, and the reason matters: a
 coverage record says what was *looked at*, never what was *concluded* or how the
@@ -3610,6 +3720,16 @@ concept was produced. Feeding prior coverage to a fresh critic biases it toward
 unexamined ground — the opposite of contamination. The block is **advisory
 only**: a critic that declares a gap must never thereby block, or it will learn
 to declare none.
+
+**The reason is the half that makes a gap actionable, and it was added 2026-09-03.** An
+aspect alone tells a later critic nothing it can act on; "the excerpt does not include
+it" tells it the ground is unreachable from this prompt, and steering a second critic
+toward it would send it at a wall the first already described. The shape is
+`finding.Unexamined`'s — the family type whose documented purpose is exactly this reply —
+so the requirement is that type's `Valid()` rather than a second rule stated here. Rows
+written before the change are read as an aspect whose reason says where it came from,
+because failing the load of the record that exists to be matched against later is a worse
+answer than an honest one.
 
 ______________________________________________________________________
 
@@ -3798,6 +3918,12 @@ before something displays it would repeat a mistake this project has recorded th
   `gnosis doctor` and `log.md` say so and say why. A gate that tightens or
   loosens without telling anyone is the "no silent caps" failure this
   specification refuses elsewhere.
+  **The announcement in `log.md` is the stored previous tier**, which is why no
+  separate baseline exists. `adjudicate` writes the line for the move it causes,
+  and `doctor` reports a derived tier that no line matches — the case a command
+  cannot see, because the `verified` list was edited by hand. A line that cannot
+  be read back counts as no announcement, so the failure is an over-report with an
+  obvious remedy rather than a silence.
 - **Escalation must never deadlock.** At `paired`, if the second signer is
   unavailable, a single-signer override is permitted with a recorded reason and a
   flag on the claim. A queue that can block indefinitely stops being used, and an
@@ -4045,8 +4171,9 @@ So a challenge is a first-class operation. Any reader may contest an accepted
 claim, and doing so opens a finding.
 
 ```text
-gnosis challenge /c/01932b7c-…-retry-budget.md --class coverage \
-  --rationale "the quote is about connection retries; the claim is about request retries"
+gnosis challenge --class coverage \
+  --rationale "the quote is about connection retries; the claim is about request retries" \
+  --by human:dana c/01932b7c-…-retry-budget.md --apply
 ```
 
 #### 10.7.1 Four Classes, Ordered by What Settles Them
@@ -4425,6 +4552,20 @@ indexing plus structured query. `gnosis search` supports the same: `--type`,
 `--tag`, `--under <path>`, `--status`, `--trust <tier>`, `--fresh`. A query
 restricted to a subtree can never return a concept outside it.
 
+**Five of the six shipped 2026-09-03, and `--tag` did not.** §5.5 records `tags` as a
+table with no migration and no reader — "frontmatter carries tags authoritatively and
+nothing reads a projection of them" — so the filter would need a projection nothing else
+wants yet, and building one for a flag would be the stored-state-with-no-reader mistake
+this specification has recorded seven times. The other five are one value rather than
+five branches: five of them need the corpus rather than the index, which holds no
+document type, no trust fold and no freshness, so a query that names any filter reads the
+bundle once and a query that names none reads nothing.
+
+**The subtree property is checked rather than asserted.** It holds on path *segments*,
+so `c/retry` does not admit `c/retry-budget.md` — a string prefix would return a sibling
+whose name begins with the same letters, which is a concept outside the restriction
+delivered by a query that claimed to be restricted to it.
+
 ### 11.4 Semantic Search Is Optional and Degradable
 
 FTS5 works with no configuration and no keys. If an embedding provider is
@@ -4684,49 +4825,53 @@ larger maintenance burden *and* the one that rots invisibly, because a rule that
 gains a checker keeps reading `[convention]` and nothing notices. A table of the
 enforced rules puts the edit at the moment somebody is already editing both.
 
-| Rule                                                                     | Enforced by           | Emits                                               | Fixable       |
-| ------------------------------------------------------------------------ | --------------------- | --------------------------------------------------- | ------------- |
-| A document MUST declare a `type` (OKF §4.1)                              | `conformance`         | `conformance`                                       | guided        |
-| One identifier MUST NOT be carried by two documents (§5.1.2)             | `identity`            | `identity`                                          | guided, human |
-| The index MUST agree with the bundle (§5.1.2)                            | `index-drift`         | `index-drift`                                       | guided        |
-| A link MUST resolve, or be reported as a gap (OKF §6.1)                  | `broken-link`         | `broken-link`                                       | human         |
-| A document SHOULD have an inbound link (§12)                             | `orphan`              | `orphan`                                            | human         |
-| `log.md` entries MUST use the date-heading form (OKF §9)                 | `log-format`          | `log-format`                                        | guided        |
-| A document MUST record the conventions it was written under (§5.5.1.1)   | `schema-version`      | `schema-version`                                    | human         |
-| A document MUST NOT ship placeholder markers (§12)                       | `placeholder`         | `placeholder`                                       | human         |
-| A heading MUST NOT be followed by nothing (§12)                          | `empty-section`       | `empty-section`                                     | human         |
-| A claim's `archive_paths` MUST exist in tier 0 (§5.5.1)                  | `archive-path`        | `archive-path`                                      | guided        |
-| Tier 0's store and its ledger MUST account for each other (§4.3.1)       | `archive-closure`     | `archive-orphan`, `archive-unrecorded`              | human         |
-| A claim's anchor MUST appear in its document, once (§5.5.1)              | `claim-anchor`        | `anchor-absent`, `anchor-collision`                 | human         |
-| A claim of a type expecting a subject SHOULD name one (§5.8.3)           | `subject-missing`     | `subject-missing`                                   | human         |
-| A claim's `subject` MUST resolve to a declared key (§5.8.2.1)            | `subject-unknown`     | `subject-unknown`                                   | human         |
-| Evidence MUST support the scope a claim asserts (§17.3.1)                | `coverage`            | `coverage`                                          | human         |
-| A causal claim MUST NOT rest on observational evidence alone (§17.3.1.1) | `rung`                | `rung`                                              | human         |
-| A subject's values MUST stay in the dimension it declares (§5.8.2.1)     | `dimension-drift`     | `dimension-drift`                                   | human         |
-| A pinned `gnosis_constraint` MUST match its prose (§10.2.1)              | `constraint-drift`    | `constraint-drift`                                  | human         |
-| A normative claim's lead MUST state its conclusion first (§17.4)         | `lead`                | `lead`                                              | human         |
-| A normative concept MUST declare what it does not cover (§17.2)          | `limitations`         | `limitations`                                       | human         |
-| Two documents MUST NOT hold one subject after a merge (§4.6.1)           | `duplicate`           | `duplicate-title`, `duplicate-evidence`             | human         |
-| A command named in AGENTS.md MUST resolve (§5.7)                         | `command`             | `command`                                           | human         |
-| A claim's quotation MUST remain in the file it names (§9.4)              | `evidence`            | `evidence`                                          | human         |
-| Prose SHOULD name what it compares and attributes (§10.3)                | `language`            | `language`                                          | human         |
-| A concept filename's slug SHOULD match its title (§5.1.1)                | `filename-drift`      | `filename-drift`                                    | automatic     |
-| One claim MUST NOT rest on two versions of one source unexamined (§10.2) | `conflict`            | `evidence-divergence`                               | human         |
-| Two claims about one subject MUST NOT bound it disjointly (§10.2)        | `conflict`            | `conflict`                                          | human         |
-| The operator patterns SHOULD read what claims state (§10.2.3)            | `constraint-coverage` | `constraint-coverage`                               | human         |
-| The vocabulary and the corpus MUST agree on types (§5.8)                 | `ontology`            | `type-undeclared`, `type-unused`, `type-deprecated` | human         |
-| A dated claim MUST be revisited after `stale_after` (§14.3)              | `stale`               | `stale`                                             | guided        |
-| The derived index MUST match what the migrations declare (§5.5)          | `schema-shape`        | `schema-shape`                                      | —             |
-| Archived text MUST pass §9.3's scan                                      | `archive.Gates`       | archive `reject_reason`                             | —             |
-| A candidate MUST pass §9.3's scan                                        | `gate:security`       | gate verdict                                        | —             |
-| Every offered quotation MUST validate against tier 0 (§9.4)              | `gate:evidence`       | gate verdict                                        | —             |
-| Every source MUST be followable or declare it is not (§4.3)              | `gate:provenance`     | gate verdict                                        | —             |
-| A title MUST NOT already be held (§4.6.1)                                | `gate:duplication`    | gate verdict                                        | —             |
-| A body MUST NOT exceed `hedging_max` softening phrases (§9.5)            | `gate:hedging`        | gate verdict                                        | —             |
-| Every mutation MUST write a verified audit row (§15)                     | `Writer.Audit`        | ECONFLICT / EINVALID                                | —             |
-| Every bundle write MUST hold the writer lock (§4.6)                      | `bundle.Writer`       | compile error                                       | —             |
-| A `standards/` value MUST carry a rationale (§6.2)                       | `standards.Load*`     | EINVALID                                            | —             |
-| A §9.3 pattern MUST discriminate (§9.3)                                  | `scan.LoadRules`      | EINVALID                                            | —             |
+| Rule                                                                     | Enforced by            | Emits                                               | Fixable       |
+| ------------------------------------------------------------------------ | ---------------------- | --------------------------------------------------- | ------------- |
+| A document MUST declare a `type` (OKF §4.1)                              | `conformance`          | `conformance`                                       | guided        |
+| One identifier MUST NOT be carried by two documents (§5.1.2)             | `identity`             | `identity`                                          | guided, human |
+| The index MUST agree with the bundle (§5.1.2)                            | `index-drift`          | `index-drift`                                       | guided        |
+| A link MUST resolve, or be reported as a gap (OKF §6.1)                  | `broken-link`          | `broken-link`                                       | human         |
+| A document SHOULD have an inbound link (§12)                             | `orphan`               | `orphan`                                            | human         |
+| `log.md` entries MUST use the date-heading form (OKF §9)                 | `log-format`           | `log-format`                                        | guided        |
+| A document MUST record the conventions it was written under (§5.5.1.1)   | `schema-version`       | `schema-version`                                    | human         |
+| A document MUST NOT ship placeholder markers (§12)                       | `placeholder`          | `placeholder`                                       | human         |
+| A heading MUST NOT be followed by nothing (§12)                          | `empty-section`        | `empty-section`                                     | human         |
+| A claim's `archive_paths` MUST exist in tier 0 (§5.5.1)                  | `archive-path`         | `archive-path`                                      | guided        |
+| Tier 0's store and its ledger MUST account for each other (§4.3.1)       | `archive-closure`      | `archive-orphan`, `archive-unrecorded`              | human         |
+| A claim's anchor MUST appear in its document, once (§5.5.1)              | `claim-anchor`         | `anchor-absent`, `anchor-collision`                 | human         |
+| A claim of a type expecting a subject SHOULD name one (§5.8.3)           | `subject-missing`      | `subject-missing`                                   | human         |
+| A claim's `subject` MUST resolve to a declared key (§5.8.2.1)            | `subject-unknown`      | `subject-unknown`                                   | human         |
+| Evidence MUST support the scope a claim asserts (§17.3.1)                | `coverage`             | `coverage`                                          | human         |
+| A causal claim MUST NOT rest on observational evidence alone (§17.3.1.1) | `rung`                 | `rung`                                              | human         |
+| A subject's values MUST stay in the dimension it declares (§5.8.2.1)     | `dimension-drift`      | `dimension-drift`                                   | human         |
+| A pinned `gnosis_constraint` MUST match its prose (§10.2.1)              | `constraint-drift`     | `constraint-drift`                                  | human         |
+| A normative claim's lead MUST state its conclusion first (§17.4)         | `lead`                 | `lead`                                              | human         |
+| A normative concept MUST declare what it does not cover (§17.2)          | `limitations`          | `limitations`                                       | human         |
+| Two documents MUST NOT hold one subject after a merge (§4.6.1)           | `duplicate`            | `duplicate-title`, `duplicate-evidence`             | human         |
+| A command named in AGENTS.md MUST resolve (§5.7)                         | `command`              | `command`                                           | human         |
+| A claim's quotation MUST remain in the file it names (§9.4)              | `evidence`             | `evidence`                                          | human         |
+| Prose SHOULD name what it compares and attributes (§10.3)                | `language`             | `language`                                          | human         |
+| A concept filename's slug SHOULD match its title (§5.1.1)                | `filename-drift`       | `filename-drift`                                    | automatic     |
+| One claim MUST NOT rest on two versions of one source unexamined (§10.2) | `conflict`             | `evidence-divergence`                               | human         |
+| Two claims about one subject MUST NOT bound it disjointly (§10.2)        | `conflict`             | `conflict`                                          | human         |
+| An open challenge MUST NOT age past its declared window (§10.7.3)        | `unanswered-challenge` | `unanswered-challenge`                              | human         |
+| An adjudicated claim MUST record why it was decided (§10.6.4)            | `warrant`              | `warrant`                                           | human         |
+| An escalated claim MUST be co-signed or record an override (§10.6)       | `co-sign`              | `co-sign`                                           | human         |
+| An unprovable concept the corpus leans on MUST be reported (§14.4.1)     | `durability`           | `durability`, `durability-peripheral`               | human         |
+| The operator patterns SHOULD read what claims state (§10.2.3)            | `constraint-coverage`  | `constraint-coverage`                               | human         |
+| The vocabulary and the corpus MUST agree on types (§5.8)                 | `ontology`             | `type-undeclared`, `type-unused`, `type-deprecated` | human         |
+| A dated claim MUST be revisited after `stale_after` (§14.3)              | `stale`                | `stale`                                             | guided        |
+| The derived index MUST match what the migrations declare (§5.5)          | `schema-shape`         | `schema-shape`                                      | —             |
+| Archived text MUST pass §9.3's scan                                      | `archive.Gates`        | archive `reject_reason`                             | —             |
+| A candidate MUST pass §9.3's scan                                        | `gate:security`        | gate verdict                                        | —             |
+| Every offered quotation MUST validate against tier 0 (§9.4)              | `gate:evidence`        | gate verdict                                        | —             |
+| Every source MUST be followable or declare it is not (§4.3)              | `gate:provenance`      | gate verdict                                        | —             |
+| A title MUST NOT already be held (§4.6.1)                                | `gate:duplication`     | gate verdict                                        | —             |
+| A body MUST NOT exceed `hedging_max` softening phrases (§9.5)            | `gate:hedging`         | gate verdict                                        | —             |
+| Every mutation MUST write a verified audit row (§15)                     | `Writer.Audit`         | ECONFLICT / EINVALID                                | —             |
+| Every bundle write MUST hold the writer lock (§4.6)                      | `bundle.Writer`        | compile error                                       | —             |
+| A `standards/` value MUST carry a rationale (§6.2)                       | `standards.Load*`      | EINVALID                                            | —             |
+| A §9.3 pattern MUST discriminate (§9.3)                                  | `scan.LoadRules`       | EINVALID                                            | —             |
 
 **What the table cannot catch, and what does.** It is checked in both directions against
 the registry, so a row claiming a checker that was deleted fails and a checker nobody
@@ -5292,7 +5437,23 @@ is a plain count rather than a judgment:
 
 The in-degree cut lives in `standards/archive.toml` with the empirical basis for
 whatever value is chosen, and it is a **reference value, not a gate**: nothing
-blocks on centrality. A load-bearing weak claim is a prompt to go find a better
+blocks on centrality.
+
+**The cut is the single boundary, and the median above is not a second one.** The
+table describes peripheral as *below the median* and load-bearing as *at or above a
+declared cut*, which is two numbers with a gap between them — and there are only two
+treatments, reported or suppressed, so a document in the gap would belong to no
+class. Deriving the median as a second threshold is the invented constant §6.2 exists
+to refuse. So the declared cut decides both, the median is what the cut should be
+*calibrated to*, and `standards/archive.toml` already records that as pending the
+corpus's own distribution. Settled while building the check on 2026-09-02.
+
+**A cut of zero declines rather than reporting**, which is not a detail of the
+implementation: an in-degree of zero is at or above a cut of zero, so a corpus whose
+standards did not load would otherwise have every unprovable document reported as
+load-bearing. The check skips with a reason, and the reason says the file may declare
+a cut and have failed to load — an incomplete `standards/archive.toml` is rejected
+whole, so a reader can be looking at the value while the check sees none. A load-bearing weak claim is a prompt to go find a better
 source, which is human work, not a build failure.
 
 Two guards against this becoming a score: the classes are named states, never a
@@ -5478,11 +5639,15 @@ decide which one wins.
 
 ### 16.2 Manifests and Proofs
 
-`gnosis manifest` emits `skillet/manifest` over the corpus so downstream tools
-consult it instead of rediscovering the tree, and `manifest.Diff` answers which
-concepts changed since a baseline. `gnosis proof create` binds corpus and tier-0
-digests into a `skillet/proof` packet, so `adh` can close an arc that touched the
-knowledge base under `no-proof-no-close`.
+`gnosis proof create` binds corpus and tier-0 digests into a `skillet/proof` packet, so
+`adh` can close an arc that touched the knowledge base under `no-proof-no-close`. Built
+2026-09-03; `proof.Create` fits exactly, because it hashes bytes and records
+repo-relative paths, which is what "binds the corpus" means.
+
+**`gnosis manifest` is not built, and §8.5 records why**: `manifest.Diff` matches on
+location and this corpus's locations are views. The sentence that stood here — "so
+downstream tools consult it instead of rediscovering the tree" — described a real need
+and named the wrong instrument.
 
 ### 16.3 Knowledge Flows Both Ways
 
@@ -5637,6 +5802,21 @@ that it is not checking.** A confident answer assembled from nothing is the most
 expensive output this design can produce, because it carries the corpus's
 authority.
 
+**Built 2026-09-03 as four states, and the fold is what refuses.** `gnosis.Answerability`
+is `silent`, `unevidenced`, `unresolved` and `ready`, folded from the claims retrieved for
+a question: retrieval returns a ranking and a ranking cannot refuse, so turning a ranked
+list into an answerable decision is a separate, pure step. Each refusal carries its own
+remedy, which is the clearest argument that they had to be three — only `unresolved` is a
+conflict waiting to be filed, and only `unevidenced` is fixed by ingesting a source. A
+refusal exits **0**: a non-zero code would make "the corpus does not know" indistinguishable
+from "the command broke", which is this section's failure one surface further out.
+
+One thing running it found that no test had. A retrieved claim carrying **no** passage
+was reaching the prompt under a heading promising evidence, in a set where some other
+claim was evidenced — so the rules said "answer only from the claims below" and one of
+them had nothing behind it. Unevidenced claims are now left out of the prompt and their
+number is reported, because a silent omission is the other half of the same failure.
+
 ### 17.1 Structural Verification Is Not Semantic Agreement
 
 Two acts, never conflated:
@@ -5667,6 +5847,19 @@ A structural pass means the corpus is **internally honest**, not that anyone
 agrees with it. `gate` MUST report which act ran: a `semantic_review` field in
 the findings result, and a sentence in the human output. A structural pass
 reported as "verified" is exactly the overclaim this section exists to prevent.
+
+**Built 2026-09-03 as four states, not two.** A clean critic produces no findings, so
+"no critic finding" and "no critic ran" are different facts and a flag would collapse
+them into the flattering one: `structural-only`, `semantic-clean`, `semantic-findings`,
+and `unknown` when the record could not be read. A critic verdict in hand outranks an
+unreadable record — the finding is evidence of the act and the ledger is bookkeeping
+about it — and none of the four words is "verified".
+
+The `critic:` category prefix is what makes the state readable from the findings alone,
+which is what that prefix was added for. It lives in the domain rather than in the
+package that stamps it, because two packages agreeing on a marker by inspection is one
+decision in two modules and the failure would be silent: a gate that stopped recognising
+critic findings would report every corpus as structurally checked only.
 
 The interesting case is a claim that passes structure and fails review. That is
 not a malformed artifact; it is a well-formed wrong one, and it is the state the

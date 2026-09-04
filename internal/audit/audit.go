@@ -38,13 +38,16 @@ import (
 // not read as a record of something — an audit trail whose empty rows look like
 // events is worse than none, because it invites counting them.
 const (
-	OpUnset   Op = ""
-	OpFetch   Op = "fetch"   // a source entered tier 0
-	OpAdmit   Op = "admit"   // a reply became a quarantined document
-	OpPromote Op = "promote" // a document entered the corpus
-	OpInit    Op = "init"    // a bundle was scaffolded
-	OpRebuild Op = "rebuild" // the derived index was rewritten
-	OpDiscard Op = "discard" // a quarantined draft was dropped
+	OpUnset      Op = ""
+	OpFetch      Op = "fetch"      // a source entered tier 0
+	OpAdmit      Op = "admit"      // a reply became a quarantined document
+	OpPromote    Op = "promote"    // a document entered the corpus
+	OpInit       Op = "init"       // a bundle was scaffolded
+	OpRebuild    Op = "rebuild"    // the derived index was rewritten
+	OpDiscard    Op = "discard"    // a quarantined draft was dropped
+	OpChallenge  Op = "challenge"  // a reader contested an accepted claim
+	OpAdjudicate Op = "adjudicate" // a person decided a claim and wrote its warrant
+	OpSupersede  Op = "supersede"  // one claim replaced another, and the loser was kept
 )
 
 // Op names what happened.

@@ -55,7 +55,7 @@ func runNamed(t *testing.T, snap *lint.Snapshot, name string) []string {
 		for _, d := range c.Run(snap) {
 			for _, bad := range grammarOf(d.Message) {
 				t.Errorf("%s emits %q, where a count of one takes a plural verb; "+
-					"render the count with noun(n, word) so it sits in a noun phrase "+
+					"render the count with Noun(n, word) so it sits in a noun phrase "+
 					"and no verb has to agree with it:\n%s", name, bad, d.Message)
 			}
 			out = append(out, d.Category+" "+d.Path+": "+d.Message)

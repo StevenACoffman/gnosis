@@ -11,10 +11,18 @@ import (
 //
 // It mirrors the switch in describeLoosening, and the mirroring is the point: this
 // file is the guard that switch never had.
-var countable = []string{"corpus_budget", "corpus_warn_fraction", "staleness_days"}
+var countable = []string{
+	"corpus_budget", "corpus_warn_fraction", "staleness_days", "in_degree_cut",
+}
 
 // unreadHere are the archive thresholds describeLoosening reports as read by nothing.
-var unreadHere = []string{"in_degree_cut"}
+//
+// Empty as of 2026-09-02, when `in_degree_cut` gained the `durability` check as its
+// reader and moved into `countable` above. The variable stays rather than being deleted:
+// it is half of a two-direction guard, and the direction it watches — this file calling
+// a threshold unread while `standards.Unread` calls it consumed — is the bug that was
+// actually there.
+var unreadHere = []string{}
 
 // TestTheClassifierAgreesWithUnread is the guard the switch never had, and it exists
 // because the switch was wrong.

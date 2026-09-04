@@ -121,6 +121,28 @@ type Snapshot struct {
 	// checks that read it rather than failing them.
 	Vocabulary Vocabulary
 
+	// Authority is the corpus's derived adjudication authority (§10.6.1), from the
+	// distinct human actors in its warrants and verification lists.
+	//
+	// Gathered rather than derived here for the reason the vocabulary is: the fold is
+	// the domain's, the count is the shell's, and a check that walked the corpus to
+	// derive it would be re-deriving one number per check. Its zero value is `sole`,
+	// which requires nothing — so a snapshot nobody populated cannot make a corpus
+	// unable to adjudicate (§10.6.3).
+	Authority gnosis.Authority
+
+	// ChallengeDays is the declared window after which an open challenge is
+	// reported, from standards/. Zero skips the check rather than reporting every
+	// challenge the moment it is filed.
+	ChallengeDays int
+
+	// InDegreeCut is the inbound-link count at which a document is treated as
+	// central, from standards/. Zero means the standards did not load, which
+	// **skips** the durability check rather than making every document central —
+	// an in-degree of zero is at or above a cut of zero, so a missing threshold
+	// would report the whole corpus (§14.4.1).
+	InDegreeCut int
+
 	// HasIndex reports whether the bundle has a derived index at all. A bundle
 	// freshly cloned has none, and in that state every document differs from the
 	// index trivially — which is why the index-relative checks are skipped
@@ -158,6 +180,41 @@ type Document struct {
 	// Limitations is what this concept declares it does not cover (§17.2). Empty for
 	// a document declaring none.
 	Limitations []string
+
+	// Challenges are the contests readers have filed against this document
+	// (§10.7.4), in declaration order — which is the order they were filed.
+	Challenges []gnosis.Challenge
+
+	// Evidence is everything this document's assertions rest on, with what each
+	// one buys (§14.4). Empty for a document resting on nothing.
+	//
+	// **At the document grain, and §14.4's table is written at the claim grain.**
+	// The reason is a limit of what frontmatter can currently say: a `referenced`
+	// source has no archived text and therefore no `archive_paths` entry, so the
+	// only place a claim's own evidence can name one is the document's OKF
+	// `sources` list — which is per document. Until a claim can name a referenced
+	// source, `partly-provable` and `unprovable` have no expressible population at
+	// the claim grain, and computing them there would produce a signal that is
+	// always `provable` or `not-applicable`. §12's own row for `durability` says
+	// "concept", which is the same conclusion reached from the other direction.
+	Evidence []Evidence
+}
+
+// Evidence is one thing a document rests on, and what it buys.
+//
+// A struct rather than parallel slices because the pair belongs together: a
+// support with no source cannot be reported to anybody, and a source with no
+// support cannot be folded. The URI is carried so a finding can name what to go
+// and replace, which is the only action a `durability` finding has.
+type Evidence struct {
+	// URI is the source, as tier 0's record names it, or the resource string the
+	// document declared when no record matches it.
+	URI string
+
+	// Support is what this source buys a claim that cites it. SupportNone for a
+	// resource tier 0 has no record of, which contributes to no state — that gap
+	// belongs to `gate:provenance` and to `archive-closure`.
+	Support gnosis.Support
 }
 
 // Claim is the subset of a claim the checks examine: its identity, its address,
@@ -188,6 +245,19 @@ type Claim struct {
 	// resolved key because both readings are findings: an unresolvable phrase is
 	// `subject-unknown`, and resolving it here would discard the evidence for that.
 	Subject string
+
+	// Warrant is the record of a human adjudication (§10.6.4), or the zero value for
+	// a claim carrying none.
+	//
+	// **It is deliberately not on gate.Claim**, for the reason `Subject` is not: the
+	// promote gate must not read a warrant field, and §10.6.2.1 makes that a
+	// structural guarantee rather than a comment — the gate's inputs would have to be
+	// visibly widened, which is a change a reviewer has to argue for.
+	Warrant gnosis.Warrant
+
+	// Supersedes are the claims this one replaced after an adjudicated conflict
+	// (§10.4). Empty for a claim replacing nothing.
+	Supersedes []string
 
 	ArchivePaths []string
 }
@@ -288,6 +358,10 @@ func Checks(now time.Time) []Check {
 		archivePathCheck(),
 		claimAnchorCheck(),
 		conflictCheck(),
+		durabilityCheck(),
+		warrantCheck(),
+		coSignCheck(),
+		unansweredChallengeCheck(now),
 		coverageCheck(),
 		rungCheck(),
 		dimensionDriftCheck(),

@@ -52,6 +52,26 @@ type Gains struct {
 	// forty.
 	Declined int `json:"declined"`
 
+	// Challenged is how many claims a reader contested (§10.7).
+	//
+	// **A gain for the reason Declined is one, and a stronger one.** A challenge is
+	// the corpus learning that somebody thinks it is wrong, which it could not learn
+	// any other way: §6.2.1 records that the candidate selector is systematically
+	// blind to conflicts between claims sharing no source, no link and no
+	// vocabulary, and a reader who noticed one has done for free what the selector
+	// provably cannot. Counting it also keeps the incentive pointing the right way,
+	// since §10.7.3 requires that being wrong cost the challenger nothing.
+	Challenged int `json:"challenged"`
+
+	// Adjudicated is how many claims a person decided and wrote a warrant for
+	// (§10.4).
+	//
+	// The clearest gain in this list: an adjudicated claim is knowledge present in
+	// neither source, which is the largest category a group of experienced
+	// practitioners produces and the one the evidence invariant would otherwise
+	// refuse outright.
+	Adjudicated int `json:"adjudicated"`
+
 	// Unreadable is how many trail lines would not parse, making every count a floor.
 	Unreadable int `json:"unreadable_lines,omitempty"`
 }
@@ -64,7 +84,8 @@ func (g *Gains) Complete() bool { return g.Unreadable == 0 }
 // A separate question from the counts, because "nothing yet" and "we did not look" must
 // not render alike — the same reason `Freshness` keeps `unknown` apart from `stale`.
 func (g *Gains) Any() bool {
-	return g.Promoted+g.Admitted+g.Archived+g.Declined > 0
+	return g.Promoted+g.Admitted+g.Archived+g.Declined+
+		g.Challenged+g.Adjudicated > 0
 }
 
 // Gained counts what the corpus acquired since a moment.
@@ -86,29 +107,47 @@ func Gained(trail *Trail, since time.Time) *Gains {
 	out := &Gains{Since: since, Unreadable: len(trail.Malformed)}
 	for i := range trail.Rows {
 		row := &trail.Rows[i]
-		if row.At.Before(since) {
+		if row.At.Before(since) || row.Outcome != string(gnosis.StatusOK) {
 			continue
 		}
-		if row.Outcome != string(gnosis.StatusOK) {
-			continue
-		}
-		switch row.Op {
-		case audit.OpPromote:
-			out.Promoted++
-		case audit.OpAdmit:
-			out.Admitted++
-		case audit.OpDiscard:
-			out.Declined++
-		case audit.OpFetch:
-			// One row per invocation, and `Paths` names what reached the disk — so
-			// the sources archived is the path count rather than the row count. A
-			// fetch of thirty sources is one row and thirty gains.
-			out.Archived += len(row.Paths)
-		case audit.OpInit, audit.OpRebuild, audit.OpUnset:
-			// Scaffolding and cache rebuilds are not gains: the corpus knows nothing
-			// it did not know before. Named rather than defaulted so an operation
-			// added later has to be classified deliberately.
-		}
+		out.count(row)
 	}
 	return out
+}
+
+// count adds one succeeded row to the totals.
+//
+// Split from Gained when the seventh operation arrived and the complexity limit
+// objected, which was the right moment: the loop is about *which rows count* — since
+// the window, and succeeded — and this is about *what each one gained*. They change for
+// different reasons, and the switch grows by one case every time the corpus learns a
+// new verb.
+func (g *Gains) count(row *audit.Row) {
+	switch row.Op {
+	case audit.OpPromote:
+		g.Promoted++
+	case audit.OpAdmit:
+		g.Admitted++
+	case audit.OpDiscard:
+		g.Declined++
+	case audit.OpChallenge:
+		g.Challenged++
+	case audit.OpAdjudicate:
+		g.Adjudicated++
+	case audit.OpFetch:
+		// One row per invocation, and `Paths` names what reached the disk — so the
+		// sources archived is the path count rather than the row count. A fetch of
+		// thirty sources is one row and thirty gains.
+		g.Archived += len(row.Paths)
+	case audit.OpSupersede:
+		// Not a gain and not nothing: a supersession records that the corpus changed
+		// its mind, and the knowledge it gained is the *winning* claim, which was
+		// counted when it was promoted. Counting it here would count one addition
+		// twice, and §17's refusal to score is the same argument — a number that grows
+		// when a corpus revises itself is a number somebody will try to grow.
+	case audit.OpInit, audit.OpRebuild, audit.OpUnset:
+		// Scaffolding and cache rebuilds are not gains: the corpus knows nothing it
+		// did not know before. Named rather than defaulted so an operation added
+		// later has to be classified deliberately.
+	}
 }

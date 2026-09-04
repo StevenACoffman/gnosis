@@ -90,8 +90,9 @@ func someClaimNamesASubject(snap *Snapshot) (bool, string) {
 		return false, "ontology.toml declares no subjects yet, so no phrase could resolve"
 	}
 	for i := range snap.Documents {
-		for _, claim := range snap.Documents[i].Claims {
-			if strings.TrimSpace(claim.Subject) != "" {
+		claims := snap.Documents[i].Claims
+		for j := range claims {
+			if strings.TrimSpace(claims[j].Subject) != "" {
 				return true, ""
 			}
 		}
@@ -285,7 +286,7 @@ func unusedTypes(snap *Snapshot, used map[gnosis.TypeKey]int) []finding.Diagnost
 	return []finding.Diagnostic{{
 		Severity: finding.SeverityWarning,
 		Category: "type-unused",
-		Message: "no document is of " + noun(len(unused), "declared type") + " " +
+		Message: "no document is of " + Noun(len(unused), "declared type") + " " +
 			strings.Join(unused, ", ") +
 			" — a vocabulary entry nothing exercises is one whose behaviour nobody" +
 			" has observed; a corpus that has only just started is expected to be" +
@@ -343,8 +344,18 @@ func sortedKeys(m map[gnosis.TypeKey]int) []gnosis.TypeKey {
 	return out
 }
 
-// noun renders a count with its noun pluralised.
-func noun(n int, word string) string {
+// Noun renders a count inside a noun phrase, so no verb has to agree with it.
+//
+// Requires: word is the singular form.
+// Ensures: "1 quotation" and "2 quotations". Pure.
+//
+// **It is §17.5's remedy and it is exported for one caller outside this package.** Three
+// findings shipped saying "1 document declare", "1 claim name" and "1 command that do
+// not resolve", each written by composing a number with a sentence built for the plural
+// case, and each caught by running the binary rather than by a test. The rule applies to
+// any count in any message, so the findings gate one layer up calls this rather than
+// keeping a second copy: a rule spelled twice is a rule that can be fixed once.
+func Noun(n int, word string) string {
 	if n == 1 {
 		return "1 " + word
 	}

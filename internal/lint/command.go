@@ -81,7 +81,7 @@ func unresolvedCommands(snap *Snapshot) []finding.Diagnostic {
 		// it. "names 1 command that do not resolve" was the third subject-verb
 		// disagreement of this session, after "1 document declare" and "1 claim name"
 		// — a class no substring assertion sees and one run of the command shows.
-		Message: "names " + noun(len(unknown), "unresolvable command") + ": " +
+		Message: "names " + Noun(len(unknown), "unresolvable command") + ": " +
 			strings.Join(unknown, ", ") +
 			" — this is your own prose rather than a generated region, so `gnosis" +
 			" schema` will not correct it. An agent reading this document will run" +

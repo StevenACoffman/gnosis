@@ -5,6 +5,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/gnosis/internal/lint"
 )
 
 // TestAReflowedAnchorHasNoOffsetRatherThanAWrongOne is the adversarial case, and it is
@@ -136,28 +137,20 @@ func TestALeadReachesTheIndexAndAnAbsentOneDoesNot(t *testing.T) {
 func TestEveryDeclaredClaimFieldReachesTheSnapshot(t *testing.T) {
 	t.Parallel()
 
-	docs := []bundle.Document{{
-		ID: gnosis.ID("0192a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"), Path: "c/a.md",
-		Type: "Rule", Body: "An assertion.\n",
-		Limitations: []string{"does not cover batch jobs"},
-		Claims: []bundle.DocClaim{{
-			ID:           "c1",
-			Anchor:       "An assertion.",
-			Lead:         "The conclusion, first.",
-			Subject:      "retry budget",
-			Quotes:       []string{"a quoted passage from the source"},
-			ArchivePaths: []string{"evidence/text/aa/x.txt"},
-		}},
+	claims := []bundle.DocClaim{{
+		ID:           "c1",
+		Anchor:       "An assertion.",
+		Lead:         "The conclusion, first.",
+		Subject:      "retry budget",
+		Quotes:       []string{"a quoted passage from the source"},
+		ArchivePaths: []string{"evidence/text/aa/x.txt"},
+		Warrant: gnosis.Warrant{
+			By: "human:priya", Rationale: "the vendor limit postdates the post",
+		},
+		Supersedes: []string{"01932b7c-1f4e-7a3d-9c2b-5e8f0a1b2c3d"},
 	}}
 
-	// The document-level projection too: `Limitations` is a Document field and the
-	// same seam swallowed `Lead` one level down.
-	if projected := bundle.DocumentsForTest(docs); len(projected) != 1 ||
-		len(projected[0].Limitations) != 1 {
-		t.Errorf("Limitations did not reach the snapshot: %+v", projected)
-	}
-
-	got := bundle.ClaimRefsForTest(docs[0].Claims)
+	got := bundle.ClaimRefsForTest(claims)
 	if len(got) != 1 {
 		t.Fatalf("want one claim, got %d", len(got))
 	}
@@ -172,7 +165,71 @@ func TestEveryDeclaredClaimFieldReachesTheSnapshot(t *testing.T) {
 				name, pair[0], pair[1])
 		}
 	}
-	if len(got[0].Quotes) != 1 || len(got[0].ArchivePaths) != 1 {
+	if len(got[0].Quotes) != 1 || len(got[0].ArchivePaths) != 1 ||
+		len(got[0].Supersedes) != 1 {
 		t.Errorf("the list fields did not reach the snapshot: %+v", got[0])
+	}
+	// The warrant is a struct rather than a string, so a projection that dropped it
+	// would leave `warrant` and `co-sign` examining the zero value — which reports
+	// every adjudication as unadjudicated, and therefore reports nothing at all.
+	if got[0].Warrant.By != "human:priya" || got[0].Warrant.Rationale == "" {
+		t.Errorf("the warrant did not reach the snapshot: %+v", got[0].Warrant)
+	}
+}
+
+// TestEveryDeclaredDocumentFieldReachesTheSnapshot is the same seam one level up, and
+// it is a separate test rather than a second half of the one above because the two
+// projections fail independently — `Limitations` was swallowed by this one while
+// `Lead` was swallowed by the claim projection, and a single test covering both makes
+// either failure read as the other.
+//
+// `Evidence` is the case that most needs it: it is *derived* from tier 0's records
+// rather than copied off a Document field, so nothing about the Document type would
+// reveal it going missing.
+func TestEveryDeclaredDocumentFieldReachesTheSnapshot(t *testing.T) {
+	t.Parallel()
+
+	docs := []bundle.Document{{
+		ID: gnosis.ID("0192a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"), Path: "c/a.md",
+		Type: "Rule", Body: "An assertion.\n",
+		Limitations: []string{"does not cover batch jobs"},
+		Resources:   []string{"https://example.org/referenced.pdf"},
+		Claims: []bundle.DocClaim{{
+			ID: "c1", Anchor: "An assertion.",
+			ArchivePaths: []string{"evidence/text/aa/x.txt"},
+		}},
+	}}
+	support := map[string]lint.Evidence{
+		"evidence/text/aa/x.txt": {
+			URI: "https://example.org/a.md", Support: gnosis.SupportDurable,
+		},
+		"https://example.org/referenced.pdf": {
+			URI: "https://example.org/referenced.pdf", Support: gnosis.SupportWeak,
+		},
+	}
+
+	projected := bundle.DocumentsForTest(docs, support)
+	if len(projected) != 1 {
+		t.Fatalf("want one document, got %d", len(projected))
+	}
+	if len(projected[0].Limitations) != 1 {
+		t.Errorf("Limitations did not reach the snapshot: %+v", projected[0])
+	}
+	// Both routes have to arrive: a claim's archive path, and the OKF `sources`
+	// list — which is the only place a `referenced` source can be named (§14.4).
+	want := map[string]gnosis.Support{
+		"https://example.org/a.md":           gnosis.SupportDurable,
+		"https://example.org/referenced.pdf": gnosis.SupportWeak,
+	}
+	if len(projected[0].Evidence) != len(want) {
+		t.Fatalf("Evidence did not reach the snapshot from both routes: %+v",
+			projected[0].Evidence)
+	}
+	for _, e := range projected[0].Evidence {
+		if w, ok := want[e.URI]; !ok {
+			t.Errorf("unexpected evidence %q", e.URI)
+		} else if e.Support != w {
+			t.Errorf("%s projected as %v, want %v", e.URI, e.Support, w)
+		}
 	}
 }

@@ -16,24 +16,35 @@ import (
 	"github.com/peterbourgon/ff/v4"
 	"github.com/peterbourgon/ff/v4/ffhelp"
 
+	"github.com/StevenACoffman/gnosis/cmd/adjudicatecmd"
 	"github.com/StevenACoffman/gnosis/cmd/admitcmd"
+	"github.com/StevenACoffman/gnosis/cmd/askcmd"
 	"github.com/StevenACoffman/gnosis/cmd/auditcmd"
+	"github.com/StevenACoffman/gnosis/cmd/challengecmd"
+	"github.com/StevenACoffman/gnosis/cmd/criticcmd"
 	"github.com/StevenACoffman/gnosis/cmd/debtcmd"
 	"github.com/StevenACoffman/gnosis/cmd/doctorcmd"
+	"github.com/StevenACoffman/gnosis/cmd/exportcmd"
 	"github.com/StevenACoffman/gnosis/cmd/fetchcmd"
+	"github.com/StevenACoffman/gnosis/cmd/filecmd"
+	"github.com/StevenACoffman/gnosis/cmd/gatecmd"
 	"github.com/StevenACoffman/gnosis/cmd/graphcmd"
 	"github.com/StevenACoffman/gnosis/cmd/indexcmd"
 	"github.com/StevenACoffman/gnosis/cmd/ingestcmd"
 	"github.com/StevenACoffman/gnosis/cmd/initcmd"
 	"github.com/StevenACoffman/gnosis/cmd/lintcmd"
 	"github.com/StevenACoffman/gnosis/cmd/logcmd"
+	"github.com/StevenACoffman/gnosis/cmd/minecmd"
+	"github.com/StevenACoffman/gnosis/cmd/misscmd"
 	"github.com/StevenACoffman/gnosis/cmd/promotecmd"
+	"github.com/StevenACoffman/gnosis/cmd/proofcmd"
 	"github.com/StevenACoffman/gnosis/cmd/quarantinecmd"
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/cmd/schemacmd"
 	"github.com/StevenACoffman/gnosis/cmd/searchcmd"
 	"github.com/StevenACoffman/gnosis/cmd/showcmd"
 	"github.com/StevenACoffman/gnosis/cmd/standardscmd"
+	"github.com/StevenACoffman/gnosis/cmd/supersedecmd"
 	"github.com/StevenACoffman/gnosis/cmd/synthesizecmd"
 	"github.com/StevenACoffman/gnosis/cmd/version"
 	"github.com/StevenACoffman/gnosis/internal/scan"
@@ -127,5 +138,16 @@ func register(r *root.Config) {
 	auditcmd.New(r)
 	debtcmd.New(r)
 	synthesizecmd.New(r)
+	challengecmd.New(r)
+	adjudicatecmd.New(r)
+	supersedecmd.New(r)
+	criticcmd.New(r)
+	misscmd.New(r)
+	proofcmd.New(r)
+	exportcmd.New(r)
+	askcmd.New(r)
+	filecmd.New(r)
+	minecmd.New(r)
+	gatecmd.New(r)
 	// register new commands here
 }

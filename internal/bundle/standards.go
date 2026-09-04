@@ -28,6 +28,16 @@ func LoadArchiveStandards(bundleDir string) (*standards.Archive, error) {
 		standards.ArchiveFileName, standards.DefaultArchive, standards.LoadArchive)
 }
 
+// LoadChallengeStandards reads a bundle's challenge window, falling back to the seed.
+//
+// Requires: bundleDir is a path, which need not exist.
+// Ensures: the same rule as LoadArchiveStandards — an absent file gets the embedded
+// default, and a present file that will not load is a hard error.
+func LoadChallengeStandards(bundleDir string) (*standards.Challenge, error) {
+	return loadStandards(bundleDir, "bundle.LoadChallengeStandards",
+		standards.ChallengeFileName, standards.DefaultChallenge, standards.LoadChallenge)
+}
+
 // LoadPromoteStandards reads a bundle's gate thresholds, falling back to the seed.
 //
 // Requires: bundleDir is a path, which need not exist.

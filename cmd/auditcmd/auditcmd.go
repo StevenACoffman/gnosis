@@ -149,6 +149,14 @@ type Config struct {
 	// Unretrieved reports which claims searches were not seen to return (§12.2).
 	Unretrieved bool
 
+	// Reversed lists the decisions a later warrant overturned (§10.6.5).
+	//
+	// **A retrieval surface and never an analytic one.** A reader assembling an
+	// argument, or a team deciding how much weight to give an adjudication, can see
+	// which reasoning did not hold — and nothing here counts reversals per actor,
+	// because inferring reliability from that would be scoring with extra steps.
+	Reversed bool
+
 	// Since bounds --gained and --unretrieved. A count with no period is
 	// uninterpretable.
 	Since string
@@ -177,6 +185,8 @@ func New(parent *root.Config) *Config {
 		"count what the corpus acquired, rather than what is wrong with it")
 	cfg.Flags.BoolVar(&cfg.SubjectPop, 0, "subjects",
 		"report how the vocabulary is occupied: claims and sources per subject key")
+	cfg.Flags.BoolVar(&cfg.Reversed, 0, "reversed",
+		"list the decisions a later warrant overturned (§10.6.5)")
 	cfg.Flags.BoolVar(&cfg.Unretrieved, 0, "unretrieved",
 		"list the claims this user's searches were not seen to return")
 	cfg.Flags.StringVar(&cfg.Since, 0, "since", "",
@@ -209,6 +219,12 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 		return err
 	}
 	switch {
+	case c.Reversed:
+		reversals, err := bundle.Reversals(c.Bundle)
+		if err != nil {
+			return c.unreadable(err)
+		}
+		return c.reportReversals(reversals)
 	case c.Unretrieved:
 		return c.reportReach(ctx)
 	case c.SubjectPop:
@@ -242,14 +258,15 @@ func (c *Config) validate(args []string) error {
 	}
 	if chosen(
 		c.Outstanding, c.Unsupported, c.Churn, c.Gained, c.SubjectPop, c.Unretrieved,
+		c.Reversed,
 	) != 1 {
-		// No default report — the command will grow `--reversed` (§10.6.5), so a bare
-		// invocation that silently meant one of them would change meaning when the
-		// next arrived. And two at once would interleave two lists on one stream with
-		// nothing separating them.
+		// No default report, and `--reversed` arriving on 2026-09-02 is what this
+		// comment predicted: a bare invocation that silently meant one of them would
+		// have changed meaning today. Two at once would interleave two lists on one
+		// stream with nothing separating them.
 		return c.usage(errors.New("audit needs exactly one report: " +
 			"--outstanding, --unsupported, --churn, --gained, --subjects," +
-			" or --unretrieved"))
+			" --unretrieved, or --reversed"))
 	}
 	return nil
 }
@@ -392,6 +409,8 @@ func (c *Config) reportGains(gains *bundle.Gains) error {
 		{gains.Admitted, "replies admitted"},
 		{gains.Archived, "sources archived"},
 		{gains.Declined, "drafts declined"},
+		{gains.Challenged, "claims challenged"},
+		{gains.Adjudicated, "claims adjudicated"},
 	} {
 		if row.n > 0 {
 			_, _ = fmt.Fprintf(c.Stdout, "%d\t%s\n", row.n, row.what)
@@ -553,6 +572,32 @@ func countOf(n int, noun string) string {
 		return "1 " + noun
 	}
 	return strconv.Itoa(n) + " " + noun + "s"
+}
+
+// reportReversals renders the decisions a later warrant overturned.
+//
+// The reason is printed with each entry rather than the identifiers alone, because the
+// reason is the informative half: a reversal says the corpus decided under incomplete
+// information and later learned more, and the second decision's rationale is that
+// learning.
+func (c *Config) reportReversals(reversals []bundle.Reversal) error {
+	if c.JSONL {
+		if err := c.EmitOK(map[string]any{"reversals": reversals}); err != nil {
+			return fmt.Errorf("audit: %w", err)
+		}
+		return nil
+	}
+	for i := range reversals {
+		r := &reversals[i]
+		_, _ = fmt.Fprintf(c.Stdout, "%s\t%s\t%s\treverses %s\n\t%s\n",
+			r.At, r.By, r.Path+" "+r.ClaimID, r.Reverses,
+			strings.Join(strings.Fields(r.Rationale), " "))
+	}
+	// On stderr with the count, so a reader piping stdout keeps the scope. Nothing
+	// exits non-zero: a corpus that has reversed decisions is one where somebody is
+	// deciding contestable things, which is not a finding.
+	_, _ = fmt.Fprintf(c.Stderr, "%d reversal(s)\n", len(reversals))
+	return nil
 }
 
 // fail and usage adapt root's reporting to this command's name.

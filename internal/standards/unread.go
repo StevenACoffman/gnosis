@@ -62,22 +62,28 @@ func reading(k string) Reading {
 	switch k {
 	case "allowlist", "per_file_cap", "corpus_budget", "corpus_warn_fraction",
 		"embedded_payload_cap", "staleness_days", "hedging_max",
-		"rebuild_floor_fraction", "seed":
+		"rebuild_floor_fraction", "seed", "in_degree_cut", "unanswered_days",
+		"critic_default":
 		// `seed` is consumed by `gnosis debt --sample`, which is the first of the
 		// three draws §6.2.1, §10.5, and §14.3.1 specify to be built. It is recorded
 		// here as consumed rather than unread because it has a reader today — the
 		// point of this file is that the answer is about this binary, not about what
 		// the spec eventually wants.
+		//
+		// `in_degree_cut` gained its reader on 2026-09-02: §14.4.1's `durability`
+		// check narrows unprovable documents by centrality, which is the conjunction
+		// the value was declared for. §4.2 recorded declining to give it a reader that
+		// classified bare centrality — that would have been a different feature wearing
+		// the same number, and would have made the value look consumed while the thing
+		// it was declared for stayed unbuilt.
 		return ReadingConsumed
 	case "html_extractor", "html_extractor_version":
 		return ReadingPinned
 	default:
-		// in_degree_cut is the only value here today. §14.4.1 wants it for the
-		// conjunction "unprovable AND load-bearing", and `unprovable` is Phase 3, so
-		// the cut has nothing to narrow yet. Giving it a reader that classified bare
-		// centrality would be a different feature wearing the same number, and would
-		// make the value look consumed while the thing it was declared for stayed
-		// unbuilt. Reported instead.
+		// Nothing is unread today, and the default stays rather than being removed:
+		// its whole purpose is that a value added to a standards struct and not
+		// classified here falls through to *reported*, which is the direction this
+		// file can afford to fail in.
 		return ReadingUnread
 	}
 }
@@ -103,7 +109,7 @@ func (r Reading) String() string {
 // order, which is a property of this binary and identical for every corpus. Pure.
 func Declarations() []Declaration {
 	var out []Declaration
-	for _, cfg := range []any{Archive{}, Promote{}, Sample{}} {
+	for _, cfg := range []any{Archive{}, Promote{}, Sample{}, Challenge{}} {
 		t := reflect.TypeOf(cfg)
 		for i := range t.NumField() {
 			f := t.Field(i)
@@ -159,7 +165,7 @@ func Pinned() []string {
 // which is the half of the second-place problem that can be automated.
 func declared() []string {
 	var out []string
-	for _, cfg := range []any{Archive{}, Promote{}, Sample{}} {
+	for _, cfg := range []any{Archive{}, Promote{}, Sample{}, Challenge{}} {
 		t := reflect.TypeOf(cfg)
 		for i := range t.NumField() {
 			f := t.Field(i)

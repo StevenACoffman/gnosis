@@ -446,7 +446,7 @@ Recorded so the Phase 1 interfaces are shaped for them, not built now.
 Two Phase 2 items are easy to under-scope because Phase 1 does not need them and
 both are expensive to retrofit:
 
-- **The write coordinator** (§4.6). One writer per user, and it owns the *bundle*
+- [ ] **The write coordinator** (§4.6). One writer per user, and it owns the *bundle*
   rather than merely the database — serializing SQLite writes while leaving markdown
   writes unserialized coordinates the cache and not the corpus. Readers stay
   independent of it by requirement, which is what keeps Phase 1 unaffected.
@@ -467,14 +467,14 @@ both are expensive to retrofit:
   lock spans compute-and-write and that is free; across two round trips the corpus can move
   between them, so a served coordinator needs one round trip or an expected revision on the
   apply. That is the prerequisite a transport has to meet, not a detail of which one.
-- **Claim anchors before any claim row is written** (§5.5.1). A claim's identity
+- [x] **Claim anchors before any claim row is written** (§5.5.1). A claim's identity
   and address live in the document. Writing claims first and adding anchors later
   means every claim written in between has an identity no rebuild can recover.
 
 A third item is cheap now and expensive later, and unlike those two it is not a
 Phase 2 dependency but a Phase 3 one that must be paid in Phase 2:
 
-- **The OKF conformance table test** (§18.5.1). **Done, and it needed the fold with
+- [x] **The OKF conformance table test** (§18.5.1). **Done, and it needed the fold with
   it.** `gnosis.Actor` rejects two of OKF §7's three actor forms, and §14.1's tier fold
   must therefore read raw strings rather than the parsed type (§14.1.1) — so asserting
   "what tier the fold yields" meant building `gnosis.FoldTrust`, a pure function over
@@ -510,18 +510,18 @@ now begins with no arrears** — and the fold it required is sitting there waiti
 Each is specified now and none is large. They are listed together because they came
 from one source and would otherwise be scattered across four phases.
 
-- **The rebuild floor** (§4.5). **Done.** It cost less than budgeted: the previously
+- [x] **The rebuild floor** (§4.5). **Done.** It cost less than budgeted: the previously
   indexed count is `len(indexed)`, which `indexcmd` already loads to compute drift,
   so the planned meta row was unnecessary.
-- **`standards/promote.toml`** (§9.5). **Done**, holding both the hedging limit and
+- [x] **`standards/promote.toml`** (§9.5). **Done**, holding both the hedging limit and
   the rebuild floor.
-- **Corruption versus operational failure** (§15). **Done.** `AuditTrail` and
+- [x] **Corruption versus operational failure** (§15). **Done.** `AuditTrail` and
   `LoadChecks` name a malformed line as corruption and carry its line number.
   `StoreEvidence` already drew the line for the case that matters most — differing
   bytes at a content-addressed path is ECONFLICT rather than a quiet no-op. §15 now
   records the limit: `errs` has no corruption code, so this is legible rather than
   machine-checkable, and a sixth code belongs at the second consumer.
-- **Freshness at the point of reading** (§14.3). **Done, and now at both grains.**
+- [x] **Freshness at the point of reading** (§14.3). **Done, and now at both grains.**
   `lint`'s `stale` check and `show`'s freshness line both land, joined by
   `bundle.LoadFreshness`. The §14.3.0 distinction fell out of building it —
   `stale_after` governs the claim, `staleness_days` governs the check — as did the
@@ -529,7 +529,7 @@ from one source and would otherwise be scattered across four phases.
   per document since §6.19: one measurement used twice, with the document line still
   the weakest of its claims, so the conservative answer was added to rather than
   replaced.
-- **A relay test with a scripted model** (§18.6). **The scripted one is built; the
+- [ ] **A relay test with a scripted model** (§18.6). **The scripted one is built; the
   real-model run is not.** §18.6 specifies all three methods and what each is for: the
   scripted model proves the contract and belongs in CI; a real-model run graded by a
   pure predicate over the transcript proves a live model can satisfy it and must stay
@@ -537,9 +537,10 @@ from one source and would otherwise be scattered across four phases.
   the model protocol" needed translating, because gnosis speaks no model protocol, so
   the seam is prompt file → agent → reply file and the server is a function that can
   see only the prompt. The real-model run stays unbuilt and stays out of the gate.
-- **An `AI_POLICY.md`** for this repository. Not a code change and not a spec change
-  — a repository is a corpus, §1.1 says a claim must name its witness, and this one
-  does not.
+- [x] **An `AI_POLICY.md`** for this repository. **Done** — three rules, of which the one
+  with teeth is *reject what the contributor cannot explain or defend*. Not a code change
+  and not a spec change: a repository is a corpus, §1.1 says a claim must name its
+  witness, and this one did not.
 
 ______________________________________________________________________
 
@@ -552,22 +553,22 @@ than by size, because two of them are cheap now and expensive later.
 
 **Do with Phase 2, because the write path is being touched anyway:**
 
-- **A mutation verifies its own audit row** (§15). **Done.** It was not one
+- [x] **A mutation verifies its own audit row** (§15). **Done.** It was not one
   function: `init` and `index rebuild` append outside the coordinator, so the
   verifying append is the exported one and the bare append is unexported, which
   makes the compiler enforce what a source-scanning test was briefly asserting.
-- **`bundle.AuditTrail` counts malformed lines rather than skipping them** (§15).
+- [x] **`bundle.AuditTrail` counts malformed lines rather than skipping them** (§15).
   **Done**, as a `Trail` value with a `Whole()` method rather than a value plus an
   error — Go's convention makes a value untrustworthy beside a non-nil error, and
   the whole requirement is that the rows stay usable while the damage is known.
-- **`gnosis doctor` reports the trail's health** — malformed-line count. **Done,
+- [x] **`gnosis doctor` reports the trail's health** — malformed-line count. **Done,
   and half of it is withdrawn:** the timestamp comparison fires on the ordinary
   hand-edit-and-commit workflow, because a git commit is not a gnosis write. §15 is
   corrected rather than the check being weakened.
 
 **Phase 2 or 3, once `quotecheck` is wired and the passages are stored:**
 
-- **Upstream drift resolves to three states** (§14.3.2). **Done in §6.19, as four
+- [x] **Upstream drift resolves to three states** (§14.3.2). **Done in §6.19, as four
   states.** `gnosis.Drift` is pure over (archived hash, upstream hash, upstream text,
   recorded quotations) and `fetch --recheck` supplies them; `drift-unsupported` opens
   one finding per affected claim. Two things this bullet did not anticipate, both now
@@ -580,7 +581,7 @@ than by size, because two of them are cheap now and expensive later.
 
 **Phase 3, with §10 — both now done ahead of it:**
 
-- **`rationale` gains the fold-and-compare refusal** (§10.6.4). **Done in §6.20**, and
+- [x] **`rationale` gains the fold-and-compare refusal** (§10.6.4). **Done in §6.20**, and
   three of this bullet's details were wrong. It is applied to
   `command.Promote.Rationale` rather than to `gnosis_warrant`, which is still
   unimplemented — that is the field carrying reasoning in this binary, and Phase 3's
@@ -590,7 +591,7 @@ than by size, because two of them are cheap now and expensive later.
   every quotation guard here deliberately excludes, and the prior rationales are read
   from the trail rather than being in hand, so scoping them to promotions that *landed*
   is what stopped `promote` refusing its own second half.
-- **`gnosis audit --outstanding`** (§15). **Done in §6.20.** This bullet's premise was
+- [x] **`gnosis audit --outstanding`** (§15). **Done in §6.20.** This bullet's premise was
   wrong in a way worth keeping: the states are **not** already committed frontmatter.
   A promotion that reached `needs_human` is in the per-user trail and the draft it
   concerns is in quarantine, so the report is a subtraction over two uncommitted
@@ -600,7 +601,7 @@ than by size, because two of them are cheap now and expensive later.
 
 **Phase 4, and it is the one worth naming early:**
 
-- **`standards/retrieval-cases.toml`** (§11.0.2). **Done in §6.21**, and two details
+- [x] **`standards/retrieval-cases.toml`** (§11.0.2). **Done in §6.21**, and two details
   here were wrong. Cases assert on **titles**, not concept ids: identifiers are assigned
   per corpus, so a file naming them is unportable, unreviewable, and turns a failing
   case into archaeology — the correction came from the competency-question entry, which
@@ -761,34 +762,88 @@ ______________________________________________________________________
 
 ## 6. Progress
 
-| Step                    | State    | Notes                                                                                                                              |
-| ----------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — clean baseline      | **done** | 4 scaffold issues to 0; `ShortHelp` placeholder replaced                                                                           |
-| 0.4 — layering lint     | **done** | depguard rules added. The first version was too broad and failed the domain's own external test package; scoped with `!$test`      |
-| 1.1 — domain identity   | **done** | `ID` (UUIDv7) and `Slug`, split one-per-file because decorder orders types before funcs at file scope                              |
-| 1.2 — OKF parse/render  | **done** | Verbatim-block round trip; CRLF normalisation pinned as a documented exception                                                     |
-| 1.3 — ontology          | **done** | TOML rather than YAML — see the format finding below. `Dimension` split to its own file for the same decorder reason as 1.1        |
-| 1.4 — index             | **done** | Real temporary SQLite in tests, not a mock. FK pragma, cascade direction, and link degradation each pinned                         |
-| 1.5 — reconciliation    | **done** | Placed in `internal/gnosis`, not `internal/index` — see the deviation below                                                        |
-| 1.6 — lint registry     | **done** | 5 checks; applicability derived, skips always reported with a reason                                                               |
-| 1.6b — bundle loader    | **done** | `fs.FS`-based, so only its own tests touch a filesystem                                                                            |
-| 1.7 — commands          | **done** | All seven wired end to end. The row read "in progress" for three phases after `show`, `search`, and `graph` landed                 |
-| 1.8 — `documents_fts`   | **new**  | Phase 1 search is document-scoped (§19); one tokenizer constant shared with `claims_fts`                                           |
-| 1.9 — `schema-shape`    | **new**  | `sqlite_master` against what the migrations declare; catches a partially applied migration the version check cannot see            |
-| 2.1 — segmentation      | **done** | `Claims` cuts only when the fragment's subject can be recovered; `Anchor` locates it, `Text` verifies it — see §6.8                |
-| 2.2 — standards         | **done** | `Value[T]` makes the rationale structural; the loosening direction lives in Go, not the file — see §6.8                            |
-| 2.3 — tier 0 (pure)     | **done** | `Decide` is a pure function of (candidate, gates); a record's sha256 is its own filename. Writing is 2.4's shell                   |
-| 2.4 — `fetch`           | **done** | Four adapters, the pinned HTML extractor, `--dry-run` as a command field; a re-fetch of unchanged bytes is a verified no-op        |
-| 2.5 — command + lock    | **done** | `Effect` fails closed, `Promote` validates itself, one writer per bundle. Found three readers that were writing — see §6.9         |
-| 2.6 — gate + quarantine | **done** | Five signals run, two report `unchecked` and block; the gate proves it can fail on every invocation — see §6.10                    |
-| 2.7 — ingest/admit      | **done** | Two-phase relay, content-addressed cache, `--cache-only`; segment-then-check wired end to end — see §6.11                          |
-| 2.8 — log + audit       | **done** | Two records, not one rendering of one: `log.md` committed, `audit.jsonl` per-user. Clock injected — see §6.12                      |
-| 2.9 — writer as a type  | **done** | The lock is a value the writers require. It found a caller that was not taking it — see §6.13                                      |
-| 2.10 — scan 2 and 3     | **done** | A self-testing pattern ruleset; `betterleaks` does not exist. The item's stated payoff was wrong — see §6.14                       |
-| 2.11 — debt + discard   | **done** | `gnosis debt` reads the trail; `quarantine --discard` is the refused candidate's route. A refusal no longer prompts — §6.15        |
-| 2.12 — Phase 3 arrears  | **done** | The trust fold, the OKF conformance table, the seeded sampler, the index digest, `claim-anchor`, §12.1's table — see §6.16         |
-| 2.13 — tier-0 closure   | **done** | §9.3 completed for a candidate; the scan fails closed; `fetch` is audited; the store and the ledger account for each other — §6.17 |
-| 2.14 — accounting fixes | **done** | The loosening classifier called a consumed threshold unread; the fixtures are hermetic; the payload refusal is actionable — §6.18  |
+**Every discrete item in this plan carries `[ ]` or `[x]`**, here and in §4, so what is
+open is greppable rather than inferred from prose. The retrospective sections below are
+records of what a pass turned up and carry no boxes — nothing in them is outstanding by
+construction, and a checkbox on a finding would invite reading it as work.
+
+**A finding that leaves a question open says where the question went.** These sections
+carry no checkboxes, so a sentence reading "not built, and the reason is …" is
+indistinguishable from a decision nobody need revisit: a reader has to guess whether the
+gap is tracked anywhere. Such a sentence therefore ends with a pointer — to `TODO.md`
+where an entry holds it, naming the entry, or to what closed it where none does. It is
+the data-with-no-reader mistake in the other direction: a finding nothing points onward
+from is a reader with no data.
+
+**A pass adds its row in the same edit that adds its §6 section.** The table sat at
+row 2.14 while the narrative ran to §6.46, which is the §12.1 blind spot in another
+document: a pass with no row and no reader is silent, and there is no registry of plan
+steps for a test to walk. Rows 2.15–2.33 were reconstructed from the sections on
+2026-09-02.
+
+| Step                         | State    | Notes                                                                                                                                                                                                                                                                   |
+| ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 — clean baseline           | [x] done | 4 scaffold issues to 0; `ShortHelp` placeholder replaced                                                                                                                                                                                                                |
+| 0.4 — layering lint          | [x] done | depguard rules added. The first version was too broad and failed the domain's own external test package; scoped with `!$test`                                                                                                                                           |
+| 1.1 — domain identity        | [x] done | `ID` (UUIDv7) and `Slug`, split one-per-file because decorder orders types before funcs at file scope                                                                                                                                                                   |
+| 1.2 — OKF parse/render       | [x] done | Verbatim-block round trip; CRLF normalisation pinned as a documented exception                                                                                                                                                                                          |
+| 1.3 — ontology               | [x] done | TOML rather than YAML — see the format finding below. `Dimension` split to its own file for the same decorder reason as 1.1                                                                                                                                             |
+| 1.4 — index                  | [x] done | Real temporary SQLite in tests, not a mock. FK pragma, cascade direction, and link degradation each pinned                                                                                                                                                              |
+| 1.5 — reconciliation         | [x] done | Placed in `internal/gnosis`, not `internal/index` — see the deviation below                                                                                                                                                                                             |
+| 1.6 — lint registry          | [x] done | 5 checks; applicability derived, skips always reported with a reason                                                                                                                                                                                                    |
+| 1.6b — bundle loader         | [x] done | `fs.FS`-based, so only its own tests touch a filesystem                                                                                                                                                                                                                 |
+| 1.7 — commands               | [x] done | All seven wired end to end. The row read "in progress" for three phases after `show`, `search`, and `graph` landed                                                                                                                                                      |
+| 1.8 — `documents_fts`        | [x] done | Phase 1 search is document-scoped (§19); one tokenizer constant shared with `claims_fts`                                                                                                                                                                                |
+| 1.9 — `schema-shape`         | [x] done | `sqlite_master` against what the migrations declare; catches a partially applied migration the version check cannot see                                                                                                                                                 |
+| 2.1 — segmentation           | [x] done | `Claims` cuts only when the fragment's subject can be recovered; `Anchor` locates it, `Text` verifies it — see §6.8                                                                                                                                                     |
+| 2.2 — standards              | [x] done | `Value[T]` makes the rationale structural; the loosening direction lives in Go, not the file — see §6.8                                                                                                                                                                 |
+| 2.3 — tier 0 (pure)          | [x] done | `Decide` is a pure function of (candidate, gates); a record's sha256 is its own filename. Writing is 2.4's shell                                                                                                                                                        |
+| 2.4 — `fetch`                | [x] done | Four adapters, the pinned HTML extractor, `--dry-run` as a command field; a re-fetch of unchanged bytes is a verified no-op                                                                                                                                             |
+| 2.5 — command + lock         | [x] done | `Effect` fails closed, `Promote` validates itself, one writer per bundle. Found three readers that were writing — see §6.9                                                                                                                                              |
+| 2.6 — gate + quarantine      | [x] done | Five signals run, two report `unchecked` and block; the gate proves it can fail on every invocation — see §6.10                                                                                                                                                         |
+| 2.7 — ingest/admit           | [x] done | Two-phase relay, content-addressed cache, `--cache-only`; segment-then-check wired end to end — see §6.11                                                                                                                                                               |
+| 2.8 — log + audit            | [x] done | Two records, not one rendering of one: `log.md` committed, `audit.jsonl` per-user. Clock injected — see §6.12                                                                                                                                                           |
+| 2.9 — writer as a type       | [x] done | The lock is a value the writers require. It found a caller that was not taking it — see §6.13                                                                                                                                                                           |
+| 2.10 — scan 2 and 3          | [x] done | A self-testing pattern ruleset; `betterleaks` does not exist. The item's stated payoff was wrong — see §6.14                                                                                                                                                            |
+| 2.11 — debt + discard        | [x] done | `gnosis debt` reads the trail; `quarantine --discard` is the refused candidate's route. A refusal no longer prompts — §6.15                                                                                                                                             |
+| 2.12 — Phase 3 arrears       | [x] done | The trust fold, the OKF conformance table, the seeded sampler, the index digest, `claim-anchor`, §12.1's table — see §6.16                                                                                                                                              |
+| 2.13 — tier-0 closure        | [x] done | §9.3 completed for a candidate; the scan fails closed; `fetch` is audited; the store and the ledger account for each other — §6.17                                                                                                                                      |
+| 2.14 — accounting fixes      | [x] done | The loosening classifier called a consumed threshold unread; the fixtures are hermetic; the payload refusal is actionable — §6.18                                                                                                                                       |
+| 2.15 — §14 backlog           | [x] done | Freshness at the claim grain; `gnosis.Drift` as four states, not three; `fetch --recheck` supplies them — see §6.19                                                                                                                                                     |
+| 2.16 — tiers 2 and 3         | [x] done | The rationale fold-and-compare refusal; `audit --outstanding` as a subtraction over two uncommitted sources — see §6.20                                                                                                                                                 |
+| 2.17 — tiers 2 and 3 (2)     | [x] done | `standards/retrieval-cases.toml`, asserting on titles rather than ids; the miss log cannot measure what §11.0 claimed — see §6.21                                                                                                                                       |
+| 2.18 — `gnosis schema`       | [x] done | The marker contract, fail-closed; `index.DB.Tables` derived rather than listed — see §6.22                                                                                                                                                                              |
+| 2.19 — unblocked backlog     | [x] done | Seven entries closed, five of my own listings corrected — see §6.23                                                                                                                                                                                                     |
+| 2.20 — decisions §6.24–6.33  | [x] done | Ten questions answered by reading the spec rather than by building: the subject grain, the warrant's shape, where the marker contract stops, episodic accretion, the operator schedule, the indicator words, review gating, graded conformance, the seed, the transport |
+| 2.21 — tier 1 built          | [x] done | The vocabulary in the snapshot; three checks unblocked; three noise defects the suite could not see — see §6.34                                                                                                                                                         |
+| 2.22 — one in four buildable | [x] done | `search --claims` over `claims_fts`, which had been written and never read — see §6.35                                                                                                                                                                                  |
+| 2.23 — the claim row         | [x] done | `lead` as the retrieval unit; a default that would have shipped the same defect a fifth time — see §6.36                                                                                                                                                                |
+| 2.24 — the causal rung       | [x] done | `rung` is a property of a claim's own quotations, not a place in a ladder — see §6.37                                                                                                                                                                                   |
+| 2.25 — five items            | [x] done | The third appearance of the projection bug; §17.3.1's sufficiency check — see §6.38                                                                                                                                                                                     |
+| 2.26 — `coverage`            | [x] done | Strength markers against quotation count; the threshold I invented while arguing against thresholds — see §6.39                                                                                                                                                         |
+| 2.27 — the conflict frame    | [x] done | Evidence divergence as byte identity; two corrections to a plan written an hour earlier — see §6.40                                                                                                                                                                     |
+| 2.28 — operator patterns     | [x] done | Thirteen patterns as data with a test corpus that missed the commonest case — see §6.41                                                                                                                                                                                 |
+| 2.29 — interval predicate    | [x] done | Disjoint rather than different; an enumeration already subsumed; `claim_subjects` gains its one writer — see §6.42                                                                                                                                                      |
+| 2.30 — the unrecorded        | [x] done | Thirteen specified checks named nowhere; the §12.1 table cannot see a check missing from both directions — see §6.43                                                                                                                                                    |
+| 2.31 — two refusals          | [x] done | Claim `title`/`description` refused; §10.2.1.1 recorded as undecidable; the seam test that walks projections — see §6.44                                                                                                                                                |
+| 2.32 — twelve into six       | [x] done | Splitting the check backlog by blocker rather than counting it; `filename-drift` and `limitations` built — see §6.45                                                                                                                                                    |
+| 2.33 — four checks           | [x] done | `command`, `evidence`, `duplicate`, `language`; the `gate:` prefix; two of the four meant something other than their row — see §6.46                                                                                                                                    |
+| 3.1 — trust tier surfaced    | [x] done | §14.1's fold has had no consumer since 2.12; `show` and `search --claims` report the tier                                                                                                                                                                               |
+| 3.2 — durability             | [x] done | §14.4's four states and §14.4.1's centrality classes; unblocks the `durability` check and gives `in_degree_cut` its reader                                                                                                                                              |
+| 3.3 — warrant                | [x] done | §10.6.4's `gnosis_warrant` read and checked; unblocks `warrant` and `co-sign`; the adjudication tier is a fold over the corpus's own adjudicators                                                                                                                       |
+| 3.4 — challenge              | [x] done | §10.7's committed frontmatter, `gnosis challenge` as its writer, `unanswered-challenge` against a declared window                                                                                                                                                       |
+| 3.5 — adjudicate             | [x] done | §10.4's distinct artifact: the decision that resolves a conflict or a challenge, and the warrant it writes                                                                                                                                                              |
+| 3.6 — supersede              | [x] done | §10.4's losing claim keeps its links; §10.6.5's `reverses` link and `audit --reversed`                                                                                                                                                                                  |
+| 3.7 — critic                 | [x] done | §10.5's cold critic over a seeded sample, blinded by construction; the coverage ledger appends and steers the next prompt — see §6.52                                                                                                                                   |
+| 4.1 — miss log               | [x] done | §6.4's ledger and `gnosis miss report`; the reason carries two classes and the report counts questions rather than rows — see §6.53                                                                                                                                     |
+| 4.2 — findings gate          | [x] done | §8.4's `gnosis gate`, §17.1's four-state `semantic_review`, a self-test that runs the real classifier — see §6.53                                                                                                                                                       |
+| 4.3 — scoping flags          | [x] done | §11.3's five buildable filters as one scope value, with `--provable` folded in; `--tag` refused with §5.5's reason — see §6.53                                                                                                                                          |
+| 4.4 — claim refs by id       | [x] done | §5.4's "identifiers, never paths" applied to the supersession edge and the coverage ledger; §10.4 and §5.4 reconciled — see §6.54                                                                                                                                       |
+| 4.5 — announce and steer     | [x] done | §10.6.3's tier announcement, with `log.md` as the baseline nobody had to build; an unexamined aspect carries its reason; §6's forward-pointer convention — see §6.55                                                                                                    |
+| 4.6 — the portable half      | [x] done | `export --format okf\|jsonl` and `proof create`; one predicate names the shareable corpus, so both refuse to ship `.gnosis/` for one reason — see §6.56                                                                                                                 |
+| 4.7 — the answer relay       | [x] done | §8.3's `ask` and `file`; §17.0.1's four-state fold is what refuses, and a hand run found an unevidenced claim reaching the prompt — see §6.56                                                                                                                           |
+| 4.8 — `mine`                 | [x] done | §9.6's heuristic tier over a normalized session; repetition rather than sentiment, and it reports rather than files — see §6.56                                                                                                                                         |
+| 4.9 — `manifest`             | [x] done | **Not built, deliberately.** `manifest.Diff` keys on location and a gnosis location is a view; the finding and its trigger are recorded — see §6.56                                                                                                                     |
 
 Three findings from the per-step reviews changed the design rather than the code
 around it:
@@ -1762,7 +1817,9 @@ argue with a year later. What the pass did instead was narrow the entry: the
 *structural* half turns out to be closed already (`ontology.indexSubjects` indexes each
 subject key with its aliases, so a key colliding with an alias is rejected at load),
 and the entry now carries a trigger that can fire — the first subject key carrying
-claims from two documents with disjoint evidence sets.
+claims from two documents with disjoint evidence sets. Tracked in `TODO.md`
+("Silent definition drift has no detector"), which is where that trigger is written
+down.
 
 **Three entries were wrong about their own mechanism, and one of the errors would have
 shipped.** `rationale`'s fold-and-compare had to fold *case*, which every quotation
@@ -2612,7 +2669,9 @@ trail asking whether a reply was admitted and whether anything was written first
 an explicit allowlist. The runner that shells to a model is a documented manual step
 rather than code nothing exercises. §18.6 already says the run is slow, billed, and must
 stay out of the gate; a runner in the tree that no test could reach would be the
-data-with-no-reader mistake in executable form.
+data-with-no-reader mistake in executable form. Tracked in `TODO.md` ("The
+scripted-model fixture is built; the real-model run is not"), which carries the manual
+step.
 
 ### 6.39 `coverage`, and a Threshold I Invented While Arguing Against Thresholds
 
@@ -2661,7 +2720,9 @@ was thinking about §10 rather than about §12.
 **Candidate narrowing was not built.** §10.2 describes it for the predicates that compare
 *values*; evidence divergence keys on claim text and needs none. Building it would have
 been a mechanism with no reader — the mistake recorded four times already, and the plan
-had scheduled it anyway because §10.2 mentions it in the same paragraph.
+had scheduled it anyway because §10.2 mentions it in the same paragraph. Tracked in
+`TODO.md` ("Candidate narrowing by subject was in the plan and was not built"), where it
+waits on a reader rather than on effort.
 
 **Deciding what "archived texts that disagree" means was the actual work.** §10.2 gives
 it one line. §10.3 refuses a similarity threshold over an embedding and routes real
@@ -2760,7 +2821,9 @@ edits, and say so in `log.md`, because a corpus that suddenly wants to re-answer
 everything is otherwise indistinguishable from one whose cache is broken.
 
 **Two things were kept out on purpose.** §17.4's check is buildable now and is not built:
-the field existing and the field being checked are two decisions. And claim-level search
+the field existing and the field being checked are two decisions. It was built two passes
+later, and §6.44 records what it found when it ran — an empty field the shell never
+supplied. And claim-level search
 now works over the *extracted* part of the corpus, which is a partial answer — so it has
 an entry requiring it to say what it did not cover, rather than shipping the silence.
 
@@ -2906,3 +2969,558 @@ after "1 document declare" and "1 claim name". A substring assertion sees `1 com
 stops; one run of the binary shows the sentence. The remedy each time is to put the count
 in a noun phrase so no verb has to agree with it — which is now three data points for a
 rule that could be written down.
+
+### 6.47 the Trust Tier's First Caller, and Two Lines That Made Each Other Ambiguous
+
+§14.1 was the smallest thing left in Phase 3 and the one that had been waiting longest:
+`gnosis.FoldTrust` shipped in Step 2.12, tested and pure, with **no caller** — the sixth
+instance in this repository of a mechanism nobody read, and the one where the rule was in
+front of me when I built it.
+
+**The roll-up is the weakest claim, and the alternative is what makes it worth stating.**
+A page whose claims are half human-reviewed is not a reviewed page; reporting the
+strongest would let one signed claim vouch for every unverified sentence beside it. That
+is the shape `DocFreshness` already takes when it reports the *oldest* check, and
+`FoldTrustDocument` takes tiers rather than claims so the domain never learns how a claim
+stores its actors.
+
+**`Tier` had no `MarshalText`, and the day it gained a caller is the day that mattered.**
+`Freshness` and `DriftState` both carry one; this type was built with no consumer, so the
+envelope would have carried `"state": 0` — a value nobody reads wearing its other face,
+which is the same defect one layer over.
+
+**The actors travel verbatim, and a test pins why.** `process:finance-nightly` is
+conformant OKF and `ParseActor` refuses it (§14.1.1), so a shell that parsed before
+folding would drop it and report the claim as *unverified* rather than
+machine-confirmed. That is the merge §18.5.1's table exists to prevent, and it is
+available to anybody who writes the obvious thing in the projection.
+
+**Two labelled lines, and neither was labelled until there were two.** `show` printed a
+bare `not_applicable: …` for freshness, which read unambiguously while it was the only
+word of its kind on screen. A second state line under it made **both** ambiguous —
+`unverified` and `not_applicable` belong to different axes and nothing said which — so
+both are labelled now and the per-claim blocks are `claim freshness:` and `claim trust:`.
+Found by running the command, which is the fifth time in this log.
+
+**The per-claim trust block is silent unless something is verified**, which is a
+different condition from "the document declares claims". Every claim in this corpus is
+unverified today, so a block keyed on claims existing would print `unverified` once per
+claim on every document in every corpus — the noise defect this repository has shipped and
+withdrawn three times.
+
+**One cost accepted rather than paid.** `show` now walks the bundle twice, once for
+freshness and once for trust, because `documentAt` was extracted as the shared reader
+rather than the two signals being merged into one pass. A combined reader is the right
+change at the *third* signal, measured then, and merging two orthogonal signals into one
+I/O type to save one walk is how they end up composed in the output as well.
+
+### 6.48 Durability, and Three Derived Checks That Caught the Work
+
+§14.4 was the largest of the unblocked Phase 3 items and the one with the most
+consequences elsewhere: it gave `in_degree_cut` its first reader, closed the fifth of
+§12's unbuilt checks, and turned `search --provable` from a sentence in the spec into a
+query.
+
+**The claim grain cannot express a `referenced` source, and that decided the design.**
+§14.4's table is written per claim; a `referenced` record has no archived text and
+therefore no `archive_paths` entry, so the only place a page can name one is the OKF
+`sources` list — which is per document. Computing durability per claim would have
+produced a signal that is always `provable` or `not-applicable`, which is a mechanism
+answering a question nobody asked. §12's own row says "concept", so the enforced surface
+already agreed; the projection reads **both** routes and folds at the document grain.
+
+**Two folds rather than one**, because a durability fold that also knew about centrality
+would be the special-general mixture the guidelines name: `FoldDurability` answers what
+the evidence buys, `ClassifyWeakness` answers how much it matters, and the check composes
+them. Neither carries an `if` about the other.
+
+**§14.4.1 describes two boundaries and there are only two treatments.** Peripheral is
+*below the median*, load-bearing is *at or above a declared cut*, and a document between
+them would belong to no class — so the cut decides both and the median is what the cut is
+calibrated to. Deriving the median would have been the invented constant §6.2 refuses,
+which is the second time this week a section's own example did not survive being
+implemented.
+
+**A cut of zero declines, and the direction is the whole point.** An in-degree of zero is
+at or above a cut of zero, so a corpus whose standards did not load would report every
+unprovable document as load-bearing — the loudest possible reading of a missing
+threshold.
+
+**Three derived checks caught this work, which is what they were built for.** §12.1's
+table test named the missing row; `standards.reading`'s source scan refused to let
+`in_degree_cut` stay classified unread while something read it; and
+`bundle.describeLoosening`'s cross-check against `standards.Unread` refused to let a
+threshold with a reader keep claiming a loosening costs nothing. The last one is the
+same defect that shipped for `staleness_days`, and this time the guard fired instead of
+a reader finding it — so `in_degree_cut` landed with a countable finding delta rather
+than a sentence saying it had none. `whyUnread` is deleted: it had one user and no
+threshold is unread now.
+
+**A skip that asserted something it could not know.** The first version said
+"standards/archive.toml declares no in_degree_cut", and an incomplete file is rejected
+*whole* — so a reader looking straight at the value was told they had not written it.
+Found by running the binary, which is the sixth time.
+
+**`--provable` says what it removed.** Returning `0 result(s)` was indistinguishable
+from the query matching nothing, and those send a reader to opposite conclusions: the
+corpus is silent, or everything it says rests on sources nobody can check. Same defect as
+`ClaimResults.Unextracted`, one flag over, and the same remedy — the count travels in the
+result and the human line appears only when it applies.
+
+**The projection test was split rather than extended.** Adding `Evidence` to it pushed
+its cognitive complexity past the limit, which was a real design signal: the document and
+claim projections fail independently — `Limitations` was swallowed by one while `Lead` was
+swallowed by the other — and one test covering both makes either failure read as the
+other.
+
+### 6.49 the Warrant, and the Half of §12's Row That Needed No Self-Assertion
+
+§10.6.4 is specified to the field and was cited by two other repositories before any of
+it existed, so this shipped whole: tiers, co-signing and `override` are one mechanism,
+and a subset under the name `gnosis_warrant` would have broken something not in this
+repository to notice.
+
+**`warrant` is the fifteenth check, and no count had named it.** §12.1's thirteen missed
+it, "`coverage` was the fourteenth" missed it, and `TODO.md`'s five missed it. It was
+found by diffing §12's list against `lint.Checks()` rather than against either table —
+which is the only method that can see it, because a row absent from the enforced table
+and a checker absent from the registry agree with each other.
+
+**A `class: adjudicated` key was refused, and refusing it is what made the check
+checkable.** §12's row names two findings: a warrant with an empty rationale, and *an
+adjudicated claim with no warrant*. The second is vacuous if "adjudicated" means "carries
+a warrant" — so the obvious fix is a declared class, and a declared class is precisely a
+claim asserting the thing the check exists to verify. The evidence the corpus actually
+holds is `gnosis_supersedes`: §10.4 gives the winner of an adjudicated conflict that edge,
+so a claim carrying one *was* adjudicated whether or not anybody wrote the decision down.
+The check reads the edge and says nothing about what an author typed.
+
+**`Authority` is not called `Tier`, and that was a rule rather than taste.** §10.6.1
+calls it a tier; `gnosis.Tier` already means §14.1's trust tier, which is a different
+fold over different data with different consequences — advisory there, admission-governing
+here. Two folds named `Tier` in one domain package is the name a reader disambiguates at
+every call site.
+
+**The zero value inverts the discipline every other zero value here follows.** The others
+are chosen so an unpopulated value cannot flatter the corpus; `AuthoritySole` is chosen so
+an unpopulated value cannot **block** — §10.6.3's fourth property is that escalation must
+never deadlock, and a snapshot nobody populated must not stop a corpus adjudicating.
+
+**The declared window of §10.6 is not built, and the consequence is stated rather than
+papered over.** The population is counted "within a declared window" and nothing declares
+one, so the count runs over the whole history and the authority can **rise and never
+fall** — a colleague who left last year still holds a corpus at `paired`. Inventing the
+window is what §6.2 refuses; the trigger is observable and needs no threshold: the first
+corpus whose authority requires a co-signer nobody active can supply. Until then §10.6.3's
+override is the escape hatch and it leaves the trail that would make the case. Tracked
+in `TODO.md` ("§10.6's adjudication window is not declared, so the authority rises and
+never falls").
+
+**Adding a struct to `lint.Claim` made seven range loops copy 264 bytes**, which the
+linter reported and which was a real signal rather than noise: the loops were copying a
+claim to read one string, and indexing was already this package's habit everywhere else.
+
+**`Authority` marshalled and would not parse.** `doctor`'s envelope carries it and the
+envelope's own test reads it back, so a one-way codec failed four tests immediately —
+which is the version of the unread-value defect that a machine interface produces. Its
+siblings deliberately keep no `UnmarshalText`: nothing reads any of them back yet, and
+each gains one at its first consumer rather than in a symmetry pass.
+
+**The count-agreement defect appeared a fourth time, as a pronoun.** "it supersedes 1
+claim … so the decision that displaced **them**". §17.5's detector scans for a verb beside
+the count and a pronoun sits a clause away, which is a parse rather than a scan — so the
+sentence was rewritten to carry no pronoun at all. Found by running the binary, the
+seventh time in this log.
+
+### 6.50 Challenge and Adjudicate, and the Surgery a Re-render Would Have Botched
+
+The two commands are one loop — a reader contests a claim, a person decides — and both
+write into the **committed** tier, which is what made them harder than the checks before
+them.
+
+**A document is edited as text, and the alternative would have silently dropped keys.**
+`Accrete` re-renders through `renderConcept`, which is safe because the documents it
+edits are the ones gnosis wrote: `conceptDoc` models every key they carry. A challenged
+or adjudicated page is *any* page, including one written by hand with
+`gnosis_limitations`, a scoped `sources` list, a pin, or a warrant — none of which
+`conceptDoc` models. So the block is inserted into the frontmatter as lines, and the
+properties are **checked against the re-parsed output**: it parses, every top-level key
+survives, the body is byte-identical, and the entry landed on the named claim and no
+other. That last clause is the one nothing downstream could detect — a warrant on the
+wrong claim produces a document that parses, keeps its keys and its body, and records a
+decision about the wrong assertion.
+
+**§12's `warrant` row names two findings and only one of them looked like a check.** "A
+warrant with an empty rationale" is direct; "an adjudicated claim with no warrant" is
+vacuous if *adjudicated* means *carries a warrant*. The evidence the corpus actually
+holds is `gnosis_supersedes`: §10.4 gives the winner of an adjudicated conflict that
+edge, so a claim carrying one was adjudicated whether or not anybody recorded the
+decision. A `class: adjudicated` key would have been the obvious alternative and is
+refused — it lets a claim assert the very thing the check verifies.
+
+**The authority gate is in the coordinator and not in `Validate`**, because whether a
+co-signer is required is a fold over the adjudicators the corpus has, which a pure value
+cannot know. What the command validates is shape: no decider, no claim, or no reasoning
+is not an adjudication whatever the corpus looks like. And the gate deliberately asks for
+a co-signer at `paired` and `quorum` **whatever the claim is**, rather than computing
+escalation on the write path — the conservative direction, and it keeps a link added next
+week from changing what a past decision required.
+
+**A guard that reported the documentation of a bug as the bug.** The new test scanning
+for commands named in findings first read file *text*, and reported eight mentions of
+which six were comments — including this repository's own note recording the `gnosis
+extract` defect, and `internal/lint/command.go`'s deliberate `gnosis frobnicate` example.
+It parses string literals from the AST now, which excludes comments by construction. Its
+adversarial half is run rather than asserted: breaking one message makes it fail, and
+that was checked both before and after the refactor that split it.
+
+**Running the binary found two more.** The usage line said `gnosis challenge <PATH>
+--class C`, and this flag parser ends the flags at the first positional — so the tool's
+own help described an invocation that silently loses every flag. And a successful write
+printed a blank line, because `gnosis.OK` carries data and no message; the command
+renders a sentence from the outcome's data instead. That is the eighth and ninth defect
+this plan has recorded from running the command rather than the suite.
+
+**Two counts joined the gains report**, which pushed `Gained` past the complexity limit
+and split it in the right place: the loop is about which rows count — since the window,
+and succeeded — and the switch is about what each row gained. They change for different
+reasons, and the switch grows by one case every time the corpus learns a verb.
+
+### 6.51 Supersession, and an Edge That Named Nothing
+
+§10.4's other half: the losing claim is deprecated and kept, the winner records the
+edge, and `audit --reversed` reads back the warrants that overturned earlier ones.
+
+**The edge names `<path>#<claim>`, and the first version named neither.** A claim
+identifier is document-local — `c1` means whatever the page it sits on says — so an edge
+carrying the identifier alone is unreadable the moment the two claims are on different
+pages, which is the ordinary case. Running the command is what showed it: a winner in one
+file recorded `claim-reviewed`, and nothing in the corpus could say which
+`claim-reviewed` that was. One form is used everywhere, including within a single
+document, because a field meaning two things depending on its content is a rule every
+reader has to learn before they can follow an edge.
+
+**`supersede` takes no rationale, and that is the design rather than an omission.** The
+reasoning belongs to the warrant, and `warrant`'s check already reports a claim that
+supersedes another and records no `gnosis_warrant`. Collecting a reason here as well
+would put it where no reader looks while the warrant stayed empty — two fields for one
+obligation, of which only one is checked.
+
+**The winner's edge is written first**, so a crash between two documents leaves an edge
+pointing at a claim still marked current: visible, repairable by re-running, and already
+reported. The reverse leaves a deprecated claim nothing supersedes, which cannot be told
+from one somebody abandoned.
+
+**A supersession is not a gain.** It joined the trail's operations and deliberately not
+the gains report: the knowledge gained is the *winning* claim, counted when it was
+promoted, and counting the supersession too would count one addition twice. A number
+that grows when a corpus revises itself is a number somebody will try to grow.
+
+**`--reversed` needed no new field**, because §10.6.5's `reverses` was parsed with the
+rest of the warrant in 3.3 — and the `audit` command's own comment had predicted the
+flag by name, including the argument for why the command has no default report. That is
+the first time in this log a comment written against a future change was still correct
+when the change arrived.
+
+**A reversal cannot overwrite a warrant, and running it proved the design holds.** The
+first attempt reversed a claim that already carried one and was refused — correctly:
+§10.6.5's reversal is a *new* warrant on the superseding claim, so it arrives through
+supersession rather than by editing the decision it overturns.
+
+### 6.52 the Critic, Blinded by a Type and Steered by a Ledger
+
+The last row of Phase 3, and the second relay: `gnosis critic` emits a prompt and stops,
+`--response` files the verdict. It is not on the command bus, because `internal/command`
+exists for writes that gate on review and a critic verdict admits nothing — `ingest` and
+`synthesize` take the writer directly for the same reason.
+
+**§10.3's blinding is enforced by a type that cannot express the violation.**
+`relay.CriticClaim` carries a text, a lead and its quotations; `relay` imports nothing of
+gnosis's domain, so a warrant has no field to travel in even if somebody reached for one.
+That leaves exactly one failure a type cannot prevent — the projection folding a
+forbidden value into a field that *does* exist, a rationale appended to the claim text —
+and that is where the test is, with markers no ordinary prose contains. Breaking the
+projection on purpose was run before and after, because a guard that cannot fail reports
+coverage it does not have.
+
+**The severity is gnosis's, and the reply has nowhere to ask.** The first design stamped
+`SeverityWarning` in a converter; the better one gives `CriticFinding` no severity field
+at all, so no future caller can read one through. A critic that could return an error
+severity would be a model gating the corpus, which §9.5.1 refuses on the promotion path
+for the same reason.
+
+**The ledger appends, and the contrast with its two siblings is the whole argument.**
+`checked.jsonl` and `retrieved.jsonl` upsert because "nothing consumes the sequence".
+Here the sequence *is* consumed: steering a later critic away from exhausted angles means
+the union across critiques, so one row per claim would discard what an earlier critic
+covered and re-ask what it answered. And an angle declared unexamined and later examined
+is subtracted, which is the half that keeps the steering pointed forward.
+
+**A second critique is a different question, and the key says so.** Coverage goes into
+the prompt and the prompt's hash into the key, so §6.1's cache cannot serve the first
+verdict for the second ask. That falls out of the design rather than being arranged, and
+it is what makes feeding coverage forward worth doing at all.
+
+**Three names changed under the rules pass, and one of them was a collision.** The
+ledger's row is `Critique`, not `Coverage`: `lint`'s `coverage` check is §17.3.1's, and
+two unrelated things under one name is the rule that made §10.6.1's tier into
+`Authority`. `Critiqued.Prompts` matches `ingest`'s payload rather than inventing
+`pending`. And `gnosis.ClaimRef` moved to the domain when the sample became its second
+consumer — `supersede` had built `path#claim` by concatenation the day before.
+
+**The one-block rule is now shared rather than duplicated.** Both reply parsers hold the
+same policy — exactly one fenced block, rejected whole — and it lives in one function, so
+they cannot come to disagree about what a well-formed reply is.
+
+**`admit` refuses a critic key at the top rather than downstream.** `ParseReply` would
+have rejected the verdict for having no title, which is a true statement about the wrong
+thing: a caller told "title is empty" goes and adds a title. The exhaustive switch over
+prompt kinds is what asked the question.
+
+**Loosenings split by file when the fourth repetition arrived.** Adding `critic_default`
+put a fourth read-compare-describe block into one function and past the complexity
+limit, which was the moment to notice that each standards file has its own loosening
+story — a countable delta for one, a gate verdict for another, a question nobody counts
+for a third.
+
+**And `critic_default` is data rather than a constant** for §6.2.2's reason: the
+direction that loosens is *smaller*, and a Go constant changed in a release would loosen
+every corpus at once with no §6.2 record. Its rationale carries §10.5's mathematics —
+five samples bracket the median with 93.75% probability — because that fact does not
+depend on any corpus and nobody should have to rediscover it to change the number.
+
+**Not built, and named so the absence reads as a decision.** §10.3 also routes the
+*two-claim* conflict residue to the critic — semantic contradiction between claims that
+survive the decidable predicates. It is this relay with a different prompt, it has no CLI
+surface in §8.4, and it has no producer: `conflict` reports the pairs it can decide and
+nothing yet emits the ones it cannot. That producer is the trigger. Tracked in
+`TODO.md` ("The two-claim conflict residue has no producer, and the critic is waiting
+for it").
+
+### 6.53 Three Items the Backlog Named Nowhere
+
+All three were found the same way `warrant` was: by diffing a specification list against
+the registry rather than against the backlog. Ten of §8's commands were unregistered and
+`TODO.md` mentioned none of them; §11.3's six scoping flags were in the same state.
+
+**The miss log's one real design question was which reasons deserve counting together.**
+§6.4 says a row per prompt emission and §6.4.1 says a miss is "a non-event that fired…
+how often did the deterministic path decline to answer". Those pull apart for extraction,
+which has no deterministic path at all — so `ingest` would write a row forever and the
+payoff, "a reason that recurs is a check waiting to be written", would drown in a reason
+that is not a backlog item. Two classes, `Actionable` on the type, actionable groups
+first. Sorting by count alone puts the line nobody can act on at the top of every run.
+
+**And a count of rows was not a count of consultations.** Two `ingest` runs over one
+unanswered source write the same prompt twice — nothing is cached, so nothing is skipped
+— and the report said two. Running the binary is what showed it. The rows stay, because
+the file is a log of events; the report counts distinct prompt keys and shows the gap,
+which is the times somebody re-ran a prompt nobody had answered.
+
+**`govet` caught a self-test that was theatre.** The findings gate's first self-test
+asserted `finding.SeverityError.Blocking()`, which proves skillet's method works and
+says nothing about whether this gate uses it — and the evidence was the planted
+diagnostic's other fields, which nothing read. `unusedwrite` named them. The classifier
+is now a function so the self-test runs the code the real findings go through, which is
+the difference between proving a copy of a rule and proving the rule.
+
+**The compiler caught a name collision on the same file.** `classify` already meant
+"pick the fetch adapter for a URI" in `internal/bundle`, so the findings splitter is
+`splitBySeverity` — the rule against one name for two things, enforced rather than
+remembered.
+
+**§17.1's field is four states because a clean critic produces none.** "No critic
+finding" and "no critic ran" are different facts, and a bool would collapse them into
+the flattering one. A verdict in hand outranks an unreadable ledger, because the finding
+is evidence of the act and the ledger is bookkeeping about it.
+
+**The scoping flags folded `--provable` in rather than sitting beside it.** It had
+shipped the day before as its own branch with its own generic filter, and "restrict the
+results to documents with property P" is one decision with six inputs: the second
+mechanism would have been the one somebody forgot to extend. Five of the six need the
+corpus rather than the index, so the value reads the bundle once when any filter is named
+and not at all when none is — a plain search still touches only the index, which a test
+asserts by pointing an unrestricted scope at a directory that does not exist.
+
+**`--tag` is refused with §5.5's reason.** `tags` is a table with no migration and no
+reader, and building a projection to serve a flag would be the stored-state-with-no-reader
+mistake this backlog has recorded seven times.
+
+**Running the binary found the eleventh defect of this kind.** After five filters joined
+`--provable`, the removed-count line still said "`--provable` removed 1 match" — so a
+reader who typed `--type Rule` was told their evidence could not be checked offline. The
+message names no flag now.
+
+**One rule was shared rather than copied twice.** §17.5's count-noun renderer is
+`lint.Noun`, exported for the gate's message: a rule spelled in two places is a rule that
+can be fixed in one of them.
+
+### 6.54 the Edge That Read Better and Broke on a Retitle
+
+`gnosis supersede` wrote `<path>#<claim>` for a day. §5.4 requires these edges to name
+"**identifiers, never paths**… an edge that survives reorganization is the point", and
+§5.1.1 puts the slug in the path — so the first retitle of a superseded concept would
+have left the edge naming a file that does not exist, pointing at the one claim nobody
+is looking at any more. Found by reading §5.4 while building an unrelated flag.
+
+**The two sections were not in conflict, and the reference form is what shows it.**
+§10.4 says the unit is a *claim*; §5.4 says the key names an identifier.
+`<gnosis_id>#<claim-id>` satisfies both, and §5.6 supplies the other half: the presented
+path is a view that resolves *to* the canonical form, so a command prints the page and
+the frontmatter records the identifier. `Verdict` now carries both for that reason.
+
+**The coverage ledger moved with it**, though nothing required it to. That file is
+per-user and derived, so a path key would only have cost a claim's steering history on a
+rename — but the cost is real and the fix was free, and one address form across three
+consumers is what stops them disagreeing.
+
+**A test articulating the round-trip property found a stale rule in the parser.**
+`ParseClaimRef` cut at the *last* separator, which was right while the left half was a
+path that might contain one and wrong the moment it became a UUID that cannot: it
+refused `<id>#claim#two` by handing `ParseID` a string with a `#` in it. Cutting at the
+first separator is the rule a fixed-shape left half wants, and writing down the property
+is what exposed it — the design-pressure argument, working on a function four lines long.
+
+**Two refusals came out of the change, and both are about references that cannot
+resolve.** A losing document with no `gnosis_id` is refused rather than referenced some
+other way, because §5.1.2 quarantines an unidentified document precisely so nothing
+points at one. And a critic prompt emitted before the metadata carried a document
+identifier is refused at *file* time — the one place this codebase validates a prompt
+meta on the way out rather than only on the way in, because the ledger is keyed on that
+field and a row keyed on `#claim` would corrupt a file whose only job is to be matched
+against later. The remedy is named in the message: re-emit.
+
+______________________________________________________________________
+
+### 6.55 An Announcement With Nowhere to Put It, and Half a Type
+
+**The baseline this waited on already existed, committed, in the tier a colleague
+reads.** §10.6.3 requires a tier change to be *announced*, and the entry filed it behind
+"the same baseline `newly-orphaned` waits on" — a stored previous value to compare a
+re-derived one against. There is none, and there does not need to be: `log.md` is an
+append-only record of decisions with reasons, so an announcement written there **is** the
+previous value. It reaches every colleague through the same `git pull` that carries the
+corpus, and a per-user file would be two colleagues disagreeing about what the corpus
+requires.
+
+That turns one mechanism into two halves that check each other. `adjudicate` announces
+the move it causes, which is the only place a move originates — an authority changes when
+somebody adjudicates for the first time, and the command is already taking the lock and
+already writing. `doctor` reports a derived authority that no announcement matches, which
+is the half that catches what the first cannot see: a `verified` list edited by hand,
+where the tier moved and no command ran.
+
+**A line the parser cannot read counts as no announcement, and the asymmetry is
+deliberate.** A hand-mangled log makes `doctor` say the current authority was never
+announced, and the remedy is to announce it. The reverse — a mangled line accepted as an
+announcement — would silence the check whose whole reason for existing is that silence is
+the failure mode.
+
+**The sentence is written once**, as `gnosis.AuthorityMove.String`, so the log entry and
+the diagnostic that reports a missing one cannot describe a single event two different
+ways. It is the same move the count-in-a-noun-phrase rule made: the phrasing is a value
+the domain owns, not a format string each caller assembles.
+
+**The unexamined block was half a type, and the missing half is the actionable one.**
+`finding.Unexamined` is `{Aspect, Reason}` and skillet's comment on it is explicitly about
+parsing a critic's reply; gnosis's critic carried aspects alone. "The source's
+methodology" tells the next critic nothing — "the excerpt does not include it" tells it
+the ground is unreachable from this prompt, which is the difference between steering a
+second critic somewhere and sending it at a wall the first already described. An entry
+with no reason is now refused rather than half-recorded, which is `Valid()`'s rule rather
+than a second one written here.
+
+**It was taken now because a prompt change is priced by how much history it invalidates.**
+Every critic cache key is a hash of the prompt (§6.1), so changing the reply format
+re-asks every critique in every corpus. Today that is nothing. The ledger still reads the
+old bare-string shape, as an aspect whose reason says where it came from rather than one
+it invents — "define errors out of existence" applied to the one file whose entire purpose
+is being matched against later, where the alternative is failing the load over a format
+nobody has had time to depend on.
+
+**And a retrospective that names something still open now says where it went.** §6 carries
+no checkboxes by construction, so "not built, and the reason is …" reads identically
+whether the gap is tracked or settled — which is how §6.46 came to state an open question
+a day after `runNamed` closed it. The convention is one sentence above the table, next to
+the checkbox rule it is the prose half of, and the sweep that followed it was bounded to
+sentences that read as a live gap. Six got a pointer; one of the six points at the §6
+section that closed it rather than at the backlog, which is the case the convention exists
+to make visible.
+
+______________________________________________________________________
+
+### 6.56 Four Commands, One Refusal, and a Defect Only a Hand Run Found
+
+**The step that produced the most was reading a type before writing any code.** Phase 4's
+list named `manifest` and the plan put it first for exactly that reason — the cheapest
+thing that could change the plan was reading the package it depends on. `skillet/manifest`
+does not fit, and the reason is sharper than mismatched fields: `Diff` matches entries **by
+location**, and documents why it must. A gnosis location is a *view* — §5.1.1 puts the slug
+in the path, §5.4 requires identifiers — so a manifest over this corpus reports every
+retitled concept as one removed and one added. That is the defect §10.4's supersession edge
+shipped with for a day, and it would have been built into a file format.
+
+The entry that scheduled it said `skillet/manifest` and `skillet/proof` "both exist in
+v0.27.0, so the stated dependency is present". Both halves of that were true and the
+inference was wrong: `proof.Create` fit exactly and `manifest.Diff` could not, and the
+sentence treated availability as the question. Nothing was built, `git diff --name-only`
+already answers what the file would have, and a second answer that can disagree with the
+first is worse than none.
+
+**Two commands turned out to be one question.** `export --format okf` ships "a portable
+bundle for sharing outside the team" and `proof create` "binds corpus and tier-0 digests";
+both need to know which bytes are the corpus rather than which bytes this user's tools left
+beside it. That is one predicate — `bundle.Portable`, everything except `.gnosis/` — and
+writing it once means the confidentiality rule has one definition. It is a
+confidentiality rule and not a tidiness one: `.gnosis/` holds the audit trail, the prompt
+cache, the miss log and the coverage ledger, so an export carrying it publishes a
+colleague's session history and a proof packet covering it fails to verify for a reader who
+merely ran a query. Both failures are silent at the moment they are introduced, which is
+why the test asserts it on the packet and on the export separately.
+
+**§17.0.1's refusal is a fold, and making it one is what made it three refusals.** The read
+path had no way to say "the corpus does not support an answer to this", so a question the
+corpus cannot answer produced the same shape of output as one it can. The temptation is a
+boolean. `gnosis.Answerability` has four states because the section names three distinct
+refusals and each has a **different remedy**: `silent` means nobody wrote this down,
+`unevidenced` means fetch a source, `unresolved` means adjudicate — and only the third is a
+conflict waiting to be filed. A refusal exits 0, because a non-zero code would make "the
+corpus does not know" indistinguishable from "the command broke".
+
+Retrieval could not have done this. A ranking returns its best matches for any question,
+including one the corpus holds nothing about; the fold is a separate pure step over what
+came back, and it is testable without a corpus.
+
+**Running it by hand found what the tests did not, for the sixth time.** The prompt rendered
+`Passages it rests on:` with nothing under it. The fold had said `ready` — correctly, since
+another retrieved claim *was* evidenced — and the unevidenced one travelled into a prompt
+whose rules say "answer only from the claims below". A licensed assertion with nothing
+behind it, arriving through the one door built to keep it out. Unevidenced claims are now
+dropped from the prompt and counted in the report, because a silent omission is the other
+half of the same failure.
+
+A second one, from promoting what `file` had written: the draft declared no sources and the
+gate refused it on provenance, every test above having passed because they checked what the
+draft said rather than whether the gate would have it. The fix was not an exemption — the
+sources are genuinely known, being the ones the cited claims already rest on — and the
+assertion now runs the gate rather than reading the file.
+
+**`mine` reports and never files, and that corrects the section that asked for it.** §9.6
+describes the Stop-hook companion as filing wiki-touching turns "subject to §8.3's `file`
+gate". It cannot: a chat answer cites no archived source and the promote gate fails a
+document declaring none, so an automatic filer would fill quarantine with drafts that can
+never promote — a queue that only grows and a reader who learns to ignore it.
+
+And its two signals reduce to one comparison. §9.6 wants retry chains detected by "negative
+feedback", which needs a vocabulary of what disappointment sounds like — a `standards/`
+value with a rationale nobody can write from measurement yet (§6.2). Repetition is
+observable without any of it: a question re-asked in one session *is* a retry, and the same
+comparison across sessions is the recurring-intent half. One fold, the corpus's own, and no
+number anybody chose. The third item — labelling outcomes from feedback — stays unbuilt
+with that trigger recorded.
+
+**Two Phase 4 items were not taken and their absence is a decision.** §11.4's semantic
+rerank waits on miss-log evidence, and §10.2.1's vacuous-constraint check waits on a
+declared plausible range per dimension. Both are gated by a section that already argues
+against inventing the missing number, and building either would be the §6.2 violation those
+sections exist to name.

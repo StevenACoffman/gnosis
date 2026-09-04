@@ -2,6 +2,9 @@ package standards
 
 import (
 	_ "embed"
+	"strconv"
+
+	"github.com/StevenACoffman/skillet/errs"
 )
 
 // SampleFileName is where the draw's seed lives, relative to the bundle root.
@@ -16,24 +19,33 @@ var defaultSample []byte
 
 // Sample is the reproducible-draw configuration (§6.2.1, §10.5, §14.3.1).
 //
-// One value, and a file of its own. `rebuild_floor_fraction` was moved out of
-// archive.toml on the grounds that one value did not earn a file; the difference
-// here is that there is no existing file it belongs in — archive.toml is about what
-// enters tier 0 and promote.toml about what leaves quarantine, and a seed is
-// neither.
+// A file of its own, because there is no existing file these belong in — archive.toml
+// is about what enters tier 0 and promote.toml about what leaves quarantine, and a draw
+// is neither.
 //
-// **There is no CompareSample, deliberately.** A changed seed draws a different
-// sample of the same size from the same population, so it is neither a loosening
-// nor a tightening — there is no direction in which a seed reduces findings on
-// purpose, which is the only thing §6.2's rule is about. What a change does mean is
-// that results before and after it are not comparable, and that belongs in log.md
-// for its own reason rather than as a loosening it is not. A comparison function
-// returning nil would be a mechanism asserting there was something to compare.
+// **CompareSample exists now and did not, and the change is worth reading.** The
+// original comment argued there was nothing to compare: a changed seed draws a
+// different sample of the same size from the same population, so it is neither a
+// loosening nor a tightening, and a comparison returning nil would be a mechanism
+// asserting there was something to compare. That is still true of the seed. It stopped
+// being true of the file when `critic_default` arrived, which has a direction — a
+// smaller sample examines less — so the function reports that value and stays silent
+// about the seed.
 type Sample struct {
 	// Seed makes a draw repeatable. §18.3 requires reproducibility and §6.2.1
 	// requires the specific draw to be inspectable, which a value in the binary
 	// would not be.
 	Seed Value[uint64] `toml:"seed"`
+
+	// CriticDefault is how many claims `gnosis critic` draws when `--sample` is
+	// omitted (§10.5).
+	//
+	// Five, and the rationale in the file carries the mathematics: the median of a
+	// population lies between the smallest and largest of any five random samples
+	// with 93.75% probability. That reasoning does not depend on the corpus, which is
+	// why nobody has to re-measure it here — and why a reader tempted to tune it
+	// should know they are trading probability for prompts.
+	CriticDefault Value[int] `toml:"critic_default"`
 }
 
 // DefaultSample returns the seed a new bundle begins with.
@@ -51,10 +63,14 @@ func DefaultSample() []byte {
 // LoadSample parses and validates the draw configuration.
 //
 // Requires: src is TOML.
-// Ensures: EINVALID naming the problem — a syntax error, an unrecognised key, or a
-// value with no rationale. There is no range check: every seed is as good as every
-// other, which is the whole point of a seed, and inventing a bound would be a
-// threshold with nothing behind it.
+// Ensures: EINVALID naming the problem — a syntax error, an unrecognised key, a value
+// with no rationale, or a critic default that is not positive.
+//
+// **The seed has no range check and the sample size does.** Every seed is as good as
+// every other, which is the whole point of a seed, and inventing a bound would be a
+// threshold with nothing behind it. A draw of zero or fewer is different: it is a
+// critic that examines nothing while reporting that it ran, which is the silence §10.5
+// is written against.
 func LoadSample(src []byte) (*Sample, error) {
 	const op = "standards.LoadSample"
 
@@ -65,5 +81,34 @@ func LoadSample(src []byte) (*Sample, error) {
 	if err := checkRationales(op, &s); err != nil {
 		return nil, err
 	}
+	if s.CriticDefault.Value <= 0 {
+		return nil, &errs.Error{
+			Code: errs.EINVALID,
+			Message: op + ": critic_default must be positive; a draw of none is a" +
+				" critic that examines nothing and reports that it ran",
+		}
+	}
 	return &s, nil
+}
+
+// CompareSample reports whether old → cur shrank the critic's default draw.
+//
+// Requires: both are loaded.
+// Ensures: at most one Loosening, and none for a changed seed — see the type's comment
+// for why a seed has no direction.
+//
+// **A smaller sample examines less**, so smaller is looser. It is the same shape as
+// `staleness_days` widening and carries the same hazard: a corpus can be made quieter
+// by asking fewer questions, and every run afterwards is perfectly reproducible.
+func CompareSample(old, cur *Sample) []Loosening {
+	if old == nil || cur == nil ||
+		cur.CriticDefault.Value >= old.CriticDefault.Value {
+		return nil
+	}
+	return []Loosening{{
+		Key:       "critic_default",
+		From:      strconv.Itoa(old.CriticDefault.Value),
+		To:        strconv.Itoa(cur.CriticDefault.Value),
+		Rationale: cur.CriticDefault.Rationale,
+	}}
 }

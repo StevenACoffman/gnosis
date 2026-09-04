@@ -139,7 +139,7 @@ func collisions(groups map[string][]string, category, why string) []finding.Diag
 			Severity: finding.SeverityWarning,
 			Category: category,
 			Path:     paths[0],
-			Message: noun(len(paths), "document") + " " + strings.Join(paths, ", ") +
+			Message: Noun(len(paths), "document") + " " + strings.Join(paths, ", ") +
 				" " + why,
 			Action: finding.ActionHuman,
 		})

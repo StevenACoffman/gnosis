@@ -1,11 +1,13 @@
 package bundle
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gate"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
@@ -23,6 +25,9 @@ type RewriteOptions struct {
 
 	// Path is the concept to rewrite, bundle-relative.
 	Path string
+
+	// Warn is where a note that is not a failure goes, or nil to discard one.
+	Warn io.Writer
 }
 
 // RewritePending is a rewrite prompt that was emitted, or found already answered.
@@ -231,6 +236,13 @@ func (w *Writer) RewritePrompt(opts *RewriteOptions) (RewritePending, error) {
 	if wErr := atomicfile.WriteFile(full, []byte(prompt.Text), 0o640); wErr != nil {
 		return RewritePending{}, &errs.Error{Op: op, Err: wErr}
 	}
+	// §6.4: a row per emission. A rewrite has no deterministic alternative either —
+	// §6.3 makes synthesis the *gated* half of accretion precisely because no
+	// mechanism can rewrite a body — so it joins extraction rather than the critic.
+	w.noteMiss(&Miss{
+		Op: "synthesize", Reason: gnosis.MissNoPath,
+		Key: prompt.Key, Candidate: opts.Path, At: time.Now().UTC(),
+	}, opts.Warn)
 	return RewritePending{Key: prompt.Key, Prompt: rel}, nil
 }
 

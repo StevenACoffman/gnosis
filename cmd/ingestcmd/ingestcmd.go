@@ -109,6 +109,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 		Into:      c.Into,
 		Kind:      bundle.PromptAccrete,
 		CacheOnly: c.CacheOnly,
+		Warn:      c.Stderr,
 	})
 	if err != nil {
 		return c.fail(root.ReasonFetchFailed, err)

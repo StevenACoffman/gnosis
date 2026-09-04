@@ -3,6 +3,7 @@ package bundle
 import (
 	"errors"
 	"io/fs"
+	"sort"
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
@@ -55,9 +56,13 @@ func Snapshot(fsys fs.FS, idx IndexState, fresh FreshnessState) (*lint.Snapshot,
 	if err != nil {
 		return nil, err
 	}
+	support, err := sourceSupport(fsys)
+	if err != nil {
+		return nil, err
+	}
 
 	return &lint.Snapshot{
-		Documents:       documents(docs),
+		Documents:       documents(docs, support),
 		ArchivedText:    archived,
 		RecordedText:    recorded,
 		SourceChecks:    fresh.Checks,
@@ -72,6 +77,9 @@ func Snapshot(fsys fs.FS, idx IndexState, fresh FreshnessState) (*lint.Snapshot,
 		ArchiveText:     citedArchiveText(fsys, docs),
 		Bounds:          claimBounds(fsys, docs),
 		Sources:         sources,
+		Authority:       authorityOf(docs),
+		InDegreeCut:     inDegreeCut(fsys),
+		ChallengeDays:   challengeWindow(fsys),
 		Resolutions:     gnosis.Reconcile(Observed(docs), idx.Rows),
 		SchemaVersion:   gnosis.SchemaVersion,
 		LogLines:        logLines,
@@ -81,7 +89,10 @@ func Snapshot(fsys fs.FS, idx IndexState, fresh FreshnessState) (*lint.Snapshot,
 }
 
 // documents projects loaded files into the check-facing shape.
-func documents(docs []Document) []lint.Document {
+//
+// support maps a source — by archive path and by URI — to what it buys, so the
+// projection can say what each document rests on without a check reading a record.
+func documents(docs []Document, support map[string]lint.Evidence) []lint.Document {
 	out := make([]lint.Document, 0, len(docs))
 	for i := range docs {
 		d := &docs[i]
@@ -91,9 +102,208 @@ func documents(docs []Document) []lint.Document {
 			Claims:     claimRefs(d.Claims),
 			StaleAfter: d.StaleAfter, SourceKeys: d.SourceKeys,
 			Limitations: d.Limitations,
+			Challenges:  d.Challenges,
+			Evidence:    evidenceOf(d, support),
 		})
 	}
 	return out
+}
+
+// evidenceOf is what one document's assertions rest on (§14.4).
+//
+// Requires: support maps an archive path and a source URI to what each buys.
+// Ensures: one entry per distinct source the document names, sorted, and nil for a
+// document naming none. Pure.
+//
+// **Two routes in, because the two dispositions arrive by different keys.** A claim
+// names an `archive_paths` entry, which exists only for a source whose text was
+// stored; a `referenced` source has no archived text and can therefore only be named
+// in the document's OKF `sources` list. Reading one route would make the signal
+// always `provable`, and reading the other would miss every claim-level citation.
+//
+// Deduplicated by URI, because a source fetched twice has two records and a document
+// citing both cites one source — the same reason `citedSources` deduplicates, and the
+// same failure if it did not: one page reading as corroboration.
+func evidenceOf(doc *Document, support map[string]lint.Evidence) []lint.Evidence {
+	seen := map[string]gnosis.Support{}
+	cite := func(key string) {
+		// A key tier 0 has no record of buys nothing. That is not this signal's
+		// finding: `gate:provenance` decides whether a source is followable and
+		// `archive-closure` reports an address naming no record, so counting it
+		// here would name one gap twice.
+		e, ok := support[key]
+		if ok && e.Support > seen[e.URI] {
+			seen[e.URI] = e.Support
+		}
+	}
+	for i := range doc.Claims {
+		for _, p := range doc.Claims[i].ArchivePaths {
+			cite(p)
+		}
+	}
+	for _, res := range doc.Resources {
+		cite(res)
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	uris := make([]string, 0, len(seen))
+	for uri := range seen {
+		uris = append(uris, uri)
+	}
+	sort.Strings(uris)
+	out := make([]lint.Evidence, 0, len(uris))
+	for _, uri := range uris {
+		out = append(out, lint.Evidence{URI: uri, Support: seen[uri]})
+	}
+	return out
+}
+
+// sourceSupport maps every key a document can cite to the source it names and what
+// that source buys (§14.4).
+//
+// Requires: fsys is rooted at the bundle.
+// Ensures: an entry per archive path **and** per source URI tier 0 holds a record
+// for; empty rather than nil for a corpus that has fetched nothing.
+//
+// **Two keys per record, because a document can cite either.** A claim names an
+// archive path; the OKF `sources` list names the URI. One map with both keys is
+// smaller than two maps and cannot fall out of agreement with itself.
+//
+// **The strongest record for a URI wins.** A source fetched twice may be archived
+// once and referenced once — it grew past the per-file cap, or the extractor stopped
+// applying — and a quotation checked against the archived version is still checkable.
+// Taking the weakest would report a claim as unprovable while its evidence sits in
+// tier 0.
+//
+// Which dispositions are durable is `archive.Disposition.Durable()`'s decision and is
+// deliberately not re-stated here: that package owns the dispositions, and a second
+// list of the durable ones is the information leakage a shared decision in two modules
+// always becomes.
+func sourceSupport(fsys fs.FS) (map[string]lint.Evidence, error) {
+	const op = "bundle.sourceSupport"
+
+	out := map[string]lint.Evidence{}
+	put := func(key, uri string, s gnosis.Support) {
+		if key == "" {
+			return
+		}
+		if prev, ok := out[key]; ok && prev.Support >= s {
+			return
+		}
+		out[key] = lint.Evidence{URI: uri, Support: s}
+	}
+	err := walkRecords(op, fsys, func(rec *archive.Record) {
+		s := gnosis.SupportWeak
+		if rec.Disposition.Durable() {
+			s = gnosis.SupportDurable
+		}
+		put(rec.URI, rec.URI, s)
+		put(rec.ArchivePath, rec.URI, s)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// authorityOf derives the corpus's adjudication authority from its adjudicators
+// (§10.6.1).
+//
+// Requires: docs came from Load.
+// Ensures: the authority for the count of distinct `human:` actors in the corpus's
+// warrants and verification lists. Never an error: a corpus with no adjudicators is
+// `sole`, which requires nothing.
+//
+// **Co-signers count.** Somebody who signed a decision is an adjudicator of it, and
+// counting only the first signer would let a corpus with three active reviewers fold
+// to `sole` because one person happened to open every adjudication.
+//
+// **Only `human:` actors**, on §10.6.4's own terms: that section counts *distinct human
+// actors* to decide whether an authority amplified anything, and a kind that could pass
+// for a person makes the count wrong in the direction that flatters the corpus. This is
+// the one place `gnosis.Actor`'s closed enum is load-bearing, and `IsHumanActor` is the
+// permissive read that answers the same question of a string somebody else wrote.
+//
+// **The declared window of §10.6 is not implemented, and the consequence is stated
+// rather than papered over.** §10.6 counts actors *within a declared window*, and
+// nothing declares one — inventing a number is what §6.2 exists to prevent, and this
+// one would decide whether a colleague who left last year still holds the corpus at
+// `paired`. So the count is over the whole history today, which means the authority can
+// **rise and never fall**. The trigger for building the window is observable and needs
+// no threshold: the first corpus whose authority requires a co-signer nobody active can
+// supply. Until then the override of §10.6.3 is the escape hatch, and it leaves the
+// trail that would make the case.
+func authorityOf(docs []Document) gnosis.Authority {
+	return gnosis.FoldAuthority(len(adjudicators(docs)))
+}
+
+// adjudicators counts the distinct human actors a corpus has adjudicated with.
+//
+// Requires: docs came from Load.
+// Ensures: the number of distinct `human:`-prefixed actors in the corpus's warrants
+// and verification lists. Pure.
+//
+// Separate from the fold so `doctor` can report the count beside the authority: a
+// reader told the corpus is at `paired` cannot tell whether that is two people or
+// three, and only one of those is one departure away from `sole`.
+//
+// **The set rather than the count**, because `adjudicate` needs to know what the
+// authority will be *after* a decision it is about to write: adding the signers to this
+// and folding again answers that without reading the corpus a second time, and reading
+// it twice would let the two answers disagree about a document written in between.
+func adjudicators(docs []Document) map[string]bool {
+	people := map[string]bool{}
+	note := func(by string) {
+		if gnosis.IsHumanActor(by) {
+			people[by] = true
+		}
+	}
+	for i := range docs {
+		for j := range docs[i].Claims {
+			claim := &docs[i].Claims[j]
+			note(claim.Warrant.By)
+			note(claim.Warrant.CoSignedBy)
+			for _, v := range claim.Verified {
+				note(v.By)
+			}
+		}
+	}
+	return people
+}
+
+// challengeWindow reads §10.7.3's unanswered window, falling back to the seed.
+//
+// Zero when the file will not load, which **skips** the check: a window of zero would
+// report every challenge the moment it was filed, which is indistinguishable from
+// having no window at all.
+func challengeWindow(fsys fs.FS) int {
+	raw, err := fs.ReadFile(fsys, standards.ChallengeFileName)
+	if err != nil {
+		raw = standards.DefaultChallenge()
+	}
+	in, err := standards.LoadChallenge(raw)
+	if err != nil {
+		return 0
+	}
+	return in.UnansweredDays.Value
+}
+
+// inDegreeCut reads §14.4.1's centrality cut, falling back to the seed.
+//
+// Zero when the file will not load, which **skips** the durability check: an
+// in-degree of zero is at or above a cut of zero, so a missing threshold would
+// otherwise report every document in the corpus as load-bearing.
+func inDegreeCut(fsys fs.FS) int {
+	raw, err := fs.ReadFile(fsys, standards.ArchiveFileName)
+	if err != nil {
+		raw = standards.DefaultArchive()
+	}
+	in, err := standards.LoadArchive(raw)
+	if err != nil {
+		return 0
+	}
+	return in.InDegreeCut.Value
 }
 
 // claimRefs projects a document's claims into the check-facing shape.
@@ -109,6 +319,8 @@ func claimRefs(claims []DocClaim) []lint.Claim {
 			Subject:      claims[i].Subject,
 			Lead:         claims[i].Lead,
 			Quotes:       claims[i].Quotes,
+			Warrant:      claims[i].Warrant,
+			Supersedes:   claims[i].Supersedes,
 			ArchivePaths: claims[i].ArchivePaths,
 		})
 	}
@@ -421,7 +633,13 @@ func ClaimRefsForTest(claims []DocClaim) []lint.Claim { return claimRefs(claims)
 // DocumentsForTest exposes the document projection, for the same reason ClaimRefsForTest
 // does: this seam is where a declared field goes missing silently, and asserting through
 // Snapshot would need a bundle on disk to check one assignment list.
-func DocumentsForTest(docs []Document) []lint.Document { return documents(docs) }
+//
+// It takes the support map because `Evidence` is derived from it rather than copied off
+// a Document field, so a test that could not supply one could not see that projection
+// at all — which is the failure this seam exists to catch.
+func DocumentsForTest(docs []Document, support map[string]lint.Evidence) []lint.Document {
+	return documents(docs, support)
+}
 
 // anchorOf returns one claim's anchor, or empty when the claim is gone.
 //

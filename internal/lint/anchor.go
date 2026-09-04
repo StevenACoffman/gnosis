@@ -50,8 +50,9 @@ func claimAnchorCheck() Check {
 			// hand and declare no claims; reporting nothing found in a corpus with no
 			// anchors is different from reporting there was nothing to look for.
 			for i := range snap.Documents {
-				for _, claim := range snap.Documents[i].Claims {
-					if strings.TrimSpace(claim.Anchor) != "" {
+				claims := snap.Documents[i].Claims
+				for j := range claims {
+					if strings.TrimSpace(claims[j].Anchor) != "" {
 						return true, ""
 					}
 				}

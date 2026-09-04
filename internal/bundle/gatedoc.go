@@ -6,6 +6,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/constraint"
 	"github.com/StevenACoffman/gnosis/internal/gate"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/okf"
 )
 
@@ -31,6 +32,25 @@ const leadKey = "lead"
 // case where a precise value exists but not in prose the parser can reach — a number in
 // a table, a code fence, or a figure caption (§10.2.1).
 const constraintKey = "gnosis_constraint"
+
+// warrantKey is §10.6.4's record of a human adjudication, per claim.
+//
+// Per claim rather than per document, for the reason `subject` and `lead` are: a
+// decision is about an assertion, and a page-level warrant would assert that somebody
+// adjudicated every claim on it when they adjudicated one.
+const warrantKey = "gnosis_warrant"
+
+// supersedesKey is §10.4's edge from the winner of an adjudicated conflict to the claim
+// it replaced. Supersession, never deletion: the loser keeps its links and its history.
+const supersedesKey = "gnosis_supersedes"
+
+// challengesKey is §10.7.4's list of reader-filed contests, per document.
+//
+// Per document rather than per claim, and §10.7.4 writes it that way: a challenge
+// arrives as a diff on the document it contests, which is where a reviewer is already
+// looking, and a reader contesting a page has not always identified which claim they
+// mean — which is part of what the challenge is asking somebody to work out.
+const challengesKey = "gnosis_challenges"
 
 // limitationsKey is what a concept declares it does not cover (§17.2), per document.
 //
@@ -101,9 +121,12 @@ func docClaims(doc *okf.Document) []DocClaim {
 			Lead:         stringOr(m, leadKey),
 			Quotes:       stringsOf(m, evidenceKey),
 			Verified:     verifiedOf(m),
+			Status:       stringOr(m, statusKey),
 			ArchivePaths: stringsOf(m, "archive_paths"),
 		}
 		claim.Pin, claim.Pinned = pinOf(m)
+		claim.Warrant = warrantOf(m)
+		claim.Supersedes = stringsOf(m, supersedesKey)
 		out = append(out, claim)
 	}
 	return out
@@ -278,4 +301,106 @@ func floatOf(v any) (float64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// resourcesOf reads a document's declared OKF `sources` list down to the resources.
+//
+// Requires: doc is a parsed concept.
+// Ensures: one entry per declared source in declaration order, dropping the empty
+// ones; nil for a document declaring none. Pure.
+//
+// Separate from sourcesOf, which builds the gate's `gate.Source` — that shape carries
+// `scope`, which the gate weighs and §14.4 has no use for. Sharing it would hand a
+// derived signal a field the provenance gate is the only judge of.
+func resourcesOf(doc *okf.Document) []string {
+	raw, ok := doc.Fields[sourcesKey].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, entry := range raw {
+		var res string
+		switch v := entry.(type) {
+		case string:
+			res = v
+		case map[string]any:
+			res = stringOr(v, "resource")
+		}
+		if res != "" {
+			out = append(out, res)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// warrantOf reads a claim's `gnosis_warrant` mapping (§10.6.4).
+//
+// Requires: m is a gnosis_claims entry.
+// Ensures: the zero Warrant for a claim carrying none, which Adjudicated reports as
+// false. Every field is read as declared and none is normalised: what a reader has to
+// be able to see is what the author wrote. Pure.
+//
+// **The override is a nested mapping and its reason is lifted out.** §10.6.4 writes it
+// as `override: {reason: …}` because a waiver may later want more than a reason, and
+// flattening it here would make adding one a frontmatter migration. The struct holds
+// the reason because that is the whole of the mechanism today: a waived co-signature
+// that leaves no trace is indistinguishable from an authority that was never in force.
+func warrantOf(m map[string]any) gnosis.Warrant {
+	raw, ok := m[warrantKey].(map[string]any)
+	if !ok {
+		return gnosis.Warrant{}
+	}
+	w := gnosis.Warrant{
+		By:        stringOr(raw, "by"),
+		At:        stringOr(raw, "at"),
+		Authority: stringOr(raw, "tier"),
+		Review:    stringOr(raw, "review"),
+		Rationale: stringOr(raw, "rationale"),
+		Reverses:  stringOr(raw, "reverses"),
+	}
+	w.CoSignedBy = stringOr(raw, "co_signed_by")
+	if override, hasOverride := raw["override"].(map[string]any); hasOverride {
+		w.OverrideReason = stringOr(override, "reason")
+	}
+	return w
+}
+
+// challengesOf reads a document's `gnosis_challenges` list (§10.7.4).
+//
+// Requires: doc is a parsed concept.
+// Ensures: one Challenge per well-formed entry in declaration order; nil for a document
+// declaring none. An entry whose class is not one of §10.7.1's six keeps the raw string,
+// because dropping it would make a malformed challenge indistinguishable from no
+// challenge — and the one thing this list must not do is lose a reader's objection.
+// Pure.
+func challengesOf(doc *okf.Document) []gnosis.Challenge {
+	raw, ok := doc.Fields[challengesKey].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]gnosis.Challenge, 0, len(raw))
+	for _, entry := range raw {
+		m, isMap := entry.(map[string]any)
+		if !isMap {
+			continue
+		}
+		c := gnosis.Challenge{
+			Class:     gnosis.ChallengeClass(stringOr(m, "class")),
+			By:        stringOr(m, "by"),
+			At:        stringOr(m, "at"),
+			Rationale: stringOr(m, "rationale"),
+			State:     gnosis.ChallengeState(stringOr(m, "state")),
+		}
+		if id, err := gnosis.ParseID(stringOr(m, "id")); err == nil {
+			c.ID = id
+		}
+		out = append(out, c)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
