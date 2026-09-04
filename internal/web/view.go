@@ -61,6 +61,37 @@ type Item struct {
 	// Action names the mutation that resolves this, so the form and the item cannot
 	// disagree about what button to draw.
 	Action CommandKind `json:"action"`
+
+	// Domain is who has adjudicated under this subject before, and Owner is who is
+	// accountable for the area (§10.6.2, §10.6.2.1).
+	//
+	// **Both, and neither grants anything.** §10.6.2 asks for exactly this pairing —
+	// "who has adjudicated here before and who is accountable for the area" — and its
+	// argument for showing rather than enforcing is that a count cannot be gamed into
+	// authority when there is nothing to acquire. A queue that turned either into a
+	// requirement would have rebuilt the capability roster that section refuses.
+	Domain []DomainCount `json:"domain,omitempty"`
+	Owner  string        `json:"owner,omitempty"`
+
+	// Finding is the item's stable identity where it has one — a conflict's content
+	// address (§5.4). Empty for an item whose identity is its path, which is every
+	// draft.
+	//
+	// It travels because it is what a deferral is recorded against: §13 asks that an
+	// item be cheap to dismiss, and dismissing one means naming it in a way that still
+	// matches after the checks run again.
+	Finding string `json:"finding,omitempty"`
+}
+
+// DomainCount is one person's prior adjudications under the subject in question.
+//
+// The label travels with the number, because §10.6.2's own rendering does: "human:sarah
+// 14 prior adjudications under retry.*" says what the figure is a count of, and a bare
+// number beside a name reads as a score.
+type DomainCount struct {
+	By    string `json:"by"`
+	Count int    `json:"count"`
+	Under string `json:"under"`
 }
 
 // Side is one claim in a decision, with everything §13 asks be shown beside it.
@@ -124,6 +155,14 @@ type Page struct {
 	Trust     gnosis.Tier `json:"trust"`
 	Freshness string      `json:"freshness,omitempty"`
 	Findings  []string    `json:"findings,omitempty"`
+
+	// Terms are the vocabulary entries this concept's body uses, mapping a declared
+	// surface phrase to what the ontology says it means (§5.8).
+	//
+	// Carried on the page rather than fetched by the panel, because the definition and
+	// the prose have to come from one read: a glossary loaded separately could describe
+	// a vocabulary the body was not written against.
+	Terms map[string]string `json:"terms,omitempty"`
 
 	// Links are the resolved outbound links §8.3 requires rendered inline, with each
 	// target's title and identifier rather than the href alone. *As We May Think* §6's

@@ -179,6 +179,8 @@ func (c *Coordinator) dispatch(
 		return c.adjudicate(ctx, w, v)
 	case *command.Supersede:
 		return c.supersede(ctx, w, v)
+	case *command.Defer:
+		return c.deferConflict(ctx, w, v)
 	default:
 		// Not a usage error: the caller constructed something this build does not
 		// implement, which is a fault in the pairing of caller and binary.

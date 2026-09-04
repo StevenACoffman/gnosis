@@ -15,6 +15,15 @@ import (
 	"github.com/StevenACoffman/skillet/finding"
 )
 
+// subjectContext is what §10.6.2 and §10.6.2.1 ask be shown beside a decision.
+//
+// A value gathered once per queue load rather than per item: both halves are corpus-wide
+// reads, and doing them per conflict would open the ontology once for every pair.
+type subjectContext struct {
+	owners  map[gnosis.SubjectKey]string
+	decided []gnosis.Adjudicated
+}
+
 // queue assembles what needs a person, in the shape §13 requires to decide with.
 //
 // **The assembly is here rather than in a handler**, because a handler that built this
@@ -181,10 +190,112 @@ func (q *queue) decisions(ctx context.Context) []web.Item {
 	// process ran.
 	report := lint.Run(snap, lint.Checks(time.Now().UTC()))
 
+	// What somebody has already decided to live with does not come back to the queue.
+	// §13 asks that each item be cheap to dismiss; an item that reappeared after being
+	// dismissed would make the queue a list of things a reviewer has to dismiss again,
+	// which is worse than not having the action at all. `gnosis lint` still reports
+	// every deferral, because §17.0 makes reviewing the deferred set a different
+	// activity from reviewing the open set.
+	deferred := deferredFindings(snap)
+
 	var out []web.Item
 	for i := range report.Diagnostics {
 		if item, ok := decisionItem(&report.Diagnostics[i]); ok {
 			out = append(out, item)
+		}
+	}
+	return append(out, unseparatedItems(snap, deferred, q.context(snap))...)
+}
+
+// context gathers the ownership and the adjudication history.
+func (q *queue) context(snap *lint.Snapshot) subjectContext {
+	docs, err := bundle.Load(os.DirFS(q.dir))
+	if err != nil {
+		// The history is a display, so a corpus this cannot read yields none rather
+		// than failing the queue. The items still carry the claims and their
+		// evidence, which is what §13 requires to decide with.
+		return subjectContext{owners: bundle.SubjectOwners(os.DirFS(q.dir))}
+	}
+	return subjectContext{
+		owners:  bundle.SubjectOwners(os.DirFS(q.dir)),
+		decided: bundle.Adjudications(docs, snap.Vocabulary.ResolvesSubject),
+	}
+}
+
+// unseparatedItems presents the pairs §10.3 routes to a judge.
+//
+// **Built from the pairs rather than from the diagnostics**, because §13 requires both
+// claims side by side and a diagnostic carries one path and a sentence. The pair carries
+// two references, which is what a reviewer needs to see what they are choosing between.
+func unseparatedItems(
+	snap *lint.Snapshot, deferred map[string]bool, ctx subjectContext,
+) []web.Item {
+	pairs := lint.Unseparated(snap)
+	out := make([]web.Item, 0, len(pairs))
+	for i := range pairs {
+		pair := &pairs[i]
+		if deferred[pair.ID()] {
+			continue
+		}
+		out = append(out, web.Item{
+			Kind: web.ItemConflict, ID: pair.First.Path, Finding: pair.ID(),
+			Summary: "two claims about " + string(pair.Subject) +
+				" that no predicate can separate",
+			Why:    "a judge decides this, or a deferral records living with it",
+			Action: web.CommandAdjudicate,
+			Sides: []web.Side{
+				unseparatedSide(&pair.First), unseparatedSide(&pair.Second),
+			},
+			Domain: domainHistory(ctx.decided, pair.Subject),
+			Owner:  ctx.owners[pair.Subject],
+		})
+	}
+	return out
+}
+
+// domainHistory is who has adjudicated under this subject's domain before.
+//
+// **Shown and never enforced** (§10.6.2): a declared capability roster is a political
+// artifact that rots, and a capability derived from behaviour is self-certifying — "you
+// may adjudicate `db.*` because you have adjudicated `db.*`" entrenches whoever arrived
+// first. The count grants nothing and cannot be gamed into anything, because there is
+// nothing to acquire.
+func domainHistory(decided []gnosis.Adjudicated, subject gnosis.SubjectKey) []web.DomainCount {
+	folded := gnosis.FoldDomainHistory(decided, subject)
+	if len(folded) == 0 {
+		return nil
+	}
+	under := string(gnosis.DomainOf(subject)) + ".*"
+	out := make([]web.DomainCount, 0, len(folded))
+	for _, count := range folded {
+		// The label travels with the number, as §10.6.2's own rendering does: a bare
+		// figure beside a name reads as a score, and "14 prior adjudications under
+		// retry.*" says what it is a count of.
+		out = append(out, web.DomainCount{By: count.By, Count: count.Count, Under: under})
+	}
+	return out
+}
+
+// unseparatedSide is one claim of an unseparated pair, as the queue shows it.
+func unseparatedSide(claim *lint.UnseparatedClaim) web.Side {
+	return web.Side{
+		Ref: claim.Ref(), Path: claim.Path, Title: claim.Path, Text: claim.Anchor,
+	}
+}
+
+// deferredFindings is every conflict identity this corpus has recorded a deferral for.
+//
+// Requires: snap carries the parsed conflict edges.
+// Ensures: only valid deferrals count, which is the safe direction: a half-written entry
+// leaves the conflict in the queue rather than silently suppressing it. Pure.
+func deferredFindings(snap *lint.Snapshot) map[string]bool {
+	out := map[string]bool{}
+	for i := range snap.Documents {
+		edges := snap.Documents[i].Conflicts
+		for j := range edges {
+			if edges[j].Valid() {
+				out[edges[j].Finding] = true
+			}
 		}
 	}
 	return out

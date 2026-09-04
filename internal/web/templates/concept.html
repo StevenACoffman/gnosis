@@ -8,7 +8,13 @@
   <ul>{{range .Page.Findings}}<li>{{.}}</li>{{end}}</ul>
 </section>
 {{end}}
-<article>{{.Page.Body}}</article>
+<article>{{.Body}}</article>
+{{if .Terms}}
+<details class="item" open>
+  <summary>terms this page uses</summary>
+  <dl>{{range .Terms}}<dt><dfn data-term="{{.Key}}">{{.Key}}</dfn></dt><dd>{{.Desc}}</dd>{{end}}</dl>
+</details>
+{{end}}
 {{if .Page.Links}}
 <h2>links</h2>
 <ul>{{range .Page.Links}}<li><a href="/c/{{.ID}}">{{.Title}}</a> <code>{{.ID}}</code></li>{{end}}</ul>

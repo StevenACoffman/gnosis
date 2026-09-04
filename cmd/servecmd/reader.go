@@ -92,6 +92,10 @@ func (r *reader) describe(page *web.Page, detail *index.Detail) {
 	if fresh, fErr := bundle.FreshnessFor(r.dir, detail.Path, time.Now().UTC()); fErr == nil {
 		page.Freshness = fresh.State.String()
 	}
+	// The vocabulary the page's terms are defined from. A corpus with no ontology
+	// yields none, and the panel is then absent rather than empty — "a glossary nobody
+	// opens is not an ontology", and an empty one is worse than none.
+	page.Terms = bundle.DeclaredTerms(os.DirFS(r.dir))
 }
 
 // document reads a concept's body and its declared type.

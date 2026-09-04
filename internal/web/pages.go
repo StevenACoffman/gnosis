@@ -97,15 +97,17 @@ func handleQueuePage(queue Queue) http.Handler {
 
 // handleConceptPage renders one concept for a reader.
 //
-// **The body is escaped and not rendered as markdown**, which is a deliberate first cut
-// rather than an oversight: the corpus is model-written (§13), so its body is the least
-// trustworthy content this server handles, and `html/template` escaping it is what makes
-// the page safe with no allow-list to maintain. A markdown renderer is a second pass and
-// arrives with its own sanitiser.
+// **The body is rendered by `renderBody`, which escapes before it emits any markup.**
+// The corpus is model-written (§13), so its body is the least trustworthy content this
+// server handles — and the renderer's shape rather than a sanitiser is what makes it
+// safe: the input is escaped once, up front, and the only markup on the page is what the
+// renderer writes.
 func handleConceptPage(reader Reader) http.Handler {
 	type data struct {
 		Title string
 		Page  *Page
+		Body  template.HTML
+		Terms []Term
 	}
 	tmpl, err := page("concept.html")
 
@@ -119,6 +121,10 @@ func handleConceptPage(reader Reader) http.Handler {
 			encodeError(w, gnosis.ReasonNoBundle, rErr)
 			return
 		}
-		renderPage(w, tmpl, err, data{Title: concept.Title, Page: concept})
+		renderPage(w, tmpl, err, data{
+			Title: concept.Title, Page: concept,
+			Body:  renderBody(concept.Body),
+			Terms: definedTerms(concept.Body, concept.Terms),
+		})
 	})
 }

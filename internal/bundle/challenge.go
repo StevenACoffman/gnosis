@@ -98,7 +98,7 @@ func insertChallenge(op string, existing []byte, c *gnosis.Challenge) ([]byte, e
 	}
 	entry := renderChallenge(c)
 
-	at, found := challengeListEnd(lines, end)
+	at, found := listEnd(lines, end, challengesKey)
 	if !found {
 		// No such key: the block goes at the end of the frontmatter, which is where
 		// a top-level key can always be added without knowing anything about the
@@ -133,19 +133,25 @@ func frontmatterEnd(op string, lines []string) (int, error) {
 	}
 }
 
-// challengeListEnd is the index just past the last line of an existing
-// `gnosis_challenges` block, and whether there was one.
+// listEnd is the index just past the last line of an existing top-level list block, and
+// whether the document had one.
 //
-// Requires: end is the index of the frontmatter's closing fence.
+// Requires: end is the index of the frontmatter's closing fence; key is a top-level
+// frontmatter key.
 // Ensures: an index in (0, end] when found. Pure.
+//
+// **Keyed rather than fixed to `gnosis_challenges`**, because a second family needed the
+// same surgery: `gnosis_conflicts` appends the same way, and two copies of this loop
+// would be two readings of where a YAML block ends — the repetition this codebase treats
+// as a design smell rather than as duplication to tolerate.
 //
 // The block ends at the first line that is neither blank nor indented, because that is
 // the next top-level key — which is all a YAML block mapping's extent depends on, and
 // the only part of YAML this function has to understand.
-func challengeListEnd(lines []string, end int) (int, bool) {
+func listEnd(lines []string, end int, key string) (int, bool) {
 	start := -1
 	for i := 1; i < end; i++ {
-		if strings.HasPrefix(lines[i], challengesKey+":") {
+		if strings.HasPrefix(lines[i], key+":") {
 			start = i
 			break
 		}

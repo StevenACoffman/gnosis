@@ -185,6 +185,11 @@ type Document struct {
 	// (§10.7.4), in declaration order — which is the order they were filed.
 	Challenges []gnosis.Challenge
 
+	// Conflicts are the contradictions somebody deferred (§5.4). Empty for a document
+	// nobody has deferred one on, which is every document until a person does — an
+	// open conflict is reported by a check and never stored.
+	Conflicts []gnosis.ConflictEdge
+
 	// Evidence is everything this document's assertions rest on, with what each
 	// one buys (§14.4). Empty for a document resting on nothing.
 	//
@@ -358,6 +363,7 @@ func Checks(now time.Time) []Check {
 		archivePathCheck(),
 		claimAnchorCheck(),
 		conflictCheck(),
+		conflictEdgeCheck(),
 		durabilityCheck(),
 		warrantCheck(),
 		coSignCheck(),

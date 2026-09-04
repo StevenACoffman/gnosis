@@ -52,6 +52,18 @@ const supersedesKey = "gnosis_supersedes"
 // mean — which is part of what the challenge is asking somebody to work out.
 const challengesKey = "gnosis_challenges"
 
+// conflictsKey is §5.4's list of contradictions somebody recorded a decision about, per
+// document.
+//
+// **Only deferrals are written here**, and `gnosis.ConflictEdge` carries the argument: an
+// open conflict is what the check reports freshly every run, a closed one is a warrant
+// plus a supersession, and a deferral is the one state no rebuild can re-derive
+// (§10.7.4).
+//
+// Per document rather than per claim, as `gnosis_challenges` is: an edge names the other
+// *concept*, which §5.4 requires be an identifier so it survives a retitle.
+const conflictsKey = "gnosis_conflicts"
+
 // limitationsKey is what a concept declares it does not cover (§17.2), per document.
 //
 // Per document rather than per claim, unlike `subject` and `lead`: §17.2's scope is the
@@ -376,6 +388,39 @@ func warrantOf(m map[string]any) gnosis.Warrant {
 // because dropping it would make a malformed challenge indistinguishable from no
 // challenge — and the one thing this list must not do is lose a reader's objection.
 // Pure.
+func conflictsOf(doc *okf.Document) []gnosis.ConflictEdge {
+	raw, ok := doc.Fields[conflictsKey].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]gnosis.ConflictEdge, 0, len(raw))
+	for _, entry := range raw {
+		m, isMap := entry.(map[string]any)
+		if !isMap {
+			continue
+		}
+		edge := gnosis.ConflictEdge{
+			Finding: stringOr(m, "finding"),
+			State:   gnosis.ConflictState(stringOr(m, "state")),
+			By:      stringOr(m, "by"),
+			At:      stringOr(m, "at"),
+			Reason:  stringOr(m, "reason"),
+		}
+		// An unparseable concept leaves the edge invalid rather than dropping the
+		// entry, which is the same direction `Valid()` fails in: a half-written edge
+		// must leave the conflict reported, and a silently discarded one would leave
+		// the reader unable to see that anything was wrong with it.
+		if id, err := gnosis.ParseID(stringOr(m, "concept")); err == nil {
+			edge.Concept = id
+		}
+		out = append(out, edge)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func challengesOf(doc *okf.Document) []gnosis.Challenge {
 	raw, ok := doc.Fields[challengesKey].([]any)
 	if !ok {

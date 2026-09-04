@@ -204,7 +204,7 @@ func entryStart(lines []string, block, end int, id string) (int, string, bool) {
 //
 // An entry ends where the next list marker at the same indentation begins, or where the
 // block does — which is the whole of the YAML this has to understand, and the same rule
-// challengeListEnd uses one key over.
+// listEnd uses one key over.
 func entryFieldEnd(lines []string, start, end int, marker string) int {
 	last := start
 	for i := start + 1; i < end; i++ {

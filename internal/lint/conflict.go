@@ -45,6 +45,11 @@ type claimSite struct {
 //     gate's duplication signal. Adding a third reporter would make one problem read as
 //     three.
 //   - **interval conflict** is implemented, in interval.go.
+//   - **the residue** — pairs the implemented predicates ran on and could not separate —
+//     is reported in residue.go, under its own category. §10.3 routes it to a judge, and
+//     until 2026-09-04 this check said nothing about it: the pairs it declined were
+//     collected nowhere, so a critic prompt about them would have had to re-derive the
+//     candidate set inside a check that performs no I/O.
 //   - **enumeration conflict** is *subsumed* by it rather than absent: with the operator
 //     set as it stands, two claims asserting `==` on one subject with different values
 //     are two disjoint intervals, and the interval predicate reports them. A second
@@ -57,11 +62,12 @@ type claimSite struct {
 func conflictCheck() Check {
 	return Check{
 		Name:       "conflict",
-		Categories: []string{"evidence-divergence", "conflict"},
+		Categories: []string{"evidence-divergence", "conflict", residueCategory},
 		Actions:    []finding.Action{finding.ActionHuman},
 		Applies:    somethingToCompare,
 		Run: func(snap *Snapshot) []finding.Diagnostic {
-			return append(divergentEvidence(snap), intervalConflicts(snap)...)
+			out := append(divergentEvidence(snap), intervalConflicts(snap)...)
+			return append(out, unseparatedPairs(snap)...)
 		},
 	}
 }
@@ -79,11 +85,31 @@ func conflictCheck() Check {
 // applicability has to track what the check actually does, which is the failure mode §12
 // warns about pointed at itself.
 func somethingToCompare(snap *Snapshot) (bool, string) {
-	if traceableEvidence(snap) || len(snap.Bounds) > 0 {
+	if traceableEvidence(snap) || len(snap.Bounds) > 0 || subjectedClaims(snap) {
 		return true, ""
 	}
-	return false, "no claim's evidence can be traced to a source version, and no claim's" +
-		" prose parses to a bound — there is nothing two claims could disagree about"
+	return false, "no claim's evidence can be traced to a source version, no claim's" +
+		" prose parses to a bound, and no claim names a subject this vocabulary" +
+		" resolves — there is nothing two claims could disagree about"
+}
+
+// subjectedClaims reports whether any claim names a subject the vocabulary resolves.
+//
+// The residue predicate's input, added when it was — for the reason the comment above
+// gives about the first version of this function being too narrow. Derived applicability
+// has to track what the check actually does, and a third predicate arriving without
+// widening this would have had a corpus told there was nothing to examine while a pair
+// of unseparated claims sat in it.
+func subjectedClaims(snap *Snapshot) bool {
+	for i := range snap.Documents {
+		claims := snap.Documents[i].Claims
+		for j := range claims {
+			if _, ok := snap.Vocabulary.ResolvesSubject(claims[j].Subject); ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // traceableEvidence reports whether any claim's evidence can be traced to a version.

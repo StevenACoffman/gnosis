@@ -23,6 +23,7 @@ import (
 	"github.com/StevenACoffman/gnosis/cmd/challengecmd"
 	"github.com/StevenACoffman/gnosis/cmd/criticcmd"
 	"github.com/StevenACoffman/gnosis/cmd/debtcmd"
+	"github.com/StevenACoffman/gnosis/cmd/defercmd"
 	"github.com/StevenACoffman/gnosis/cmd/doctorcmd"
 	"github.com/StevenACoffman/gnosis/cmd/exportcmd"
 	"github.com/StevenACoffman/gnosis/cmd/fetchcmd"
@@ -142,6 +143,7 @@ func register(r *root.Config) {
 	challengecmd.New(r)
 	adjudicatecmd.New(r)
 	supersedecmd.New(r)
+	defercmd.New(r)
 	criticcmd.New(r)
 	misscmd.New(r)
 	proofcmd.New(r)

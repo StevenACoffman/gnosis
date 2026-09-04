@@ -42,7 +42,28 @@ type Subject struct {
 	Aliases            []string          `toml:"aliases"`
 	Rejected           []Rejection       `toml:"rejected"`
 	RequiresCapability bool              `toml:"requires_capability"`
-	Deprecated         *Deprecation      `toml:"deprecated"`
+
+	// Owner is who is accountable for this subject area, or empty (§10.6.2.1).
+	//
+	// **Accountability, never authority.** §10.6.2.1 refuses a `role` on the warrant
+	// for three reasons and settles ownership here instead: "a platform engineer
+	// adjudicating a documentation claim does not make it a platform rule", so
+	// accountability attaches to the subject matter rather than to whoever happened to
+	// be in the review queue.
+	//
+	// **Nothing may gate on it, and the structure is what guarantees that** rather
+	// than a comment. The ontology is in neither `gate.Candidate` nor `gate.Corpus`,
+	// so a gate reading this would have to visibly widen its inputs — a change a
+	// reviewer has to argue for. §14.1's rule that a signal is never a permission is
+	// worth an enforcement mechanism, not a promise.
+	//
+	// One cost, accepted rather than mitigated: ownership does not survive a
+	// reorganisation, so past decisions read as owned by the new team. §10.6.2.1 calls
+	// that the right trade, because ownership is a *current* question — who do I ask
+	// about this now — and `log.md` is where the change itself belongs.
+	Owner string `toml:"owner"`
+
+	Deprecated *Deprecation `toml:"deprecated"`
 }
 
 // Rejection is a surface phrase that was proposed as an alias and declined.
@@ -207,7 +228,10 @@ func (o *Ontology) indexTypes(op string) error {
 // unknown dimensions.
 func (o *Ontology) indexSubjects(op string) error {
 	seen := map[gnosis.SubjectKey]bool{}
-	for _, sub := range o.Subjects {
+	// Indexed rather than ranged by value: the declaration grew past the size where
+	// copying it per subject is free, and nothing here mutates it.
+	for i := range o.Subjects {
+		sub := &o.Subjects[i]
 		if _, err := gnosis.ParseSubjectKey(sub.Key.String()); err != nil {
 			return &errs.Error{Op: op, Err: err}
 		}

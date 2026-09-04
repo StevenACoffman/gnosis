@@ -103,6 +103,7 @@ func documents(docs []Document, support map[string]lint.Evidence) []lint.Documen
 			StaleAfter: d.StaleAfter, SourceKeys: d.SourceKeys,
 			Limitations: d.Limitations,
 			Challenges:  d.Challenges,
+			Conflicts:   d.Conflicts,
 			Evidence:    evidenceOf(d, support),
 		})
 	}

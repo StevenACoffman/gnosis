@@ -26,7 +26,16 @@
     </div>
   {{end}}
   </div>
-  <p class="signals">resolve with <code>{{.Action}}</code> on <code>{{.ID}}</code>, with a rationale</p>
+  {{if or .Domain .Owner}}
+  <p class="signals">
+    {{if .Owner}}accountable for this area: {{.Owner}}{{end}}
+    {{if and .Owner .Domain}} · {{end}}
+    {{if .Domain}}{{range .Domain}}{{.By}} {{.Count}} prior adjudication(s) under {{.Under}}. {{end}}{{end}}
+  </p>
+  <p class="signals">Neither grants authority: this is who has decided here before and
+  who to ask, so a reader who should defer can see that they should.</p>
+  {{end}}
+  <p class="signals">resolve with <code>{{.Action}}</code> on <code>{{if .Finding}}{{.Finding}}{{else}}{{.ID}}{{end}}</code>, with a rationale{{if .Finding}}, or <code>gnosis defer</code> to record living with it{{end}}</p>
 </section>
 {{end}}
 {{end}}

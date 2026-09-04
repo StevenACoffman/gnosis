@@ -856,6 +856,10 @@ steps for a test to walk. Rows 2.15–2.33 were reconstructed from the sections 
 | 5.1 — the server             | [x] done | `internal/web` behind three interfaces it declares, because depguard forbids it the corpus; two listeners over one handler; healthz exempt from auth — see §6.57                                                                                                        |
 | 5.2 — the review queue       | [x] done | §13's "enough to decide with" as the item type; drafts carry what they say rather than what they are called — see §6.57                                                                                                                                                 |
 | 5.3 — served decisions       | [x] done | One `Executor` seam onto the same coordinator; the approver comes from the transport and the escalated path is refused by omission — see §6.57                                                                                                                          |
+| 5.4 — conflict residue       | [x] done | `conflict:unseparated` with a content-addressed id; the pairs §10.3 routes to a judge, collected nowhere until now — see §6.58                                                                                                                                          |
+| 5.5 — deferral               | [x] done | `gnosis_conflicts` holds decisions and not observations; `gnosis defer` writes it, three readers read it — see §6.58                                                                                                                                                    |
+| 5.6 — domain history, owner  | [x] done | §10.6.2's count and §10.6.2.1's `owner`, shown beside each other and read by no gate — see §6.58                                                                                                                                                                        |
+| 5.7 — markdown, glossary     | [x] done | A renderer that escapes before emitting markup; the vocabulary panel lists what a page uses — see §6.58                                                                                                                                                                 |
 
 Three findings from the per-step reviews changed the design rather than the code
 around it:
@@ -3600,3 +3604,81 @@ replaces the confirmation phrase and needs the escalated path over the wire, whi
 refused — building the token before the path it guards would be a mechanism with no
 reader. And `glossary-18F`'s inline definitions (TODO:1162), which §13 does not list and
 which belong with the viewer's second pass.
+
+______________________________________________________________________
+
+### 6.58 Two Words in a Table Row, and a Reader That Turned Out Not to Exist
+
+**The whole of the conflict work turned on reading §5.4's row properly.** It says "open
+contradiction findings, each naming a concept id and a **finding id**", and the entry
+that scheduled it read the first half: the key is "where a conflict finding would be
+committed so that a later selector can read it back". That cannot be right. §10.7.4's rule
+is decisions committed, observations cached, with the operative test being *does later
+work have to rely on this?* — and a conflict the predicates can compute is re-derived by
+every run. Committing it is `checked.jsonl`'s mistake inside a reviewed file: churn in
+frontmatter for a value nobody decided.
+
+The second half settles it. A finding id belongs to §5.5's `findings` table, whose state
+is §17.0's three values, and §10.7.4 says plainly that a `deferred` state "says *a person
+saw this and is not acting yet*, which no rebuild can re-derive". So the family holds
+**deferrals** — and once that is fixed, every piece has a place: the residue predicate
+produces the pairs, `gnosis defer` records living with one, the queue stops showing it,
+`lint` keeps reporting it with the deferral named, and `conflict-edge` reports an entry
+that has gone stale.
+
+**§13 had already asked for the writer** without either of us noticing: "each item must
+also be cheap to dismiss — batch actions and defaults, not a form per finding". Dismissing
+a finding *is* deferring it, and that is the action the section wanted.
+
+**The residue needed a population, and the entry did not say what it was.** §10.3 refuses
+a similarity threshold, so "claims that look alike" was unavailable. A declared subject is
+the corpus's own statement that two claims are about one thing, which needs no number
+nobody has calibrated — and a pair where both sides parse to a bound is the interval
+predicate's, decided either way, so including it would make one examined pair read as two
+findings. The id is content-addressed for tier 0's reason: a minted one would make a
+recorded deferral unmatchable the next time the check ran, which is the one thing the
+record exists to prevent.
+
+**A reader I went looking for does not exist.** §6.2's fourth selector rule reads
+`gnosis_conflicts`, and there is no selector — all four rules are absent, which nothing
+caught because a selector missing from the code and missing from the backlog agree with
+each other. It is now a backlog entry with three of its four rules named buildable, and
+rule 4 arrives with it rather than alone.
+
+**Ownership was already decided and the decision was better than the entry.** §10.6.2.1
+refuses a `role` on the warrant for three reasons, and the third is the one with teeth:
+a warrant field is inside what the gate reads, so only a comment would keep it unread,
+whereas the ontology is in neither `gate.Candidate` nor `gate.Corpus`. Keeping `owner` off
+the lint snapshot is what makes that argument true rather than a promise — no check can
+reach it.
+
+Two details the build settled that the section left implicit. The domain count is per
+**first dotted segment**, which is §10.6.2's own `retry.*` example; counting every
+adjudication would report seniority rather than domain. And it **resolves the surface** to
+a subject key before counting, because §5.8.2's aliases mean "retries" and "retry budget"
+are one subject and counting the strings would split one person's history across the
+spellings their colleagues happened to use.
+
+**The markdown sanitiser turned out to be an ordering rather than a component.** A general
+library accepts raw HTML by design, so it needs an allow-list maintained against exactly
+the input an allow-list is worst at — a model-written body. Escaping first and emitting
+markup afterwards makes the property structural: the only markup on the page is what the
+renderer writes, so a construct it does not know renders as its own literal text and a
+`<script>` has no path to becoming a tag. Links are allow-listed to corpus-relative paths,
+because a deny-list of schemes has to anticipate the one nobody thought of.
+
+**And the first test of that renderer was wrong in an instructive direction.** It forbade
+strings like `onerror` anywhere in the output, and failed on `&lt;img src=x
+onerror=alert(1)&gt;` — escaped text a reader sees as the words somebody typed. Passing it
+would have required the renderer to *delete* content, which is worse behaviour. The
+assertion became: strip the tags the renderer may emit, and require that no angle bracket
+survives. That is the safety property written down rather than a proxy for it.
+
+**Two hand-run findings, in a session where the tests were passing.** `lint` reported a
+deferred conflict in words identical to an undecided one, so the output a team would audit
+its deferrals from could not tell §17.0's two sets apart — the queue hid the item and the
+report went quiet about the decision. And the queue's conflict items were being built from
+diagnostics, which carry one path and a sentence; §13 requires *both claims side by side*,
+which needs the pair. Exporting the pair fixed both the display and an uglier thing I had
+written on the way there: a check scraping the finding id back out of another check's
+prose.

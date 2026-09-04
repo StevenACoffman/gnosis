@@ -48,6 +48,12 @@ const (
 	OpChallenge  Op = "challenge"  // a reader contested an accepted claim
 	OpAdjudicate Op = "adjudicate" // a person decided a claim and wrote its warrant
 	OpSupersede  Op = "supersede"  // one claim replaced another, and the loser was kept
+
+	// OpDefer records that a person saw a contradiction and is not acting yet
+	// (§17.0). Its own op rather than a variant of adjudicate: an adjudication
+	// resolves a conflict and a deferral resolves nothing, and a trail that
+	// conflated them could not answer what a corpus has decided to live with.
+	OpDefer Op = "defer"
 )
 
 // Op names what happened.

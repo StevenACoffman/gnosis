@@ -79,6 +79,11 @@ type Document struct {
 	// (§10.7.4). Empty for a document nobody has challenged.
 	Challenges []gnosis.Challenge
 
+	// Conflicts are the contradictions somebody recorded a decision about (§5.4).
+	// Empty for a document with none, which is every document until a person defers
+	// one — an open conflict is reported by the check and never stored.
+	Conflicts []gnosis.ConflictEdge
+
 	// Resources are the sources this document declares in OKF's `sources` list,
 	// verbatim.
 	//
@@ -303,6 +308,7 @@ func read(fsys fs.FS, path string) Document {
 	doc.SourceKeys = sourceKeys(doc.Claims)
 	doc.Resources = resourcesOf(parsed)
 	doc.Challenges = challengesOf(parsed)
+	doc.Conflicts = conflictsOf(parsed)
 	if status, ok := parsed.Text(statusKey); ok {
 		doc.Status = status
 	}

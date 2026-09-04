@@ -139,6 +139,13 @@ func (g *Gains) count(row *audit.Row) {
 		// sources archived is the path count rather than the row count. A fetch of
 		// thirty sources is one row and thirty gains.
 		g.Archived += len(row.Paths)
+	case audit.OpDefer:
+		// Not a gain, and the reason is sharper than for a supersession: a deferral
+		// records that the corpus knows something is wrong and is not fixing it yet.
+		// Counting it would make a number that rises as unresolved contradictions
+		// accumulate, which is §17's refusal to score at its most inverted — the
+		// figure would look like progress and mean the opposite. What reads the
+		// deferrals is `lint`, which still reports every one of them.
 	case audit.OpSupersede:
 		// Not a gain and not nothing: a supersession records that the corpus changed
 		// its mind, and the knowledge it gained is the *winning* claim, which was

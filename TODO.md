@@ -1169,7 +1169,7 @@ ______________________________________________________________________
   **Both roles ship; only `reason` has a reader.** The conclusion rows wait on §17.4's
   `lead` check, which waits on extraction. The file says so, so an unused row is not
   read as a dead one.
-- [ ] **Surface definitions where terms are used.** `glossary-18F` is a small
+- [x] **Surface definitions where terms are used.** `glossary-18F` is a small
   accessible panel resolving `data-term` attributes inline, as shipped on FEC.gov. A
   glossary nobody opens is not an ontology. Phase 5, with the viewer.
   **The viewer landed 2026-09-03 and this did not**, which is a scheduling fact rather
@@ -1178,6 +1178,23 @@ ______________________________________________________________________
   definitions need a renderer that produces markup, so both belong to the same second
   pass — and that renderer arrives with its own sanitiser, which is the part worth doing
   deliberately rather than alongside something else.
+  **Both landed 2026-09-04, and the sanitiser turned out to be the renderer's shape
+  rather than a component.** A general markdown library accepts raw HTML by design, so it
+  would have needed an allow-list maintained against exactly the input an allow-list is
+  worst at — a model-written body. Escaping first and emitting markup afterwards makes
+  the property structural: the only markup on the page is what the renderer writes, and a
+  construct it does not know renders as its own literal text. Links are allow-listed to
+  corpus-relative paths, because a deny-list of schemes has to anticipate the one nobody
+  thought of.
+  **The panel lists only the terms the page uses**, definitions taken from the ontology's
+  `desc`, and it includes aliases — §5.8.2 makes an alias the phrase an author actually
+  writes, so a glossary that knew only the key would define a term the reader cannot see
+  and stay silent about the one they can.
+  **What the first test of it got wrong is worth keeping.** It forbade strings like
+  `onerror` anywhere in the output and failed on `&lt;img src=x onerror=alert(1)&gt;` —
+  which is escaped text a reader sees as the words somebody typed. Passing it would have
+  required *deleting* content, so the assertion became: strip the tags the renderer may
+  emit, and require that no angle bracket survives.
 - [x] **Initial `standards/` values are written, and this entry was stale.**
   *Measured 2026-08-23: `standards/archive.toml`, `promote.toml`, `sample.toml` and
   `retrieval-cases.toml` all exist as embedded seeds, every value carrying the rationale
@@ -2494,7 +2511,7 @@ ______________________________________________________________________
   part that would be a silent content change, and it is rare rather than pervasive. So this repository formats with `rumdl` and the invocation is
   `rumdl fmt --disable MD063 <authored files>`; `mdformat` is not part of the toolchain
   and the earlier entries naming it were describing an intention rather than a decision.
-- [ ] **A claim records who approved it and not what authority they held.** `Actor` is
+- [x] **A claim records who approved it and not what authority they held.** `Actor` is
   `human:<id>` and `gnosis_warrant` carries a rationale, so a corpus can say *Priya
   adjudicated this* and cannot say *the platform team owns this rule*. `haft`'s decision
   records carry a role rather than only an identity, which makes two things possible that
@@ -2547,6 +2564,17 @@ ______________________________________________________________________
   history — and adding the key before something displays it would repeat the mistake this
   project has recorded three times. So this is **no longer blocked on the warrant**; it is
   blocked on the queue.
+  **Both halves shipped 2026-09-04, with the queue as the reader they waited for.**
+  §10.6.2's domain history is a fold over recorded adjudications and a claim's subject,
+  displayed beside the subject's `owner`, and the page says in words that neither grants
+  authority. Two things the build settled: the count is per **first dotted segment** of
+  the subject, which is §10.6.2's own `retry.*` example and not seniority across the
+  corpus; and it **resolves the surface** to a key first, because §5.8.2's aliases mean
+  counting the strings would split one person's history across their colleagues'
+  spellings.
+  **The owner is deliberately absent from the lint snapshot**, which is what makes
+  §10.6.2.1's third refusal structural: no check can reach it, so a gate reading it would
+  have to visibly widen its inputs.
 - [x] **`PLAN.md`'s progress table stopped at Step 2.14 while its narrative ran to
   §6.46.** *Closed 2026-09-03, and verified rather than asserted: the table now runs to
   `3.7 — critic`, every discrete item in §4 and §6 carries `[ ]` or `[x]`, and
@@ -2619,7 +2647,7 @@ ______________________________________________________________________
   derived authority nobody announced is reported, which is what catches a `verified` list
   edited by hand. The sentence is `gnosis.AuthorityMove.String`'s, written once, so the
   log entry and the diagnostic cannot describe one event two ways.
-- [ ] **The two-claim conflict residue has no producer, and the critic is waiting for
+- [x] **The two-claim conflict residue has no producer, and the critic is waiting for
   it.** *§10.3 routes semantic contradiction between claims that survive the decidable
   predicates to `gnosis critic` — "a cold-critic prompt that sees the two claims and
   their sources but never the reasoning that produced either". Step 3.7 built the
@@ -2633,6 +2661,20 @@ ______________________________________________________________________
   different template and a two-claim `CriticClaim`; what does not exist is something that
   says *these two claims are worth a person's or a model's attention and no predicate can
   separate them*. When `conflict` grows that output, the critic reads it.
+  **The producer landed 2026-09-04 and the prompt did not, which is what this entry
+  asked for.** `conflict` now reports `conflict:unseparated` — two claims on one resolved
+  subject that a predicate ran on and could not decide — each with a content-addressed id
+  that a deferral can be recorded against and still match after a rebuild.
+  **The population needed deciding and the entry did not say how.** A similarity
+  threshold is refused by §10.3, so "claims that look alike" was unavailable; a declared
+  subject is the corpus's own statement that two claims are about one thing, and it is the
+  only population that needs no number nobody has calibrated. Two claims that both parse
+  to a bound are the interval predicate's pair, so they are excluded — reporting them here
+  would make one examined pair read as two findings.
+  **What remains is the prompt**, which is this relay with a two-claim template and no
+  CLI surface in §8.4 to reach it by. The queue now shows the pairs side by side, which
+  is what §10.3 wanted a judge to see, so the model's turn is no longer what blocks a
+  person from deciding.
 - [x] **Three progress rows said `open` for a day after the work landed, and I reported
   them done.** *Closed 2026-09-03: rows 3.4, 3.5 and 3.6 read `[x] done`, and the count
   that would have caught it is now what gets run before reporting a step complete. The
@@ -2682,6 +2724,22 @@ ______________________________________________________________________
   entry got right in one direction and wrong in the other: `skillet/proof` fit exactly
   and `skillet/manifest` did not, and both were in the same sentence as though the
   question were availability.
+- [ ] **§6.2's candidate selector is unbuilt, and this file named no part of it.**
+  *Found 2026-09-04 while looking for the reader of `gnosis_conflicts`: §6.2's fourth
+  rule is "claims whose `gnosis_conflicts` names the incoming source", and there is no
+  selector for it to be a rule of.* All four rules are absent — the shared `source_id`,
+  the one-hop link neighbourhood, the tag-plus-FTS5 rank cut, and the conflict edge.
+  **It is the §12.1 blind spot again**, which is why nothing caught it: a selector absent
+  from the code and absent from the backlog agree with each other, and the only method
+  that sees it is reading a specification section against the tree.
+  **Three of the four are buildable now and the third is not.** Rules 1, 2 and 4 are
+  index queries over tables that exist; rule 3 needs a declared rank cut in `standards/`
+  (§6.5), and §6.2's own argument against inventing one applies — a threshold nobody can
+  calibrate is what that section refuses.
+  **What it waits for is a caller.** The selector's consumer is accretion during ingest:
+  §6.2 exists so that an incoming source finds the claims it might update without asking
+  a model per candidate. Building the query before something ingests-with-candidates
+  would be a mechanism with no reader.
 - [ ] **§9.6's outcome labelling needs a vocabulary nobody can write yet.** *Found
   2026-09-03 while building `gnosis mine`.* The reference implementation "labels outcomes
   from feedback signals", which means reading what disappointment sounds like — and a
@@ -2695,7 +2753,7 @@ ______________________________________________________________________
   detects exactly.
   The trigger is a corpus with enough mined sessions to write the vocabulary from
   measurement rather than from imagination.
-- [ ] **`gnosis_conflicts` is specified in §5.4 and nothing reads or writes it.** *Found
+- [x] **`gnosis_conflicts` is specified in §5.4 and nothing reads or writes it.** *Found
   in the same pass, by reading the frontmatter table against the parsers.* §5.4 gives it
   a meaning — "open contradiction findings, each naming a concept id and a finding id" —
   and §6.2's candidate selector names it as its fourth rule: "claims whose
@@ -2705,6 +2763,23 @@ ______________________________________________________________________
   read it back, which is what `conflict` has nowhere to put its output today. Worth
   building with that producer rather than before it — a frontmatter family nothing writes
   is the mistake this file has recorded seven times.
+  **Built 2026-09-04, and the row it implements is narrower than it read.** §5.4 said
+  "open contradiction findings", and an open one must not live there: §10.7.4's rule is
+  decisions committed, observations cached, and a conflict the predicates compute is
+  re-derived every run. The two words that settle it are "finding id" — a finding id
+  belongs to §5.5's table, whose state is §17.0's three values, and §10.7.4 is explicit
+  that `deferred` is the one no rebuild can recover. So the family holds **deferrals**,
+  written by `gnosis defer`.
+  **Three readers, which is what kept it from being unread state.** The review queue
+  stops showing a deferred pair; `lint` keeps reporting it and names who deferred it and
+  why, because §17.0 makes auditing the deferred set a different activity from reviewing
+  the open one; and `conflict-edge` reports an entry that has gone stale — naming a
+  concept the corpus dropped, half-written, or deferring a conflict nobody reports any
+  more.
+  **§6.2's fourth selector rule still has no reader, and the reason is not this key.**
+  That rule needs the candidate selector, which turns out to be unbuilt in its entirety —
+  so adding rule 4 alone would be a query with no caller. It arrives with the selector,
+  and that is a separate item nobody had recorded.
 - [x] **`relay.CriticReply.NotExamined` carries less than the family type it mirrors.**
   *`finding.Unexamined` is `{Aspect, Reason}` with a `Valid()` that requires both, and
   skillet's comment on it is explicitly about parsing a critic's reply. gnosis's critic
