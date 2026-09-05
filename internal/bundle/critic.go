@@ -206,12 +206,15 @@ func (w *Writer) FileCritique(key string, src []byte, warn io.Writer) (*Verdict,
 	if err != nil {
 		return nil, err
 	}
-	if meta.Kind != PromptCritic {
+	if meta.Kind != PromptCritic && meta.Kind != PromptCriticPair {
 		return nil, &errs.Error{
 			Code: errs.EINVALID,
 			Message: op + ": key " + key + " is a " + string(meta.Kind) +
 				" prompt; a critic verdict is filed only against a critic prompt",
 		}
+	}
+	if meta.Kind == PromptCriticPair {
+		return w.filePairCritique(op, key, src, &meta, warn)
 	}
 	// **Checked on the way out as well as on the way in**, which is the exception to
 	// StorePromptMeta's rule and earns it: the coverage ledger is keyed on this field,

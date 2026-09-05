@@ -80,6 +80,13 @@ type Config struct {
 	// SampleN is how many claims to draw. Zero takes standards/sample.toml's default.
 	SampleN int
 
+	// Pairs asks §10.3's two-claim question instead of §10.5's sample.
+	//
+	// A flag rather than a second command, for `--cases`'s reason: the same lock, the
+	// same prompt store, the same reply path, and the same `--response` filing. Two
+	// commands would be two routes to one relay.
+	Pairs bool
+
 	// Key names the prompt a reply answers, in response mode.
 	Key string
 
@@ -101,6 +108,8 @@ func New(parent *root.Config) *Config {
 	cfg.Flags.StringVar(&cfg.Path, 0, "path", "", "critique one document's claims")
 	cfg.Flags.IntVar(&cfg.SampleN, 0, "sample", 0,
 		"how many claims to draw; the default lives in standards/sample.toml")
+	cfg.Flags.BoolVar(&cfg.Pairs, 0, "pairs",
+		"ask whether two claims no predicate could separate can both hold (§10.3)")
 	cfg.Flags.StringVar(&cfg.Key, 0, "key", "", "the prompt a reply answers")
 	cfg.Flags.StringVar(&cfg.Response, 0, "response", "",
 		"file holding the reply, or - for stdin")
@@ -135,6 +144,9 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 	if c.Response != "" {
 		return c.file(w)
 	}
+	if c.Pairs {
+		return c.emitPairs(ctx, w)
+	}
 	return c.emit(w)
 }
 
@@ -161,12 +173,59 @@ func (c *Config) validate(args []string) error {
 		// invalidate the whole cache without having decided to.
 		return errors.New("--model is required; it is part of the cache key")
 	}
+	if c.Pairs && (c.Path != "" || c.SampleN != 0) {
+		return errors.New("--pairs asks about the pairs the conflict check reports;" +
+			" --path and --sample choose a population from claims, which is §10.5's" +
+			" question rather than §10.3's")
+	}
 	if c.Path != "" && c.SampleN != 0 {
 		return errors.New("--path critiques one document's claims and --sample draws" +
 			" from the corpus; they answer different questions")
 	}
 	if c.SampleN < 0 {
 		return fmt.Errorf("--sample must be positive, got %d", c.SampleN)
+	}
+	return nil
+}
+
+// emitPairs writes one prompt per unseparated pair (§10.3).
+//
+// **No sample and no seed.** §10.5 draws because critiquing every claim would be a bill
+// nobody agreed to; the pairs are the ones the deterministic predicates already failed on,
+// so the population is small by construction and drawing from it would leave a known
+// contradiction unexamined for a reason nobody could name.
+func (c *Config) emitPairs(ctx context.Context, w *bundle.Writer) error {
+	out, err := w.PairPrompts(ctx, &bundle.CriticOptions{
+		Model: relay.Model{Name: c.Model, Version: c.ModelVersion},
+		Warn:  c.Stderr,
+	})
+	if err != nil {
+		return c.fail(root.ReasonNoBundle, err)
+	}
+	if c.JSONL {
+		if eErr := c.EmitOK(out); eErr != nil {
+			return fmt.Errorf("critic: %w", eErr)
+		}
+		return nil
+	}
+	for i := range out.Prompts {
+		p := &out.Prompts[i]
+		if p.Cached {
+			_, _ = fmt.Fprintf(c.Stdout, "%s\tcached\n", p.Key)
+			continue
+		}
+		_, _ = fmt.Fprintf(c.Stdout, "%s\t%s\n", p.Key, p.Path)
+	}
+	_, _ = fmt.Fprintf(c.Stderr,
+		"%d prompt(s) from %d unseparated pair(s)\n",
+		len(out.Prompts), out.Population)
+	if out.Skipped > 0 {
+		// Part of the answer rather than a statistic beside it: a corpus where most
+		// claims cite nothing archived would otherwise report a small number of
+		// prompts as a small number of disagreements.
+		_, _ = fmt.Fprintf(c.Stderr,
+			"%d pair(s) skipped because a claim cites no archived source; judging"+
+				" against text nobody kept is what §4.1 refuses\n", out.Skipped)
 	}
 	return nil
 }

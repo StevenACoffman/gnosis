@@ -2076,6 +2076,33 @@ The rule is `skillex`'s: same corpus state produces the same candidate set,
 every time, because the index is a deterministic build artifact. Selection is a
 query, not a judgment.
 
+**Built 2026-09-04, and rule 1 had no column to query.** The section says candidates come
+from the index and keys the first rule on a `source_id`; there was no such column and no
+join, because `sources_fetched` projects tier 0, `claims` projects the corpus, and a
+claim's archive paths lived only in its frontmatter. `claim_sources` is that join, filled
+by `index rebuild` from the committed documents like every other projection (§4.5).
+
+**Rule 3 is not built, and it is blocked twice.** It needs a *tag* projection — §5.5
+records `tags` as a table with no migration and no reader, which is why §11.3's `--tag`
+filter was refused — and a *declared rank cut*, which this section puts in `standards/`
+and forbids as a literal in Go. Neither is a decision the implementation may make, so the
+selection **reports the rule as not run, with both reasons**: a set that quietly ran three
+rules of four would present a partial answer as a whole one.
+
+**Rule 2 runs in both directions and stops at one hop**, which is the section's own number
+rather than a tuned one; widening it needs the declared value rule 3 waits on. Rule 4
+reads committed frontmatter rather than the index, because no projection holds
+`gnosis_conflicts` — determinism is unaffected, since the same corpus state yields the
+same edges.
+
+**Every candidate names the rule that found it.** A bare list would be a ranking a reader
+has to trust, and this section's claim is that selection is checkable.
+
+**Its reader is `gnosis ingest` without `--into`.** That flag is the operator answering by
+hand the question this section exists to answer for them; when it is absent, ingest now
+reports the candidates and **does not choose one** — §6.2 selects and §6.3 accretes into a
+document a person named.
+
 Every rank cut and hop limit is declared in `standards/` (§6.5), never a literal
 in Go.
 
@@ -3646,9 +3673,22 @@ unavailable and a declared subject is the only non-invented population there is;
 claims that both parse to a bound are the interval predicate's pair, decided one way or
 the other, so reporting them here would make one examined pair read as two findings.
 
-The two-claim prompt itself is still unbuilt. What it waited for was the producer, and
-the producer is what landed; the prompt is this relay with a different template, and it
-has no CLI surface in §8.4 to reach it by.
+**The two-claim prompt landed 2026-09-04**, reached by `gnosis critic --pairs` — a flag on
+the command that already takes the lock, writes prompts and files replies, rather than a
+second route to one relay.
+
+Three things it settles. It asks whether both claims can hold and **never which is right**,
+because §10.2.2 keeps a derived comparison a finding rather than a verdict and a model
+picking a winner would be adjudicating the corpus. It compares each claim against **its
+own** source, so "this claim is unsupported" stays a different finding from "these two
+disagree". And filing a verdict records coverage for **both** claims: §10.5's ledger says
+what was looked at, and a row for one of two would let a later single-claim critique
+re-ask a question this one answered.
+
+There is no sample and no seed, unlike §10.5's. That section draws because critiquing
+every claim would be a bill nobody agreed to; these pairs are the ones the deterministic
+predicates already failed on, so the population is small by construction and drawing from
+it would leave a known contradiction unexamined for a reason nobody could name.
 
 **The critic is blinded, and this is a requirement.** The prompt MUST NOT include
 the existing adjudication, warrant, status, trust tier, or verification history of

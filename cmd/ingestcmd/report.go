@@ -17,6 +17,15 @@ type Result struct {
 	// claim it did.
 	Emitted int `json:"emitted"`
 	Cached  int `json:"cached"`
+
+	// Selection is what §6.2's rules found for these sources, present only when the
+	// caller named no `--into`.
+	//
+	// **It is a report and never a choice.** §6.2 selects candidates and §6.3
+	// accretes into a document a person named; a command that picked one would make
+	// the judgement that section removes, and the failure would be silent because a
+	// wrong choice looks exactly like a right one until somebody reads the diff.
+	Selection *bundle.Selection `json:"selection,omitempty"`
 }
 
 // report renders the outcome.
@@ -25,8 +34,8 @@ type Result struct {
 // the corpus is in a state the caller asked about and the tool worked correctly.
 // A CI job branches on exactly that difference, and returning an error would make
 // "this needs new model calls" indistinguishable from "gnosis is broken".
-func (c *Config) report(pending []bundle.Pending) error {
-	result := Result{Prompts: pending}
+func (c *Config) report(pending []bundle.Pending, selection *bundle.Selection) error {
+	result := Result{Prompts: pending, Selection: selection}
 	for i := range pending {
 		if pending[i].Cached {
 			result.Cached++
@@ -45,7 +54,39 @@ func (c *Config) report(pending []bundle.Pending) error {
 		return nil
 	}
 	c.writeHuman(&result)
+	writeSelection(c, result.Selection)
 	return nil
+}
+
+// writeSelection names the concepts an incoming source might update.
+//
+// **On stderr, and it names the rule beside each one.** §6.2's claim is that selection is
+// a query rather than a judgment, so a bare list would be a ranking a reader has to
+// trust — and the rule is what makes the choice checkable. The list goes to stderr
+// because stdout carries the prompts a script consumes.
+func writeSelection(c *Config, selection *bundle.Selection) {
+	if selection == nil {
+		return
+	}
+	if len(selection.Candidates) == 0 {
+		_, _ = fmt.Fprintf(c.Stderr,
+			"no existing concept rests on these sources or links to one that does\n")
+	}
+	for i := range selection.Candidates {
+		cand := &selection.Candidates[i]
+		_, _ = fmt.Fprintf(c.Stderr, "candidate\t%s\t%s\t%s\n",
+			cand.Rule, cand.Path, cand.Title)
+	}
+	if len(selection.Candidates) > 0 {
+		_, _ = fmt.Fprintf(c.Stderr,
+			"gnosis selects and does not choose (§6.2): re-run with `--into <path>` to"+
+				" accrete into one of these, or admit the reply as a new concept\n")
+	}
+	for _, gap := range selection.NotRun {
+		// A rule that did not run is reported for `finding.Unexamined`'s reason: a
+		// selection missing a rule silently looks like a complete one.
+		_, _ = fmt.Fprintf(c.Stderr, "not run\t%s — %s\n", gap.Aspect, gap.Reason)
+	}
 }
 
 // reportMisses is the --cache-only refusal, listing what is missing so a caller

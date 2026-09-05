@@ -102,8 +102,8 @@ func (c *Coordinator) applyReply(
 	case PromptSynthesize:
 		return c.synthesizeReply(op, w, cmd, reply, meta, k)
 	case PromptSource, PromptKindUnset:
-	case PromptCritic, PromptAsk:
-		// Unreachable: admittedElsewhere refuses both before the reply is parsed.
+	case PromptCritic, PromptCriticPair, PromptAsk:
+		// Unreachable: admittedElsewhere refuses all three before the reply is parsed.
 		// Named rather than defaulted so the compiler keeps asking, which is the whole
 		// value of an exhaustive switch over a kind that grows.
 	}
@@ -451,7 +451,7 @@ func describe(i int, text string) string {
 // this function and nothing else.
 func admittedElsewhere(kind PromptKind) (filedBy string, elsewhere bool) {
 	switch kind {
-	case PromptCritic:
+	case PromptCritic, PromptCriticPair:
 		return "`gnosis critic --response`, because a verdict is not a document", true
 	case PromptAsk:
 		return "`gnosis file`, which puts the answer through the promote gate", true

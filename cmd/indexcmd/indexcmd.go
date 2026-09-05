@@ -297,6 +297,7 @@ func (c *Config) write(
 		Claims:        bundle.ClaimRows(docs),
 		Verifications: bundle.VerificationRows(docs),
 		ClaimSubjects: bundle.ClaimSubjectRows(docs, vocab, bundle.OperatorPatterns(c.Bundle)),
+		ClaimSources:  bundle.ClaimSourceRows(docs),
 	}
 	if err := db.Replace(ctx, &contents); err != nil {
 		return c.fail(root.ReasonIndexDrift, err)

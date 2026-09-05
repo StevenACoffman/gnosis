@@ -2675,6 +2675,13 @@ ______________________________________________________________________
   CLI surface in §8.4 to reach it by. The queue now shows the pairs side by side, which
   is what §10.3 wanted a judge to see, so the model's turn is no longer what blocks a
   person from deciding.
+  **And the prompt landed 2026-09-04**, reached by `gnosis critic --pairs` rather than a
+  second command — the same lock, prompt store and `--response` path. It asks whether both
+  claims can hold and never which is right (§10.2.2), compares each against its own source,
+  and files coverage for **both** claims, because a row for one of two would let a later
+  single-claim critique re-ask what this one answered. No sample and no seed: the pairs are
+  what the predicates already failed on, so drawing from them would leave a known
+  contradiction unexamined for a reason nobody could name.
 - [x] **Three progress rows said `open` for a day after the work landed, and I reported
   them done.** *Closed 2026-09-03: rows 3.4, 3.5 and 3.6 read `[x] done`, and the count
   that would have caught it is now what gets run before reporting a step complete. The
@@ -2724,7 +2731,7 @@ ______________________________________________________________________
   entry got right in one direction and wrong in the other: `skillet/proof` fit exactly
   and `skillet/manifest` did not, and both were in the same sentence as though the
   question were availability.
-- [ ] **§6.2's candidate selector is unbuilt, and this file named no part of it.**
+- [x] **§6.2's candidate selector is unbuilt, and this file named no part of it.**
   *Found 2026-09-04 while looking for the reader of `gnosis_conflicts`: §6.2's fourth
   rule is "claims whose `gnosis_conflicts` names the incoming source", and there is no
   selector for it to be a rule of.* All four rules are absent — the shared `source_id`,
@@ -2740,6 +2747,18 @@ ______________________________________________________________________
   §6.2 exists so that an incoming source finds the claims it might update without asking
   a model per candidate. Building the query before something ingests-with-candidates
   would be a mechanism with no reader.
+  **Built 2026-09-04, and the caller was already there wearing a flag.** `gnosis ingest
+  --into c/x.md` is the operator answering by hand the question §6.2 exists to answer for
+  them, so the reader is `ingest` *without* it: three rules run, the candidates are
+  reported with the rule that found each, and nothing is chosen — §6.2 selects and §6.3
+  accretes into a document a person named.
+  **Rule 1 had no column, which the entry did not know.** `sources_fetched` projects tier
+  0 and `claims` projects the corpus, and nothing joined them — a claim's archive paths
+  lived only in frontmatter. `claim_sources` is that join, filled by `index rebuild` like
+  every other projection, and it arrived with its reader in the same change.
+  **Rule 3 stays unbuilt with both blockers named** — no `tags` projection (§5.5) and no
+  declared rank cut (§6.5) — and the selection *reports* it as not run rather than
+  omitting it, because three rules of four run silently would look like four.
 - [ ] **§9.6's outcome labelling needs a vocabulary nobody can write yet.** *Found
   2026-09-03 while building `gnosis mine`.* The reference implementation "labels outcomes
   from feedback signals", which means reading what disappointment sounds like — and a

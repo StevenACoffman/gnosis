@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/StevenACoffman/skillet/atomicfile"
@@ -57,6 +58,16 @@ const (
 	// caller validating it against an archive path would be asking the wrong question
 	// of it.
 	PromptAsk PromptKind = "ask"
+
+	// PromptCriticPair asks a cold critic whether two claims can both hold (§10.3).
+	// The reply becomes findings and coverage rows for both, and nothing it says
+	// reaches the corpus.
+	//
+	// **Its own kind rather than a critic prompt with a second claim id**, for
+	// `PromptSynthesize`'s reason: a meta carrying one claim could not say which two
+	// were judged, and a coverage row that named one of two would understate what the
+	// critique looked at.
+	PromptCriticPair PromptKind = "critic-pair"
 )
 
 // PromptKind is what a prompt asks about.
@@ -136,6 +147,10 @@ type PromptMeta struct {
 	// looked at when one sentence on it had.
 	ClaimID string `json:"claim_id,omitempty"`
 
+	// PairRefs are the two claim references a pair critique judged, in the order the
+	// prompt showed them. Empty for every other kind.
+	PairRefs []string `json:"pair_refs,omitempty"`
+
 	// Cites are the claim references an ask prompt offered, and therefore the whole
 	// set an answer to it may cite. Empty for every other kind.
 	//
@@ -201,27 +216,23 @@ func (m *PromptMeta) kindProblems() []string {
 	var bad []string
 	switch m.Kind {
 	case PromptSource:
-		if strings.TrimSpace(m.ArchivePath) == "" {
-			bad = append(bad, "a source prompt names no archive path")
-		}
+		bad = append(bad, m.sourceProblems()...)
 	case PromptSynthesize:
-		if len(m.ArchivePaths) == 0 {
-			bad = append(bad, "a rewrite prompt names no archived sources, so its "+
-				"quotations could be checked against nothing")
-		}
-		bad = append(bad, m.documentProblems()...)
+		bad = append(bad, m.synthesizeProblems()...)
 	case PromptAccrete:
 		bad = append(bad, m.documentProblems()...)
 	case PromptCritic:
 		bad = append(bad, m.criticProblems()...)
 	case PromptAsk:
 		bad = append(bad, m.askProblems()...)
+	case PromptCriticPair:
+		bad = append(bad, m.pairProblems()...)
 	case PromptKindUnset:
 		bad = append(bad, "kind is unset; a prompt nobody characterised cannot be "+
 			"answered, and defaulting one would file a rewrite as a new document")
 	default:
 		bad = append(bad, "kind "+string(m.Kind)+
-			" is not source, accrete, synthesize, critic or ask")
+			" is not source, accrete, synthesize, critic, critic-pair or ask")
 	}
 	return bad
 }
@@ -242,6 +253,47 @@ func (m *PromptMeta) askProblems() []string {
 			"reply to it would be one the prompt did not carry"}
 	}
 	return nil
+}
+
+// sourceProblems and synthesizeProblems name what those kinds are missing.
+//
+// Extracted when the sixth kind arrived and the complexity limit objected — which is the
+// same finding `criticProblems` records, and the right reading of it: a switch whose arms
+// carry logic grows in complexity with the vocabulary, and this vocabulary grows every
+// time the corpus learns a new relay. Every arm is now a delegation, so the next one is a
+// line rather than a refactor.
+func (m *PromptMeta) sourceProblems() []string {
+	if strings.TrimSpace(m.ArchivePath) == "" {
+		return []string{"a source prompt names no archive path"}
+	}
+	return nil
+}
+
+func (m *PromptMeta) synthesizeProblems() []string {
+	var bad []string
+	if len(m.ArchivePaths) == 0 {
+		bad = append(bad, "a rewrite prompt names no archived sources, so its "+
+			"quotations could be checked against nothing")
+	}
+	return append(bad, m.documentProblems()...)
+}
+
+// pairProblems names what a two-claim critic prompt is missing.
+//
+// **Exactly two references, and the count is the check.** A pair with one is a
+// single-claim critique wearing the wrong kind; a pair with three is a prompt whose
+// coverage rows would not match what it showed. Both would file a critique nobody gave.
+func (m *PromptMeta) pairProblems() []string {
+	var bad []string
+	if len(m.PairRefs) != 2 {
+		bad = append(bad, "a pair critique names "+strconv.Itoa(len(m.PairRefs))+
+			" claims; §10.3 asks about exactly two")
+	}
+	if len(m.ArchivePaths) < 2 && strings.TrimSpace(m.ArchivePath) == "" {
+		bad = append(bad, "a pair critique names fewer than two archived sources, so "+
+			"one of the claims would be judged against nothing")
+	}
+	return bad
 }
 
 // criticProblems names what a critic prompt is missing.

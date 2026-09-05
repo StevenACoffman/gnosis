@@ -75,6 +75,14 @@ func digestedTables() []digestedTable {
 				FROM sources_fetched ORDER BY record_sha256`,
 		},
 		{
+			name: "claim_sources",
+			// Ordered by both columns because the table has no key: a claim citing
+			// one archive path twice is a document that named it twice, which is
+			// the corpus's business rather than the projection's to collapse.
+			query: `SELECT claim_id, archive_path FROM claim_sources
+				ORDER BY claim_id, archive_path`,
+		},
+		{
 			name: "verifications",
 			// Ordered by all three columns because the table has no key: OKF §5.2
 			// makes `verified` a list of events, and two events with one actor at

@@ -860,6 +860,8 @@ steps for a test to walk. Rows 2.15–2.33 were reconstructed from the sections 
 | 5.5 — deferral               | [x] done | `gnosis_conflicts` holds decisions and not observations; `gnosis defer` writes it, three readers read it — see §6.58                                                                                                                                                    |
 | 5.6 — domain history, owner  | [x] done | §10.6.2's count and §10.6.2.1's `owner`, shown beside each other and read by no gate — see §6.58                                                                                                                                                                        |
 | 5.7 — markdown, glossary     | [x] done | A renderer that escapes before emitting markup; the vocabulary panel lists what a page uses — see §6.58                                                                                                                                                                 |
+| 5.8 — candidate selector     | [x] done | §6.2's rules 1, 2 and 4, with the `claim_sources` join rule 1 had no column for; rule 3 reported as not run — see §6.59                                                                                                                                                 |
+| 5.9 — the two-claim critic   | [x] done | §10.3's judge prompt over the residue, blinded by the same construction; coverage for both claims — see §6.59                                                                                                                                                           |
 
 Three findings from the per-step reviews changed the design rather than the code
 around it:
@@ -3682,3 +3684,71 @@ diagnostics, which carry one path and a sentence; §13 requires *both claims sid
 which needs the pair. Exporting the pair fixed both the display and an uglier thing I had
 written on the way there: a check scraping the finding id back out of another check's
 prose.
+
+______________________________________________________________________
+
+### 6.59 A Rule With No Column, and a Flag That Was Already the Caller
+
+**§6.2's first rule could not be written, and nothing had noticed.** The section says
+candidates come from the index and keys rule 1 on a `source_id`. There is no such column
+and no join: `sources_fetched` projects tier 0, `claims` projects the corpus, and a
+claim's archive paths live only in its frontmatter. Four rules had been specified for
+three phases and the one everything else builds on had nothing to query.
+
+The fix is a projection rather than a workaround. Computing rule 1 by re-reading every
+document would preserve the determinism §6.2 requires and give up the reason the section
+names the index — that selection is a query rather than a walk — so `claim_sources` is the
+join, filled by `index rebuild` from the committed documents like every other table here.
+It shipped with its reader in the same change, which is what keeps it from being the
+stored state with no reader this project has recorded eight times.
+
+**The caller was already there, wearing a flag.** `gnosis ingest --into c/x.md` is the
+operator answering by hand exactly the question §6.2 exists to answer for them — "`llmwiki`
+scans ~47 candidate pages per ingest and asks a model, per candidate, whether it needs
+updating… `gnosis` MUST NOT do this". So the reader is `ingest` *without* `--into`: it
+reports the candidates and chooses nothing, because §6.2 selects and §6.3 accretes into a
+document a person named. A selector that picked would be making the judgement the section
+removes, and the failure would be silent — a wrong choice looks exactly like a right one
+until somebody reads the diff.
+
+**Rule 3 is blocked twice and says so out loud.** It needs a `tags` projection, which §5.5
+records as a table with no migration and no reader (the same absence that got §11.3's
+`--tag` refused), and a declared rank cut, which §6.2 puts in `standards/` and forbids as
+a literal in Go. Neither is the implementation's to decide, so the selection carries the
+rule as `NotRun` with both reasons — `finding.Unexamined`'s discipline applied to a query,
+because three rules of four running silently looks like four.
+
+**Every candidate names the rule that found it**, which is what makes §6.2's claim
+checkable rather than asserted: a bare list is a ranking a reader has to trust.
+
+**The two-claim prompt was waiting for a producer, and the producer was last week's
+work.** §10.3 routes semantic contradiction to a cold critic; Step 3.7 built the
+single-claim critique instead, because nothing emitted the pairs. The residue predicate
+now does, so this is only the join — and it fits behind a flag on the command that already
+takes the lock, writes prompts and files replies, rather than a second route to one relay.
+
+Three decisions inside it. It asks whether both claims can hold and **never which is
+right**, because §10.2.2 keeps a derived comparison a finding rather than a verdict and a
+model picking a winner would be adjudicating the corpus. It shows each claim against **its
+own** source, so "this claim is unsupported" stays a separate finding from "these two
+disagree". And filing records coverage for **both** claims — §10.5's ledger says what was
+looked at, and a row for one of two would let a later single-claim critique re-ask a
+question this one answered in full.
+
+**No sample and no seed, unlike §10.5's.** That section draws because critiquing every
+claim would be a bill nobody agreed to. These pairs are the ones the deterministic
+predicates already failed on, so the population is small by construction and drawing from
+it would leave a known contradiction unexamined for a reason nobody could state.
+
+**Two checks the repository owns caught things I had not.** The index's digest test
+refused `claim_sources` until it was added to the digest — a content table outside it
+would let two rebuilds differing only in that table report the same hash. And `cyclop`
+objected to `kindProblems` for the second time as the prompt vocabulary reached six kinds;
+the answer both times was to make every switch arm a delegation, so the next kind is a line
+rather than a refactor.
+
+**A hand run confirmed the blinding rather than assuming it.** One claim in the fixture
+carried a warrant naming its adjudicator; the emitted prompt contains no trace of it. That
+is §10.3's requirement, and the section is explicit that the type cannot be the whole
+guarantee — "what a type cannot prevent is the projection folding one into a field that
+does exist" — so the test is on what the projection writes.

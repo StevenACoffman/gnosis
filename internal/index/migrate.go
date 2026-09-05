@@ -50,6 +50,7 @@ func migrations() []string {
 	all = append(all, sourceSchema()...)
 	all = append(all, claimSummaryNullable()...)
 	all = append(all, verificationSchema()...)
+	all = append(all, claimSourceSchema()...)
 	return all
 }
 

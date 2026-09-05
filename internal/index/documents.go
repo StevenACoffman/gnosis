@@ -44,6 +44,10 @@ type Contents struct {
 	// ClaimSubjects are each claim's subject and the value its prose parses to
 	// (§10.2.1). Empty for a corpus whose claims name no subject.
 	ClaimSubjects []ClaimSubjectRow
+
+	// ClaimSources are each claim's archived evidence, one row per path. Empty for a
+	// corpus whose claims cite nothing archived, which is every corpus before a fetch.
+	ClaimSources []ClaimSourceRow
 }
 
 // Indexed lists every document row as gnosis.Reconcile consumes them.
@@ -139,6 +143,7 @@ func insertAll(ctx context.Context, tx execer, c *Contents) error {
 		func() error { return each(ctx, tx, c.Documents, insertDocument) },
 		func() error { return each(ctx, tx, c.Claims, insertClaim) },
 		func() error { return each(ctx, tx, c.ClaimSubjects, insertClaimSubject) },
+		func() error { return each(ctx, tx, c.ClaimSources, insertClaimSource) },
 		func() error { return each(ctx, tx, c.Verifications, insertVerification) },
 		func() error { return each(ctx, tx, c.Links, insertLink) },
 	}
