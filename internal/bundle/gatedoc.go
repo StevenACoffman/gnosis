@@ -8,6 +8,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gate"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/okf"
+	"github.com/StevenACoffman/skillet/verification"
 )
 
 // claimsKey is the frontmatter list of a document's claims and their addresses
@@ -147,15 +148,15 @@ func docClaims(doc *okf.Document) []DocClaim {
 // verifiedOf reads a claim entry's OKF §5.2 verification list.
 //
 // Requires: m is a gnosis_claims entry.
-// Ensures: one Verification per well-formed event, in declaration order; an entry
+// Ensures: one verification.Event per well-formed event, in declaration order; an entry
 // missing either field is skipped rather than half-recorded. OKF §11 requires a bare
 // mapping be treated as a one-element list, which is what the string case does.
-func verifiedOf(m map[string]any) []Verification {
+func verifiedOf(m map[string]any) []verification.Event {
 	switch v := m[verifiedKey].(type) {
 	case map[string]any:
 		return oneVerification(v)
 	case []any:
-		out := make([]Verification, 0, len(v))
+		out := make([]verification.Event, 0, len(v))
 		for _, entry := range v {
 			switch e := entry.(type) {
 			case map[string]any:
@@ -163,7 +164,7 @@ func verifiedOf(m map[string]any) []Verification {
 			case string:
 				// A bare actor with no time. Recorded, because OKF §11 says tolerate
 				// it and the actor is the half the trust fold reads (§14.1).
-				out = append(out, Verification{By: e})
+				out = append(out, verification.Event{By: e})
 			}
 		}
 		return out
@@ -173,12 +174,12 @@ func verifiedOf(m map[string]any) []Verification {
 }
 
 // oneVerification reads a single event mapping, or nothing.
-func oneVerification(m map[string]any) []Verification {
+func oneVerification(m map[string]any) []verification.Event {
 	by := stringOr(m, "by")
 	if by == "" {
 		return nil
 	}
-	return []Verification{{By: by, At: stringOr(m, "at")}}
+	return []verification.Event{{By: by, At: stringOr(m, "at")}}
 }
 
 // sourcesOf reads a document's OKF sources list.

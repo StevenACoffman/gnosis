@@ -5,6 +5,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/skillet/verification"
 )
 
 const verifiedID = gnosis.ID("0192a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b")
@@ -40,7 +41,7 @@ func TestAnActorWithNoTimestampIsKept(t *testing.T) {
 		ID: verifiedID, Path: "c/a.md", Type: "Rule", Body: "A sentence.",
 		Claims: []bundle.DocClaim{{
 			ID: "c1", Anchor: "A sentence.",
-			Verified: []bundle.Verification{{By: "human:priya"}},
+			Verified: []verification.Event{{By: "human:priya"}},
 		}},
 	}}
 	rows := bundle.VerificationRows(docs)
@@ -59,7 +60,7 @@ func TestEventsOnAnUnaddressableClaimAreSkipped(t *testing.T) {
 	docs := []bundle.Document{{
 		ID: verifiedID, Path: "c/a.md", Type: "Rule", Body: "A sentence.",
 		Claims: []bundle.DocClaim{{
-			ID: "c1", Verified: []bundle.Verification{{By: "human:priya", At: "2026-08-27"}},
+			ID: "c1", Verified: []verification.Event{{By: "human:priya", At: "2026-08-27"}},
 		}},
 	}}
 	if rows := bundle.VerificationRows(docs); len(rows) != 0 {
@@ -76,7 +77,7 @@ func TestTwoEventsWithOneActorAreBothKept(t *testing.T) {
 		ID: verifiedID, Path: "c/a.md", Type: "Rule", Body: "A sentence.",
 		Claims: []bundle.DocClaim{{
 			ID: "c1", Anchor: "A sentence.",
-			Verified: []bundle.Verification{
+			Verified: []verification.Event{
 				{By: "human:priya", At: "2026-03-01"},
 				{By: "human:priya", At: "2026-08-27"},
 			},

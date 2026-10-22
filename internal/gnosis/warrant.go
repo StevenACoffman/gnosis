@@ -72,7 +72,7 @@ type AuthorityMove struct {
 // never enforced.
 type Warrant struct {
 	// By is the adjudicator, as OKF §7's grammar writes it. A raw string for the
-	// reason Verification.By is one: §14.1.1 makes frontmatter actors a wider
+	// reason verification.Event.By is one: §14.1.1 makes frontmatter actors a wider
 	// population than gnosis.Actor, and rejecting a conformant document for the shape
 	// of an optional family is what OKF §11 forbids.
 	By string

@@ -2865,3 +2865,45 @@ ______________________________________________________________________
   migration**, which is the argument for reading a specification section against the code
   that implements a *different* one: the defect was in a write path nobody was going to
   re-open.
+
+## The Verification Record Comes from Skillet (2026-09-07)
+
+Source: skillet's OKF trust-field decision, which this repository's own code triggered.
+
+- [x] **`bundle.Verification` is one of two identical hand-written copies, and skillet is
+      taking the type.** DONE 2026-09-08 against skillet **v0.31.0**, landed on
+      v0.34.0 after the errs.Error migration that every release since v0.29.0 needs, since
+      no release has both `verification` and `errs.Error`. The local type and its
+      doc are deleted; `Claim.Verified` is `[]verification.Event`. Five files:
+      `bundle.go`, `gatedoc.go`, two tests, and a doc reference in `internal/gnosis/warrant.go`
+      that named the old type.
+      **`cmd/servecmd/queue.go` needed no change**, checked rather than assumed because
+      another session had it open: `verifiedActors` ranges over `.Verified` and reads `v.By`,
+      which does not name the element type.
+      **Replaced rather than aliased.** A one-line `type Verification = verification.Event`
+      would have left every call site untouched, and that is the objection — a call site that
+      names the shared type shows the sharing, while an alias reads exactly like a local type
+      and can be turned back into a struct in one edit nobody notices. adh had just paid for
+      that with `adh.Error = errs.Error`.
+      **One reason stayed local**: why the actor is read raw rather than parsed into
+      `gnosis.Actor`, since §14.1.1 makes frontmatter actors the wider population. It moved to
+      the `Verified` field, where `warrant.go`'s cross-reference can still reach it.
+      **`FoldTrust` is untouched**, which is the decision working: the record is shared and
+      the judgement is not. `internal/bundle/bundle.go:187` declares `{By string, At string}`;
+      adh's `contextstore.Verification` declares the same two fields for the same purpose.
+      **Skillet decided 2026-09-07: the verification *record* is promoted, the *fold* is not.**
+      `Verification{By, At}`, list-valued, moves to skillet; deriving a tier from it stays local
+      to each consumer. The trigger fired because two repos independently hand-wrote a type
+      literally named `Verification` with the same two fields, while their folds differ by
+      design — gnosis's actor enum is closed to three kinds to count distinct humans (SPEC
+      §10.6.4), adh's classifier answers human-or-machine for a context-unit tier. The
+      `Generated`/`Verified` *block* is still not promoted, for the recorded reason that YAML
+      cannot round-trip and a block struct would be decode-only.
+      **`FoldTrust` stays here and that is the point.** `internal/gnosis/actor.go`'s closed
+      three-kind enum exists because §10.6.4 counts distinct humans, and SPEC §14.1 says it
+      implements OKF §5.3's fold verbatim. A shared fold would have to widen it or break
+      adh's; neither is acceptable, so only the record moves.
+      **Decode-only here, and that is accepted.** This repository re-emits its frontmatter
+      block verbatim because re-encoding YAML cannot round-trip, so a shared element is for
+      reading a `verified` list, not for writing one. What it buys is one definition instead
+      of two, not an encoder.

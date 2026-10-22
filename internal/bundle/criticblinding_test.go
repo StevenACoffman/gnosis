@@ -7,6 +7,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/lint"
+	"github.com/StevenACoffman/skillet/verification"
 )
 
 // TestTheCriticProjectionIsBlinded is §10.3's requirement at the seam a type cannot
@@ -47,7 +48,7 @@ func TestTheCriticProjectionIsBlinded(t *testing.T) {
 			ArchivePaths: []string{"evidence/text/aa/x.txt"},
 			Status:       "deprecated",
 			Supersedes:   []string{"c/old.md#c9"},
-			Verified:     []bundle.Verification{{By: verifier, At: "2026-08-01T00:00:00Z"}},
+			Verified:     []verification.Event{{By: verifier, At: "2026-08-01T00:00:00Z"}},
 			Warrant: gnosis.Warrant{
 				By: verifier, Authority: "quorum", Rationale: rationale,
 				CoSignedBy: "human:MARCUS-MARKER", OverrideReason: override,

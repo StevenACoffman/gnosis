@@ -22,6 +22,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/okf"
 	"github.com/StevenACoffman/skillet/identity"
+	"github.com/StevenACoffman/skillet/verification"
 	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
@@ -128,7 +129,10 @@ type DocClaim struct {
 	// for making this a table rather than a column is that a human sign-off and an
 	// automated pass must stay distinguishable. Expanding a page-level list one level
 	// down destroys that distinction wholesale.
-	Verified []Verification
+	// The actor is read raw rather than parsed into gnosis.Actor: §14.1.1 makes
+	// frontmatter actors the wider population, and the tier fold reads that form
+	// deliberately. warrant.go cross-references this.
+	Verified []verification.Event
 
 	// Pin is a `gnosis_constraint` reading stated in frontmatter, and Pinned reports
 	// whether there was one (§10.2.1).
@@ -177,23 +181,6 @@ type DocClaim struct {
 	Subject string
 
 	ArchivePaths []string
-}
-
-// Verification is one OKF §5.2 verification event.
-//
-// A struct rather than a pair of parallel slices because the two belong together: an
-// actor with no time and a time with no actor are both meaningless, and a shape that can
-// hold either is a shape a reader has to check.
-type Verification struct {
-	// By is the actor, as OKF §7's grammar writes it. Kept as the raw string rather
-	// than parsed into gnosis.Actor: §14.1.1 makes these two populations, and the
-	// tier fold reads the raw form deliberately.
-	By string
-
-	// At is the event's timestamp, as declared. A string rather than a time.Time
-	// because it is projected into the index verbatim and never compared here — and
-	// parsing it would make a malformed date drop a verification silently.
-	At string
 }
 
 // isReserved reports whether name is one of the filenames OKF §3.1 gives a
