@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // defaultStatus is what a document with no OKF `status` is.
@@ -259,11 +259,12 @@ func ParseScopeQuery(docType, status, under, trust string, fresh, provable bool)
 	if raw := strings.TrimSpace(trust); raw != "" {
 		tier, ok := gnosis.ParseTier(raw)
 		if !ok {
-			return ScopeQuery{}, &errs.Error{
-				Code: errs.EINVALID,
-				Message: op + ": trust " + raw + " is not one of " +
+			return ScopeQuery{}, errcode.WithCode(
+				gnosis.CodeInvalid,
+				op+": trust "+raw+" is not one of "+
 					strings.Join(gnosis.Tiers(), ", "),
-			}
+				nil,
+			)
 		}
 		q.Trust, q.Trusted = tier, true
 	}

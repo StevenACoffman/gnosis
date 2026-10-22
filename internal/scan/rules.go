@@ -9,7 +9,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // The categories SPEC §9.3 names for stages 2 and 3.
@@ -149,10 +150,7 @@ func LoadRules(src []byte) (*Ruleset, error) {
 		return nil, err
 	}
 	if len(file.Rule) == 0 {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": the ruleset declares no rules",
-		}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": the ruleset declares no rules", nil)
 	}
 
 	set := &Ruleset{compiled: make([]compiledRule, 0, len(file.Rule))}
@@ -169,10 +167,7 @@ func LoadRules(src []byte) (*Ruleset, error) {
 		set.compiled = append(set.compiled, compiled)
 	}
 	if len(problems) > 0 {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + strings.Join(problems, "; "),
-		}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(problems, "; "), nil)
 	}
 	sort.Slice(set.compiled, func(i, j int) bool {
 		return set.compiled[i].id < set.compiled[j].id
@@ -303,7 +298,7 @@ func selfTest(r *rule, re *regexp.Regexp) string {
 func decodeRules(op string, src []byte, dst *ruleFile) error {
 	md, err := toml.Decode(string(src), dst)
 	if err != nil {
-		return &errs.Error{Code: errs.EINVALID, Message: op + ": " + err.Error()}
+		return errcode.WithCode(gnosis.CodeInvalid, op+": "+err.Error(), nil)
 	}
 	undecoded := md.Undecoded()
 	if len(undecoded) == 0 {
@@ -314,10 +309,11 @@ func decodeRules(op string, src []byte, dst *ruleFile) error {
 		keys = append(keys, k.String())
 	}
 	sort.Strings(keys)
-	return &errs.Error{
-		Code:    errs.EINVALID,
-		Message: op + ": unrecognised key(s): " + strings.Join(keys, ", "),
-	}
+	return errcode.WithCode(
+		gnosis.CodeInvalid,
+		op+": unrecognised key(s): "+strings.Join(keys, ", "),
+		nil,
+	)
 }
 
 // quote renders an example in a diagnostic, bounded so one long fixture cannot

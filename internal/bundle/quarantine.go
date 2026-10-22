@@ -8,8 +8,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // quarantineDir is tier 1, inside stateDir and therefore gitignored.
@@ -46,10 +48,10 @@ func (w *Writer) Quarantine(rel string, content []byte) (string, error) {
 		return "", err
 	}
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
-		return "", &errs.Error{Op: op, Err: mkErr}
+		return "", toerr.WrapWithMessage(mkErr, op)
 	}
 	if wErr := atomicfile.WriteFile(full, content, 0o640); wErr != nil {
-		return "", &errs.Error{Op: op, Err: wErr}
+		return "", toerr.WrapWithMessage(wErr, op)
 	}
 	return full, nil
 }
@@ -70,12 +72,13 @@ func ReadQuarantined(bundleDir, rel string) ([]byte, error) {
 	data, err := os.ReadFile(full)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, &errs.Error{
-				Code:    errs.ENOTFOUND,
-				Message: op + ": nothing quarantined at " + rel,
-			}
+			return nil, errcode.WithCode(
+				gnosis.CodeNotFound,
+				op+": nothing quarantined at "+rel,
+				nil,
+			)
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return data, nil
 }
@@ -100,13 +103,13 @@ func Quarantined(bundleDir string) ([]string, error) {
 		}
 		rel, rerr := filepath.Rel(root, path)
 		if rerr != nil {
-			return &errs.Error{Op: op, Err: rerr}
+			return toerr.WrapWithMessage(rerr, op)
 		}
 		out = append(out, filepath.ToSlash(rel))
 		return nil
 	})
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	sort.Strings(out)
 	return out, nil
@@ -128,7 +131,7 @@ func (w *Writer) Discard(rel string) error {
 		return err
 	}
 	if rErr := os.Remove(full); rErr != nil && !errors.Is(rErr, fs.ErrNotExist) {
-		return &errs.Error{Op: op, Err: rErr}
+		return toerr.WrapWithMessage(rErr, op)
 	}
 	return nil
 }
@@ -154,10 +157,11 @@ func quarantinePath(op, bundleDir, rel string) (string, error) {
 	clean := filepath.Clean(filepath.FromSlash(rel))
 	if rel == "" || filepath.IsAbs(clean) || clean == ".." ||
 		strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + rel + " is not a path inside the bundle",
-		}
+		return "", errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": "+rel+" is not a path inside the bundle",
+			nil,
+		)
 	}
 	return filepath.Join(bundleDir, stateDir, quarantineDir, clean), nil
 }
@@ -182,11 +186,11 @@ func LoadQuarantined(bundleDir string) ([]Document, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return []Document{}, nil
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	docs, err := Load(os.DirFS(root))
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return docs, nil
 }

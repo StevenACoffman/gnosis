@@ -18,7 +18,7 @@ import (
 	// Registers the pure-Go "sqlite" driver.
 	_ "modernc.org/sqlite"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // busyTimeout keeps a concurrent reader from failing outright while a write is
@@ -53,14 +53,14 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	dsn := path + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(" + busyTimeout + ")"
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	db := &DB{sql: sqlDB}
 	if err := db.sql.PingContext(ctx); err != nil {
-		return nil, errors.Join(&errs.Error{Op: op, Err: err}, db.Close())
+		return nil, errors.Join(toerr.WrapWithMessage(err, op), db.Close())
 	}
 	if err := db.migrate(ctx); err != nil {
-		return nil, errors.Join(&errs.Error{Op: op, Err: err}, db.Close())
+		return nil, errors.Join(toerr.WrapWithMessage(err, op), db.Close())
 	}
 	return db, nil
 }
@@ -71,7 +71,7 @@ func (db *DB) Close() error {
 		return nil
 	}
 	if err := db.sql.Close(); err != nil {
-		return &errs.Error{Op: "index.DB.Close", Err: err}
+		return toerr.WrapWithMessage(err, "index.DB.Close")
 	}
 	return nil
 }
@@ -84,7 +84,7 @@ func (db *DB) Version(ctx context.Context) (int, error) {
 	const op = "index.DB.Version"
 	var v int
 	if err := db.sql.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&v); err != nil {
-		return 0, &errs.Error{Op: op, Err: err}
+		return 0, toerr.WrapWithMessage(err, op)
 	}
 	return v, nil
 }

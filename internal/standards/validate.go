@@ -4,7 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // validate rejects gates outside the range in which they mean anything.
@@ -43,7 +44,7 @@ func (a *Archive) validate(op string) error {
 		return nil
 	}
 	sort.Strings(bad)
-	return &errs.Error{Code: errs.EINVALID, Message: op + ": " + strings.Join(bad, "; ")}
+	return errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
 }
 
 // badFractions reports the shares that are not shares.

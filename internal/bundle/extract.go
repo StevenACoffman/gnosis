@@ -6,7 +6,7 @@ import (
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // ExtractorName identifies the one pinned extractor, and must match the value in
@@ -42,7 +42,7 @@ func Extract(c *archive.Candidate) error {
 	if err != nil {
 		// A conversion failure is not a fetch failure. The source is still
 		// recorded — as `referenced`, with the reason its own gates produced.
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	if strings.TrimSpace(md) == "" {
 		// An empty extraction is worse than none: it would archive a file no

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // ClaimSourceRow is one claim's dependence on one archived source.
@@ -70,7 +70,7 @@ func (db *DB) ClaimSources(ctx context.Context) ([]ClaimSourceRow, error) {
 		`SELECT claim_id, archive_path FROM claim_sources
 		 ORDER BY claim_id, archive_path`)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -78,12 +78,12 @@ func (db *DB) ClaimSources(ctx context.Context) ([]ClaimSourceRow, error) {
 	for rows.Next() {
 		var r ClaimSourceRow
 		if sErr := rows.Scan(&r.ClaimID, &r.ArchivePath); sErr != nil {
-			return nil, &errs.Error{Op: op, Err: sErr}
+			return nil, toerr.WrapWithMessage(sErr, op)
 		}
 		out = append(out, r)
 	}
 	if rErr := rows.Err(); rErr != nil {
-		return nil, &errs.Error{Op: op, Err: rErr}
+		return nil, toerr.WrapWithMessage(rErr, op)
 	}
 	return out, nil
 }

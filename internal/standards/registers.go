@@ -7,7 +7,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // RegistersFileName is where a corpus may override the causal registers.
@@ -69,29 +71,32 @@ func LoadRegisters(src []byte) (*Registers, error) {
 	var out Registers
 	md, err := toml.Decode(string(src), &out)
 	if err != nil {
-		return nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": unknown key " + undecoded[0].String(),
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": unknown key "+undecoded[0].String(),
+			nil,
+		)
 	}
 	for i := range out.Register {
 		row := &out.Register[i]
 		row.Word = strings.ToLower(strings.TrimSpace(row.Word))
 		if row.Word == "" {
-			return nil, &errs.Error{
-				Code: errs.EINVALID, Op: op,
-				Message: op + ": a register row carries no word",
-			}
+			return nil, errcode.WithCode(
+				gnosis.CodeInvalid,
+				op+": a register row carries no word",
+				nil,
+			)
 		}
 		if row.Role != RegisterIntervention && row.Role != RegisterAssociation {
-			return nil, &errs.Error{
-				Code: errs.EINVALID, Op: op,
-				Message: op + ": register " + row.Word + " has role " + string(row.Role) +
+			return nil, errcode.WithCode(
+				gnosis.CodeInvalid,
+				op+": register "+row.Word+" has role "+string(row.Role)+
 					"; want intervention or association",
-			}
+				nil,
+			)
 		}
 	}
 	return &out, nil

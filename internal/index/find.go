@@ -8,7 +8,8 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // idLength is the character width of a UUIDv7 in its canonical form. A reference
@@ -48,10 +49,11 @@ func (db *DB) Find(ctx context.Context, ref string) (*Detail, error) {
 
 	id, ok := identifierIn(ref)
 	if !ok {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + ref + " contains no document identifier",
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": "+ref+" contains no document identifier",
+			nil,
+		)
 	}
 
 	var d Detail
@@ -59,20 +61,21 @@ func (db *DB) Find(ctx context.Context, ref string) (*Detail, error) {
 		`SELECT id, path, title, byte_size, content_hash FROM documents WHERE id = ?`,
 		id.String()).Scan(&d.ID, &d.Path, &d.Title, &d.Bytes, &d.ContentHash)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, &errs.Error{
-			Code:    errs.ENOTFOUND,
-			Message: op + ": no document with identifier " + id.String(),
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeNotFound,
+			op+": no document with identifier "+id.String(),
+			nil,
+		)
 	}
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	if d.Outbound, err = db.Outbound(ctx, id); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if d.Inbound, err = db.Inbound(ctx, id); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return &d, nil
 }

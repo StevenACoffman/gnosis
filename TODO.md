@@ -1615,6 +1615,41 @@ anywhere** — it was a description cited as prior art and counted as a family m
   reason** pins the property that three other backlogs now reference. Cheap, and it is the
   difference between a documented intent and a checked one — which is the distinction this
   specification spends §18 on.
+- [x] **`errs.Error` is retired from gnosis: all 436 literals now use toerr.** *skillet's
+  entry left this as gnosis's call — migrate the literals, or own an `Error` type as adh
+  does. Migrating is right: adh's 203 went through an alias so owning a type cost one
+  file, and gnosis's are direct literals across 105 files, so owning one costs the same
+  rewrite and leaves gnosis maintaining an error type instead of using one.*
+  **The counts in skillet's entry are close and not right**, which is worth correcting
+  there because that entry's own lesson was a consumer count nobody re-measured: the tree
+  had **436 literals in 105 files and 53 `ErrorCode` calls**, not 429 in 131 with 57.
+  **What made it safe was measuring five things first.** `errs.ErrorCode` already reads
+  both representations, so the classification sites kept working throughout; nothing
+  type-asserts `*errs.Error`, reads its fields, or calls `errs.ErrorMessage`; and four of
+  the five shapes keep their `Error()` text byte-for-byte, because `WrapWithMessage`
+  renders exactly what `{Op, Err}` did. A coded wrap composes — `WithCode(code, "",
+  WrapWithMessage(err, op))` — because the direct form would have changed every one of
+  those messages.
+  **The first attempt used regular expressions and was reverted.** It mangled every
+  literal whose values spanned lines, and turned two leaves into `WrapWithMessage(nil, …)`
+  — which returns nil, so two functions would have reported success on a failure path. The
+  rewriter that worked parses for extents and splices text: a literal's extent is a
+  parser's answer, and reprinting the AST would reformat code this was not about.
+  **Two defects the struct was hiding are now fixed**, both stated rather than smuggled:
+  nine messages that never rendered (`Error()` prefers `Err`) now do, and twenty-seven
+  sites in ten files that rendered their operation twice no longer do. *This entry first
+  said eight and seven, and recorded the second fix as done before it was made; both
+  counts were re-measured with a parser and the property is now under test.*
+- [ ] **`readConcept`'s I/O wrap doubles its caller's operation on four paths.** It wraps
+  a non-not-exist read error with the *caller's* `op`, and `deferConflict`, `adjudicate`
+  and both reads in `supersede` pass that error to a refusal helper that wraps it with the
+  same `op` again. Pre-existing (the migration kept it byte-for-byte) and reachable only on
+  an I/O fault. Not fixed locally because `FileConflict` relies on the borrowed `op` to
+  name itself: re-scoping the wrap drops that frame or doubles its not-found leaf. Decide
+  the borrowed-`op` convention for helpers first — PLAN §6.60.
+  **`errs` itself stays.** `errs.ErrorCode` is the vocabulary §8.0's `reason` tokens are
+  built from and it reads toerr errors natively; retiring the type is what skillet asked
+  for, and retiring the package would move a shared vocabulary into one consumer.
 - [ ] **If a second tool emits a check report, `Skip{Check, Reason}` promotes.** That is
   the trigger `skillet` recorded, and gnosis is the current sole holder. *Re-checked
   against skillet v0.26.0 on 2026-08-27: no `Skip` type there, and the new packages that

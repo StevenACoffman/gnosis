@@ -12,6 +12,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/okf"
 	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // conflictIndent is the indentation of an entry's fields, matching `gnosis_challenges`.
@@ -39,25 +41,27 @@ func AppendConflict(existing []byte, e *gnosis.ConflictEdge) ([]byte, error) {
 
 	before, err := okf.Parse(existing)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if !e.Valid() {
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": a deferral needs the concept, the finding, who deferred" +
-				" it, when, and why — §17.0 asks for all three of the last, because a" +
-				" conflict that stopped being reported without them went quiet rather" +
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": a deferral needs the concept, the finding, who deferred"+
+				" it, when, and why — §17.0 asks for all three of the last, because a"+
+				" conflict that stopped being reported without them went quiet rather"+
 				" than being decided about",
-		}
+			nil,
+		)
 	}
 	if already(before, e.Finding) {
 		// Refused rather than appended twice. A second entry for one finding would
 		// leave two deferrals of one conflict with two reasons, and no way to say
 		// which is current.
-		return nil, &errs.Error{
-			Code:    errs.ECONFLICT,
-			Message: op + ": conflict " + e.Finding + " is already deferred here",
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeConflict,
+			op+": conflict "+e.Finding+" is already deferred here",
+			nil,
+		)
 	}
 
 	out, err := insertConflict(op, existing, e)
@@ -136,26 +140,23 @@ func renderConflict(e *gnosis.ConflictEdge) []string {
 func sameDocumentPlusOneConflict(op string, before *okf.Document, out []byte) error {
 	after, err := okf.Parse(out)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	if after.Body != before.Body {
-		return &errs.Error{
-			Code: errs.EINVALID, Message: op + ": the body changed",
-		}
+		return errcode.WithCode(gnosis.CodeInvalid, op+": the body changed", nil)
 	}
 	for _, key := range topLevelKeys(before) {
 		if _, ok := after.Fields[key]; !ok {
-			return &errs.Error{
-				Code: errs.EINVALID, Message: op + ": the key " + key + " was dropped",
-			}
+			return errcode.WithCode(gnosis.CodeInvalid, op+": the key "+key+" was dropped", nil)
 		}
 	}
 	if len(conflictsOf(after)) != len(conflictsOf(before))+1 {
-		return &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": the document does not hold exactly one more conflict," +
+		return errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": the document does not hold exactly one more conflict,"+
 				" so the entry went somewhere other than the conflicts block",
-		}
+			nil,
+		)
 	}
 	return nil
 }
@@ -243,7 +244,7 @@ func (w *Writer) FileConflict(rel string, e *gnosis.ConflictEdge) (string, error
 func deferRefused(op string, cmd *command.Defer, cause error) (gnosis.Outcome, error) {
 	code := errs.ErrorCode(cause)
 	if code != errs.EINVALID && code != errs.ECONFLICT && code != errs.ENOTFOUND {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: cause}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(cause, op)
 	}
 	return gnosis.Blocked(gnosis.ReasonNeedsHuman, cause.Error(), map[string]any{
 		"path": cmd.Path, "finding": cmd.Finding, "deferred": false,

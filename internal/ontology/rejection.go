@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // checkRejections validates one entry's refused aliases.
@@ -57,10 +57,11 @@ func checkRejections(op, kind, key string, aliases []string, rejected []Rejectio
 
 // rejectionErr renders a rejection problem, naming the entry it is in.
 func rejectionErr(op, kind, key, detail string) error {
-	return &errs.Error{
-		Code:    errs.EINVALID,
-		Message: fmt.Sprintf("%s: %s %q: %s", op, kind, key, detail),
-	}
+	return errcode.WithCode(
+		gnosis.CodeInvalid,
+		fmt.Sprintf("%s: %s %q: %s", op, kind, key, detail),
+		nil,
+	)
 }
 
 func quote(s string) string { return `"` + s + `"` }

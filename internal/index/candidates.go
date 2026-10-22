@@ -3,7 +3,9 @@ package index
 import (
 	"context"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // The rules §6.2 selects candidates by, named so a result can say which one found a
@@ -70,9 +72,7 @@ func (db *DB) CandidatesFor(
 	const op = "index.DB.CandidatesFor"
 
 	if limit < 1 {
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Message: op + ": limit must be positive",
-		}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": limit must be positive", nil)
 	}
 	if len(archivePaths) == 0 {
 		// No archived text means no claim can rest on it. An empty result rather than
@@ -181,7 +181,7 @@ func (db *DB) scanCandidates(
 ) ([]Candidate, error) {
 	rows, err := db.sql.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -191,12 +191,12 @@ func (db *DB) scanCandidates(
 		if sErr := rows.Scan(
 			&c.ClaimID, &c.DocumentID, &c.Path, &c.Title, &c.Lead,
 		); sErr != nil {
-			return nil, &errs.Error{Op: op, Err: sErr}
+			return nil, toerr.WrapWithMessage(sErr, op)
 		}
 		out = append(out, c)
 	}
 	if rErr := rows.Err(); rErr != nil {
-		return nil, &errs.Error{Op: op, Err: rErr}
+		return nil, toerr.WrapWithMessage(rErr, op)
 	}
 	return out, nil
 }

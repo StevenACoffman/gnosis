@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/bundle"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/web"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // reader serves the viewer, and holds no writer.
@@ -33,7 +35,7 @@ func (r *reader) Concept(ctx context.Context, id string) (*web.Page, error) {
 
 	db, err := bundle.OpenIndexForRead(ctx, r.dir)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = db.Close() }()
 
@@ -42,7 +44,7 @@ func (r *reader) Concept(ctx context.Context, id string) (*web.Page, error) {
 		// Wrapped and not reclassified: Find reports ENOTFOUND for a reference the
 		// corpus does not hold, and the wrap preserves the code — which is what lets
 		// one translation function turn it into a 404 rather than a 500.
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	page := &web.Page{
 		ID: detail.ID, Path: detail.Path, Title: detail.Title,
@@ -58,13 +60,13 @@ func (r *reader) Search(ctx context.Context, query string, limit int) ([]web.Hit
 
 	db, err := bundle.OpenIndexForRead(ctx, r.dir)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = db.Close() }()
 
 	hits, err := db.Search(ctx, query, limit)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	out := make([]web.Hit, 0, len(hits))
 	for _, hit := range hits {
@@ -104,16 +106,18 @@ func (r *reader) document(rel string) (body, docType string, err error) {
 
 	docs, err := bundle.Load(os.DirFS(r.dir))
 	if err != nil {
-		return "", "", &errs.Error{Op: op, Err: err}
+		return "", "", toerr.WrapWithMessage(err, op)
 	}
 	for i := range docs {
 		if docs[i].Path == rel {
 			return docs[i].Body, string(docs[i].Type), nil
 		}
 	}
-	return "", "", &errs.Error{
-		Code: errs.ENOTFOUND, Message: op + ": " + rel + " is indexed and not on disk",
-	}
+	return "", "", errcode.WithCode(
+		gnosis.CodeNotFound,
+		op+": "+rel+" is indexed and not on disk",
+		nil,
+	)
 }
 
 // resolvedLinks presents the outbound links §8.3 requires rendered inline.

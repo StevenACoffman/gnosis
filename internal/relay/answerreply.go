@@ -5,7 +5,9 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // answerReplyDoc is the wire shape of an answer, decoded before it is judged.
@@ -92,7 +94,11 @@ func ParseAnswer(src []byte, allowed []string) (AnswerReply, error) {
 	}
 	var doc answerReplyDoc
 	if uErr := yaml.Unmarshal([]byte(block), &doc); uErr != nil {
-		return AnswerReply{}, &errs.Error{Code: errs.EINVALID, Op: op, Err: uErr}
+		return AnswerReply{}, errcode.WithCode(
+			gnosis.CodeInvalid,
+			"",
+			toerr.WrapWithMessage(uErr, op),
+		)
 	}
 	return validateAnswer(op, &doc, allowed)
 }
@@ -123,9 +129,11 @@ func validateAnswer(op string, doc *answerReplyDoc, allowed []string) (AnswerRep
 			" answer, which is indistinguishable from an empty reply")
 	}
 	if len(bad) > 0 {
-		return AnswerReply{}, &errs.Error{
-			Code: errs.EINVALID, Message: op + ": " + strings.Join(bad, "; "),
-		}
+		return AnswerReply{}, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": "+strings.Join(bad, "; "),
+			nil,
+		)
 	}
 	return out, nil
 }

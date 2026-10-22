@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // ClaimSubjectRow is one claim's subject, and the value its prose parses to.
@@ -78,7 +78,7 @@ func (db *DB) ClaimSubjects(ctx context.Context) ([]ClaimSubjectRow, error) {
 		       derived, pattern_id
 		FROM claim_subjects ORDER BY claim_id, subject_key`)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -89,7 +89,7 @@ func (db *DB) ClaimSubjects(ctx context.Context) ([]ClaimSubjectRow, error) {
 		var derived int
 		if err := rows.Scan(&r.ClaimID, &r.SubjectKey, &r.Op, &value, &r.ValueRaw,
 			&r.Dimension, &derived, &r.PatternID); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		if value.Valid {
 			v := value.Float64
@@ -99,7 +99,7 @@ func (db *DB) ClaimSubjects(ctx context.Context) ([]ClaimSubjectRow, error) {
 		out = append(out, r)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }

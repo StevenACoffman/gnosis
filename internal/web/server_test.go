@@ -11,7 +11,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/web"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // fakeQueue and fakeReader stand in for the corpus.
@@ -49,7 +49,7 @@ func (f *fakeReader) Concept(context.Context, string) (*web.Page, error) {
 	case f.err != nil:
 		return nil, f.err
 	case f.page == nil:
-		return nil, &errs.Error{Code: errs.ENOTFOUND, Message: "no such concept"}
+		return nil, errcode.WithCode(gnosis.CodeNotFound, "no such concept", nil)
 	default:
 		return f.page, nil
 	}

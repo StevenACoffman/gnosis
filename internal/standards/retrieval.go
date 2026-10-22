@@ -6,7 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // RetrievalFileName is where a corpus's retrieval cases live, relative to the bundle
@@ -115,9 +116,7 @@ func LoadRetrieval(src []byte) (*Retrieval, error) {
 		return nil, err
 	}
 	if why := malformed(&out); len(why) > 0 {
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Message: op + ": " + strings.Join(why, "; "),
-		}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(why, "; "), nil)
 	}
 	return &out, nil
 }

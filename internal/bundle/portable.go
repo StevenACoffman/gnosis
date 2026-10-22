@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // vcsDir is git's own storage, which is not part of the corpus it versions.
@@ -80,7 +80,7 @@ func PortablePaths(bundleDir string) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	sort.Strings(out)
 	return out, nil

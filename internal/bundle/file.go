@@ -11,7 +11,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/relay"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // filedType is the OKF type a filed answer declares when the caller names none.
@@ -89,11 +90,12 @@ func (w *Writer) FileAnswer(opts *FileOptions) (*Filed, error) {
 		return nil, err
 	}
 	if meta.Kind != PromptAsk {
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": key " + opts.Key + " is a " + string(meta.Kind) +
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": key "+opts.Key+" is a "+string(meta.Kind)+
 				" prompt; `gnosis file` takes an answer to `gnosis ask`",
-		}
+			nil,
+		)
 	}
 	reply, err := relay.ParseAnswer(opts.Reply, meta.Cites)
 	if err != nil {
@@ -101,17 +103,18 @@ func (w *Writer) FileAnswer(opts *FileOptions) (*Filed, error) {
 		// EINVALID survives the wrap — `errs.ErrorCode` walks the chain — which is
 		// what lets the command report a malformed reply as the caller's to fix
 		// rather than as a broken bundle.
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if !reply.Answered() {
 		// A declination is a real answer and it is not a concept. Refusing it here
 		// says so; filing it would put "the corpus does not say" into the corpus,
 		// where the next reader would retrieve it as a claim.
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": this reply declined to answer, which is a real answer" +
-				" and not a document: " + reply.Unanswered,
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": this reply declined to answer, which is a real answer"+
+				" and not a document: "+reply.Unanswered,
+			nil,
+		)
 	}
 
 	docs, err := Load(os.DirFS(w.dir))
@@ -127,11 +130,12 @@ func (w *Writer) FileAnswer(opts *FileOptions) (*Filed, error) {
 		// Between the prompt and the reply somebody deleted a claim the answer rests
 		// on. Refused rather than filed without it: a draft citing evidence that is
 		// gone would pass the gate on the quotations that remain and assert the rest.
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": the corpus no longer holds " + strings.Join(missing, ", ") +
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": the corpus no longer holds "+strings.Join(missing, ", ")+
 				"; re-run `gnosis ask` against the corpus as it is now",
-		}
+			nil,
+		)
 	}
 	return w.fileDraft(op, opts, &reply, claims, sourceURIs(claims, sources))
 }
@@ -143,7 +147,7 @@ func (w *Writer) fileDraft(
 ) (*Filed, error) {
 	id, err := gnosis.NewID()
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	docType := opts.Type
 	if docType == "" {
@@ -157,7 +161,7 @@ func (w *Writer) fileDraft(
 	})
 	rel := "c/" + id.String() + "-" + gnosis.SlugFrom(reply.Title).String() + ".md"
 	if _, qErr := w.Quarantine(rel, content); qErr != nil {
-		return nil, &errs.Error{Op: op, Err: qErr}
+		return nil, toerr.WrapWithMessage(qErr, op)
 	}
 	// The trail row is best-effort and the draft is not, which is `spendCritic`'s
 	// split: the document is in quarantine either way, and refusing to report a write

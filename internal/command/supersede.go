@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Supersede records that one claim replaced another (§10.4).
@@ -87,5 +87,5 @@ func (s *Supersede) Validate() error {
 	if len(bad) == 0 {
 		return nil
 	}
-	return &errs.Error{Code: errs.EINVALID, Message: op + ": " + strings.Join(bad, "; ")}
+	return errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
 }

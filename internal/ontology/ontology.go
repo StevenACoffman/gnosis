@@ -18,7 +18,8 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Type is a declared kind of concept.
@@ -123,10 +124,7 @@ func Load(src []byte) (*Ontology, error) {
 	var f file
 	md, err := toml.Decode(string(src), &f)
 	if err != nil {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + err.Error(),
-		}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": "+err.Error(), nil)
 	}
 	// A key the decoder did not consume is almost always a typo, and silently
 	// ignoring it would leave a flag the author believes is set.
@@ -136,10 +134,11 @@ func Load(src []byte) (*Ontology, error) {
 			keys = append(keys, k.String())
 		}
 		sort.Strings(keys)
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": unrecognised key(s): " + strings.Join(keys, ", "),
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": unrecognised key(s): "+strings.Join(keys, ", "),
+			nil,
+		)
 	}
 
 	o := &Ontology{
@@ -205,7 +204,7 @@ func (o *Ontology) indexTypes(op string) error {
 	seen := map[gnosis.TypeKey]bool{}
 	for _, t := range o.Types {
 		if _, err := gnosis.ParseTypeKey(t.Key.String()); err != nil {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 		if seen[t.Key] {
 			return dup(op, "type", t.Key.String())
@@ -233,18 +232,19 @@ func (o *Ontology) indexSubjects(op string) error {
 	for i := range o.Subjects {
 		sub := &o.Subjects[i]
 		if _, err := gnosis.ParseSubjectKey(sub.Key.String()); err != nil {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 		if seen[sub.Key] {
 			return dup(op, "subject", sub.Key.String())
 		}
 		seen[sub.Key] = true
 		if !sub.Dimension.valid() {
-			return &errs.Error{
-				Code: errs.EINVALID,
-				Message: fmt.Sprintf("%s: subject %q has unknown dimension %q",
+			return errcode.WithCode(
+				gnosis.CodeInvalid,
+				fmt.Sprintf("%s: subject %q has unknown dimension %q",
 					op, sub.Key, sub.Dimension),
-			}
+				nil,
+			)
 		}
 		if err := checkRejections(op, "subject", sub.Key.String(),
 			sub.Aliases, sub.Rejected); err != nil {
@@ -272,15 +272,12 @@ func (o *Ontology) indexSubjects(op string) error {
 // exactly where it was, minus a surface term somebody was using.
 func claim[K ~string](index map[string]K, folded string, key K, op, kind string) error {
 	if prior, taken := index[folded]; taken && prior != key {
-		return &errs.Error{
-			Code: errs.EINVALID,
-			Message: fmt.Sprintf(
-				"%s: %s alias %q is claimed by both %q and %q; "+
-					"if they mean the same thing, merge them into one %s with both "+
-					"as aliases, and if they mean different things, give each a "+
-					"distinct key (%s.%s, %s.%s) and leave %q claimed by neither",
-				op, kind, folded, prior, key, kind, prior, folded, key, folded, folded),
-		}
+		return errcode.WithCode(gnosis.CodeInvalid, fmt.Sprintf(
+			"%s: %s alias %q is claimed by both %q and %q; "+
+				"if they mean the same thing, merge them into one %s with both "+
+				"as aliases, and if they mean different things, give each a "+
+				"distinct key (%s.%s, %s.%s) and leave %q claimed by neither",
+			op, kind, folded, prior, key, kind, prior, folded, key, folded, folded), nil)
 	}
 	index[folded] = key
 	return nil
@@ -288,8 +285,9 @@ func claim[K ~string](index map[string]K, folded string, key K, op, kind string)
 
 // dup reports a repeated key.
 func dup(op, kind, key string) error {
-	return &errs.Error{
-		Code:    errs.EINVALID,
-		Message: fmt.Sprintf("%s: %s %q is declared more than once", op, kind, key),
-	}
+	return errcode.WithCode(
+		gnosis.CodeInvalid,
+		fmt.Sprintf("%s: %s %q is declared more than once", op, kind, key),
+		nil,
+	)
 }

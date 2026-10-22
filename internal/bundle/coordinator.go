@@ -10,7 +10,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/scan"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Coordinator is the single writing authority over one bundle (SPEC §4.6).
@@ -110,7 +110,7 @@ func (c *Coordinator) Execute(ctx context.Context, cmd command.Command) (gnosis.
 		if WriterBusy(err) {
 			return writerBusyOutcome(c.Dir), nil
 		}
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	defer w.Release()
 

@@ -8,7 +8,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/scan"
 	"github.com/StevenACoffman/gnosis/internal/web"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // executor runs a web decision through the same coordinator the CLI drives.
@@ -53,10 +54,11 @@ func (e *executor) Execute(ctx context.Context, cmd web.Command) (gnosis.Outcome
 
 	actor := e.actorOf(ctx)
 	if actor == gnosis.ActorUnset {
-		return gnosis.Outcome{}, &errs.Error{
-			Code:    errs.EUNAUTHORIZED,
-			Message: op + ": no authenticated actor, so no decision can be recorded",
-		}
+		return gnosis.Outcome{}, errcode.WithCode(
+			gnosis.CodeUnauthorized,
+			op+": no authenticated actor, so no decision can be recorded",
+			nil,
+		)
 	}
 	inner, err := e.build(op, cmd, actor)
 	if err != nil {
@@ -65,7 +67,7 @@ func (e *executor) Execute(ctx context.Context, cmd web.Command) (gnosis.Outcome
 	coordinator := bundle.Coordinator{Dir: e.dir, Rules: e.rules}
 	outcome, err := coordinator.Execute(ctx, inner)
 	if err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	return withTransportRemedy(outcome), nil
 }
@@ -118,16 +120,15 @@ func (e *executor) build(
 			Rationale: cmd.Rationale,
 		}, nil
 	case web.CommandUnset:
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Message: op + ": no kind named",
-		}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": no kind named", nil)
 	default:
 		// Unreachable through the handler, which validates first. Named rather than
 		// defaulted so a kind added to `web` has to be classified here, which is the
 		// whole value of an exhaustive switch over a vocabulary that grows.
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + string(cmd.Kind) + " is not a mutation this serves",
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": "+string(cmd.Kind)+" is not a mutation this serves",
+			nil,
+		)
 	}
 }

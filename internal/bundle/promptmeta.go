@@ -9,8 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // The prompt kinds. PromptKindUnset is the zero value and names nothing, so a meta
@@ -188,9 +190,7 @@ func (m *PromptMeta) Valid() error {
 	if len(bad) == 0 {
 		return nil
 	}
-	return &errs.Error{
-		Code: errs.EINVALID, Op: op, Message: op + ": " + strings.Join(bad, "; "),
-	}
+	return errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
 }
 
 // Archives are the tier-0 files this prompt's quotations must be found in.
@@ -355,14 +355,14 @@ func (w *Writer) StorePromptMeta(meta *PromptMeta) error {
 	}
 	data, err := json.Marshal(meta)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	full := filepath.Join(w.dir, filepath.FromSlash(promptMetaPath(meta.Key)))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
-		return &errs.Error{Op: op, Err: mkErr}
+		return toerr.WrapWithMessage(mkErr, op)
 	}
 	if wErr := atomicfile.WriteFile(full, append(data, '\n'), 0o640); wErr != nil {
-		return &errs.Error{Op: op, Err: wErr}
+		return toerr.WrapWithMessage(wErr, op)
 	}
 	return nil
 }
@@ -379,16 +379,21 @@ func LoadPromptMeta(bundleDir, key string) (PromptMeta, error) {
 	data, err := os.ReadFile(filepath.Join(bundleDir, filepath.FromSlash(promptMetaPath(key))))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return PromptMeta{}, &errs.Error{
-				Code:    errs.ENOTFOUND,
-				Message: op + ": no prompt was emitted for key " + key,
-			}
+			return PromptMeta{}, errcode.WithCode(
+				gnosis.CodeNotFound,
+				op+": no prompt was emitted for key "+key,
+				nil,
+			)
 		}
-		return PromptMeta{}, &errs.Error{Op: op, Err: err}
+		return PromptMeta{}, toerr.WrapWithMessage(err, op)
 	}
 	var out PromptMeta
 	if uErr := json.Unmarshal(data, &out); uErr != nil {
-		return PromptMeta{}, &errs.Error{Code: errs.EINVALID, Op: op, Err: uErr}
+		return PromptMeta{}, errcode.WithCode(
+			gnosis.CodeInvalid,
+			"",
+			toerr.WrapWithMessage(uErr, op),
+		)
 	}
 	return out, nil
 }

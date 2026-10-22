@@ -13,6 +13,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/atomicfile"
 	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // lockFile is the advisory writer lock, inside stateDir.
@@ -100,19 +102,20 @@ func AcquireWriter(ctx context.Context, bundleDir string) (*Writer, error) {
 
 	dir := filepath.Join(bundleDir, stateDir)
 	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	lock := flock.New(filepath.Join(dir, lockFile))
 	held, err := lock.TryLockContext(ctx, lockPoll)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Code: errs.ECONFLICT, Err: err}
+		return nil, errcode.WithCode(gnosis.CodeConflict, "", toerr.WrapWithMessage(err, op))
 	}
 	if !held {
-		return nil, &errs.Error{
-			Code:    errs.ECONFLICT,
-			Message: op + ": another writer holds " + bundleDir,
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeConflict,
+			op+": another writer holds "+bundleDir,
+			nil,
+		)
 	}
 	return &Writer{dir: bundleDir, lock: lock}, nil
 }
@@ -175,14 +178,15 @@ func (w *Writer) WriteConcept(rel string, content []byte) error {
 	}
 	clean := path.Clean(rel)
 	if !strings.HasPrefix(clean, conceptDir+"/") || strings.Contains(clean, "..") {
-		return &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": " + rel + " is not a concept path",
-		}
+		return errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": "+rel+" is not a concept path",
+			nil,
+		)
 	}
 	full := filepath.Join(w.dir, filepath.FromSlash(clean))
 	if err := atomicfile.WriteFile(full, content, 0o640); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	return nil
 }
@@ -203,10 +207,11 @@ func (w *Writer) held(op string) error {
 	if w != nil && w.lock != nil {
 		return nil
 	}
-	return &errs.Error{
-		Code:    errs.EINTERNAL,
-		Message: op + ": the bundle's writer lock is not held; the Writer was released",
-	}
+	return errcode.WithCode(
+		gnosis.CodeInternal,
+		op+": the bundle's writer lock is not held; the Writer was released",
+		nil,
+	)
 }
 
 // writerBusyOutcome is the envelope for contention, so every write path reports

@@ -3,7 +3,7 @@ package bundle
 import (
 	"github.com/StevenACoffman/gnosis/internal/gate"
 	"github.com/StevenACoffman/gnosis/internal/scan"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Waiting is one quarantined document and what the gate makes of it.
@@ -51,7 +51,7 @@ func Review(bundleDir string, rules *scan.Ruleset) ([]Waiting, error) {
 
 	paths, err := Quarantined(bundleDir)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if len(paths) == 0 {
 		return []Waiting{}, nil
@@ -60,7 +60,7 @@ func Review(bundleDir string, rules *scan.Ruleset) ([]Waiting, error) {
 	c := &Coordinator{Dir: bundleDir, Rules: rules}
 	corpus, limits, err := c.gateInputs()
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	out := make([]Waiting, 0, len(paths))
@@ -83,7 +83,7 @@ func (c *Coordinator) waiting(
 		// The listing found it and the read did not. That is a filesystem race or
 		// a failing disk, not a verdict, and reporting it as one would put a
 		// hardware fault in a review queue as though somebody could edit it away.
-		return Waiting{}, &errs.Error{Op: op, Err: err}
+		return Waiting{}, toerr.WrapWithMessage(err, op)
 	}
 	before, err := readIfPresent(op, quarantineTargetPath(c.Dir, rel))
 	if err != nil {

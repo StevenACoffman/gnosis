@@ -4,7 +4,8 @@ import (
 	_ "embed"
 	"strconv"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // SampleFileName is where the draw's seed lives, relative to the bundle root.
@@ -82,11 +83,12 @@ func LoadSample(src []byte) (*Sample, error) {
 		return nil, err
 	}
 	if s.CriticDefault.Value <= 0 {
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": critic_default must be positive; a draw of none is a" +
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": critic_default must be positive; a draw of none is a"+
 				" critic that examines nothing and reports that it ran",
-		}
+			nil,
+		)
 	}
 	return &s, nil
 }

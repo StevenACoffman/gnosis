@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Shape is the difference between the schema a database has and the schema the
@@ -43,7 +43,7 @@ func (db *DB) Objects(ctx context.Context) ([]string, error) {
 		  AND (tbl_name = name OR type = 'index')
 		ORDER BY name`)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -51,12 +51,12 @@ func (db *DB) Objects(ctx context.Context) ([]string, error) {
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out = append(out, name)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	sort.Strings(out)
 	return out, nil
@@ -75,11 +75,11 @@ func (db *DB) CheckShape(ctx context.Context) (Shape, error) {
 
 	want, err := expectedObjects(ctx)
 	if err != nil {
-		return Shape{}, &errs.Error{Op: op, Err: err}
+		return Shape{}, toerr.WrapWithMessage(err, op)
 	}
 	got, err := db.Objects(ctx)
 	if err != nil {
-		return Shape{}, &errs.Error{Op: op, Err: err}
+		return Shape{}, toerr.WrapWithMessage(err, op)
 	}
 	return Shape{
 		Missing:    missingFrom(want, got),
@@ -106,7 +106,7 @@ func (db *DB) Tables(ctx context.Context) ([]string, error) {
 		WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
 		ORDER BY name`)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -114,12 +114,12 @@ func (db *DB) Tables(ctx context.Context) ([]string, error) {
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out = append(out, name)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }

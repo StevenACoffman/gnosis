@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // templateFS carries the pages into the binary.
@@ -36,7 +36,7 @@ func page(name string) (*template.Template, error) {
 		// Wrapped so the page that failed is in the message. A parse failure here is
 		// a build defect rather than a runtime one, and the fastest fix is knowing
 		// which of five files it is.
-		return nil, &errs.Error{Op: op, Message: op + ": " + name, Err: err}
+		return nil, toerr.WrapWithMessage(err, op+": "+name)
 	}
 	return tmpl, nil
 }

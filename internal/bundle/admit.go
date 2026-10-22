@@ -18,6 +18,8 @@ import (
 	"github.com/StevenACoffman/skillet/identity"
 	"github.com/StevenACoffman/skillet/quotecheck"
 	"github.com/StevenACoffman/skillet/textnorm"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // admit consumes an agent's reply and writes the resulting document to quarantine.
@@ -46,7 +48,7 @@ func (c *Coordinator) admit(
 			return gnosis.Blocked(gnosis.ReasonNeedsHuman, err.Error(),
 				map[string]any{"key": cmd.Key}), nil
 		}
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 
 	// A key belonging to another command is refused here rather than discovered
@@ -265,11 +267,11 @@ func recordSupported(k *checked, quotes []string, sources []quotecheck.Source) {
 func (c *Coordinator) readConcept(op, rel string) (*okf.Document, string, error) {
 	raw, err := os.ReadFile(filepath.Join(c.Dir, filepath.FromSlash(rel)))
 	if err != nil {
-		return nil, "", &errs.Error{Op: op, Err: err}
+		return nil, "", toerr.WrapWithMessage(err, op)
 	}
 	doc, err := okf.Parse(raw)
 	if err != nil {
-		return nil, "", &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, "", errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return doc, identity.Hash(string(raw)), nil
 }
@@ -287,7 +289,7 @@ func (c *Coordinator) cacheReply(
 	if err := w.StoreCached(&CachedReply{
 		Key: cmd.Key, URI: meta.URI, Reply: cmd.Reply,
 	}); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	return nil
 }
@@ -305,7 +307,7 @@ func (c *Coordinator) checkReply(
 	for _, rel := range archives {
 		body, rErr := os.ReadFile(filepath.Join(c.Dir, filepath.FromSlash(rel)))
 		if rErr != nil {
-			return nil, &errs.Error{Op: op, Err: rErr}
+			return nil, toerr.WrapWithMessage(rErr, op)
 		}
 		sources = append(sources, quotecheck.Source{Name: rel, Text: string(body)})
 	}
@@ -383,13 +385,13 @@ func (c *Coordinator) quarantineReply(
 ) (gnosis.Outcome, error) {
 	id, err := gnosis.NewID()
 	if err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	rel := "c/" + id.String() + "-" + gnosis.SlugFrom(reply.Title).String() + ".md"
 
 	content := renderQuarantined(id, reply, k)
 	if _, err = w.Quarantine(rel, content); err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	c.record(w, &audit.Row{
 		At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),

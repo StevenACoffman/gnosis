@@ -8,6 +8,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/standards"
 	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // The reasons a loosening has no finding count, stated once each.
@@ -274,7 +275,7 @@ func staleFindingDelta(bundleDir string, old, cur *standards.Archive) (int, int,
 	}
 	snap, err := Snapshot(os.DirFS(bundleDir), IndexState{}, fresh)
 	if err != nil {
-		return 0, 0, &errs.Error{Op: op, Err: err}
+		return 0, 0, toerr.WrapWithMessage(err, op)
 	}
 
 	now := time.Now().UTC()
@@ -310,7 +311,7 @@ func durabilityFindingDelta(bundleDir string, old, cur *standards.Archive) (int,
 	}
 	snap, err := Snapshot(os.DirFS(bundleDir), IndexState{}, fresh)
 	if err != nil {
-		return 0, 0, &errs.Error{Op: op, Err: err}
+		return 0, 0, toerr.WrapWithMessage(err, op)
 	}
 
 	snap.InDegreeCut = old.InDegreeCut.Value
@@ -353,7 +354,7 @@ func archiveAtRef(op, bundleDir, ref string) (*standards.Archive, error) {
 	}
 	a, err := standards.LoadArchive(src)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Message: op + ": at " + ref, Err: err}
+		return nil, toerr.WrapWithMessage(err, op+": at "+ref)
 	}
 	return a, nil
 }
@@ -369,7 +370,7 @@ func promoteAtRef(op, bundleDir, ref string) (*standards.Promote, error) {
 	}
 	p, err := standards.LoadPromote(src)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Message: op + ": at " + ref, Err: err}
+		return nil, toerr.WrapWithMessage(err, op+": at "+ref)
 	}
 	return p, nil
 }
@@ -436,7 +437,7 @@ func challengeFindingDelta(
 	}
 	snap, err := Snapshot(os.DirFS(bundleDir), IndexState{}, fresh)
 	if err != nil {
-		return 0, 0, &errs.Error{Op: op, Err: err}
+		return 0, 0, toerr.WrapWithMessage(err, op)
 	}
 
 	now := time.Now().UTC()
@@ -460,7 +461,7 @@ func challengeAtRef(op, bundleDir, ref string) (*standards.Challenge, error) {
 	}
 	c, err := standards.LoadChallenge(src)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Message: op + ": at " + ref, Err: err}
+		return nil, toerr.WrapWithMessage(err, op+": at "+ref)
 	}
 	return c, nil
 }
@@ -476,7 +477,7 @@ func sampleAtRef(op, bundleDir, ref string) (*standards.Sample, error) {
 	}
 	s, err := standards.LoadSample(src)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Message: op + ": at " + ref, Err: err}
+		return nil, toerr.WrapWithMessage(err, op+": at "+ref)
 	}
 	return s, nil
 }

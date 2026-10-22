@@ -15,7 +15,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/okf"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // adjudication is what recording one decision needs, gathered.
@@ -74,24 +75,26 @@ func AppendWarrant(existing []byte, claimID string, w *gnosis.Warrant) ([]byte, 
 
 	before, err := okf.Parse(existing)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if strings.TrimSpace(w.Rationale) == "" {
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": a warrant needs a rationale (§10.6.4), at every" +
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": a warrant needs a rationale (§10.6.4), at every"+
 				" authority including sole",
-		}
+			nil,
+		)
 	}
 	declared := docClaims(before)
 	for i := range declared {
 		if declared[i].ID == claimID && declared[i].Warrant.Adjudicated() {
-			return nil, &errs.Error{
-				Code: errs.EINVALID,
-				Message: op + ": claim " + claimID + " already carries a warrant;" +
-					" a reversal is a new warrant naming the one it overturns" +
+			return nil, errcode.WithCode(
+				gnosis.CodeInvalid,
+				op+": claim "+claimID+" already carries a warrant;"+
+					" a reversal is a new warrant naming the one it overturns"+
 					" (§10.6.5), never an edit of it",
-			}
+				nil,
+			)
 		}
 	}
 
@@ -120,10 +123,11 @@ func insertWarrant(
 	}
 	at, indent, found := claimEntryEnd(lines, end, claimID)
 	if !found {
-		return nil, &errs.Error{
-			Code:    errs.ENOTFOUND,
-			Message: op + ": the document declares no claim " + claimID,
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeNotFound,
+			op+": the document declares no claim "+claimID,
+			nil,
+		)
 	}
 	entry := renderWarrant(indent, w)
 
@@ -302,22 +306,24 @@ func sameDocumentPlusOneWarrant(
 ) error {
 	after, err := okf.Parse(out)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	if after.Body != before.Body {
-		return &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": adjudicating would change the document body, which an" +
+		return errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": adjudicating would change the document body, which an"+
 				" adjudication never does; nothing was written",
-		}
+			nil,
+		)
 	}
 	for _, key := range topLevelKeys(before) {
 		if _, ok := after.Fields[key]; !ok {
-			return &errs.Error{
-				Code: errs.EINVALID, Op: op,
-				Message: op + ": adjudicating would drop the frontmatter key " + key +
+			return errcode.WithCode(
+				gnosis.CodeInvalid,
+				op+": adjudicating would drop the frontmatter key "+key+
 					"; nothing was written",
-			}
+				nil,
+			)
 		}
 	}
 	return landedOnlyOn(op, before, after, claimID)
@@ -348,19 +354,21 @@ func landedOnlyOn(op string, before, after *okf.Document, claimID string) error 
 		case c.ID == claimID:
 			found = c.Warrant.Adjudicated()
 		case c.Warrant.Adjudicated() && !was[c.ID]:
-			return &errs.Error{
-				Code: errs.EINVALID, Op: op,
-				Message: op + ": the warrant landed on claim " + c.ID + " rather than " +
-					claimID + "; nothing was written",
-			}
+			return errcode.WithCode(
+				gnosis.CodeInvalid,
+				op+": the warrant landed on claim "+c.ID+" rather than "+
+					claimID+"; nothing was written",
+				nil,
+			)
 		}
 	}
 	if !found {
-		return &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": the warrant did not land on claim " + claimID +
+		return errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": the warrant did not land on claim "+claimID+
 				"; nothing was written",
-		}
+			nil,
+		)
 	}
 	return nil
 }
@@ -384,7 +392,7 @@ func (c *Coordinator) adjudicate(
 
 	docs, err := Load(os.DirFS(c.Dir))
 	if err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	signers := adjudicators(docs)
 	authority := gnosis.FoldAuthority(len(signers))
@@ -443,7 +451,7 @@ func (c *Coordinator) recordAdjudication(
 	op string, w *Writer, cmd *command.Adjudicate, a *adjudication,
 ) (gnosis.Outcome, error) {
 	if err := w.WriteConcept(cmd.Path, a.after); err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	a.data["adjudicated"] = true
 	if cmd.Challenge != "" {
@@ -511,11 +519,9 @@ func readConcept(op, bundleDir, rel string) ([]byte, error) {
 	data, err := os.ReadFile(full)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, &errs.Error{
-				Code: errs.ENOTFOUND, Message: op + ": no document at " + rel,
-			}
+			return nil, errcode.WithCode(gnosis.CodeNotFound, op+": no document at "+rel, nil)
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return data, nil
 }

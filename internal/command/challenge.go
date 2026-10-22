@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Challenge is a reader contesting an accepted claim (§10.7).
@@ -99,5 +99,5 @@ func (c *Challenge) Validate() error {
 	if len(bad) == 0 {
 		return nil
 	}
-	return &errs.Error{Code: errs.EINVALID, Message: op + ": " + strings.Join(bad, "; ")}
+	return errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
 }

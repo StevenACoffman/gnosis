@@ -7,8 +7,9 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/lint"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Gated is a findings gate's verdict (§8.4).
@@ -79,7 +80,7 @@ func GateFindings(bundleDir, path string) (*Gated, error) {
 
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	result, err := parseFindings(op, raw)
 	if err != nil {
@@ -128,12 +129,13 @@ func parseFindings(op string, raw []byte) (*finding.Result, error) {
 			Unexamined:  envelope.Data.Unexamined,
 		}, nil
 	}
-	return nil, &errs.Error{
-		Code: errs.EINVALID,
-		Message: op + ": the file is neither a finding.Result (a JSON object with a" +
-			" `diagnostics` array) nor a gnosis envelope (one with `data.diagnostics`)." +
+	return nil, errcode.WithCode(
+		gnosis.CodeInvalid,
+		op+": the file is neither a finding.Result (a JSON object with a"+
+			" `diagnostics` array) nor a gnosis envelope (one with `data.diagnostics`)."+
 			" `gnosis lint --jsonl` writes the second",
-	}
+		nil,
+	)
 }
 
 // splitBySeverity separates the blocking findings from the rest and collects their

@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // cacheDir is the response cache, inside stateDir.
@@ -73,18 +75,23 @@ func LoadCached(bundleDir, key string) (CachedReply, bool, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return CachedReply{}, false, nil
 		}
-		return CachedReply{}, false, &errs.Error{Op: op, Err: err}
+		return CachedReply{}, false, toerr.WrapWithMessage(err, op)
 	}
 
 	var out CachedReply
 	if uErr := json.Unmarshal(data, &out); uErr != nil {
-		return CachedReply{}, false, &errs.Error{Code: errs.EINVALID, Op: op, Err: uErr}
+		return CachedReply{}, false, errcode.WithCode(
+			gnosis.CodeInvalid,
+			"",
+			toerr.WrapWithMessage(uErr, op),
+		)
 	}
 	if out.Key != key {
-		return CachedReply{}, false, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + CachePath(key) + " holds a reply for key " + out.Key,
-		}
+		return CachedReply{}, false, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": "+CachePath(key)+" holds a reply for key "+out.Key,
+			nil,
+		)
 	}
 	return out, true, nil
 }
@@ -104,18 +111,18 @@ func (w *Writer) StoreCached(entry *CachedReply) error {
 		return err
 	}
 	if entry.Key == "" {
-		return &errs.Error{Code: errs.EINVALID, Message: op + ": entry has no key"}
+		return errcode.WithCode(gnosis.CodeInvalid, op+": entry has no key", nil)
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	full := filepath.Join(w.dir, filepath.FromSlash(CachePath(entry.Key)))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
-		return &errs.Error{Op: op, Err: mkErr}
+		return toerr.WrapWithMessage(mkErr, op)
 	}
 	if wErr := atomicfile.WriteFile(full, append(data, '\n'), 0o640); wErr != nil {
-		return &errs.Error{Op: op, Err: wErr}
+		return toerr.WrapWithMessage(wErr, op)
 	}
 	return nil
 }

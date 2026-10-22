@@ -7,6 +7,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // discard drops a quarantined draft and records that it was dropped.
@@ -32,7 +33,7 @@ func (c *Coordinator) discard(
 					"path": cmd.Path, "effect": cmd.Eff.String(),
 				}), nil
 		}
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 
 	data := map[string]any{
@@ -59,7 +60,7 @@ func (c *Coordinator) discard(
 		return gnosis.Outcome{}, lErr
 	}
 	if err = w.Discard(cmd.Path); err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	data["discarded"] = true
 	c.record(w, &audit.Row{
@@ -121,7 +122,7 @@ func (c *Coordinator) logDecline(w *Writer, cmd *command.Discard) error {
 	// paragraph and reads as prose somebody typed rather than as an entry.
 	note := "- Declined `" + cmd.Path + "` (" + string(cmd.By) + "): " + cmd.Reason
 	if err := w.Log(c.now(), note); err != nil {
-		return &errs.Error{Op: "bundle.Coordinator.logDecline", Err: err}
+		return toerr.WrapWithMessage(err, "bundle.Coordinator.logDecline")
 	}
 	return nil
 }

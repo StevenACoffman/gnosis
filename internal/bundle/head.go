@@ -7,7 +7,7 @@ import (
 	git "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // HeadTime is when the bundle's current commit was made.
@@ -39,7 +39,7 @@ func HeadTime(bundleDir string) (time.Time, error) {
 	}
 	commit, err := repo.CommitObject(plumbing.NewHash(ref.Hash().String()))
 	if err != nil {
-		return time.Time{}, &errs.Error{Op: op, Err: err}
+		return time.Time{}, toerr.WrapWithMessage(err, op)
 	}
 	return commit.Committer.When.UTC(), nil
 }
@@ -88,7 +88,7 @@ func headRef(op, bundleDir string) (*git.Repository, *plumbing.Reference, error)
 		if errors.Is(err, git.ErrRepositoryNotExists) {
 			return nil, nil, nil
 		}
-		return nil, nil, &errs.Error{Op: op, Err: err}
+		return nil, nil, toerr.WrapWithMessage(err, op)
 	}
 	ref, err := repo.Head()
 	if err != nil {
@@ -97,7 +97,7 @@ func headRef(op, bundleDir string) (*git.Repository, *plumbing.Reference, error)
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
 			return nil, nil, nil
 		}
-		return nil, nil, &errs.Error{Op: op, Err: err}
+		return nil, nil, toerr.WrapWithMessage(err, op)
 	}
 	return repo, ref, nil
 }

@@ -21,8 +21,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/okf"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/identity"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // conceptDir is the single directory concepts live in, so a walk need not guess
@@ -235,7 +235,7 @@ func Load(fsys fs.FS) ([]Document, error) {
 	// An absent concept directory is an empty corpus, not a failure: a freshly
 	// initialised bundle has one, and every command must work against it.
 	if walkErr != nil && !isNotExist(walkErr) {
-		return nil, &errs.Error{Op: op, Err: walkErr}
+		return nil, toerr.WrapWithMessage(walkErr, op)
 	}
 	return docs, nil
 }
@@ -252,7 +252,7 @@ func LoadLog(fsys fs.FS) (lines []string, present bool, err error) {
 	case isNotExist(readErr):
 		return nil, false, nil
 	case readErr != nil:
-		return nil, false, &errs.Error{Op: op, Err: readErr}
+		return nil, false, toerr.WrapWithMessage(readErr, op)
 	}
 	return strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n"), true, nil
 }

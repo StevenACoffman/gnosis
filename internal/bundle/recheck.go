@@ -10,9 +10,9 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/archive"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/okf"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/finding"
 	"github.com/StevenACoffman/skillet/quotecheck"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // CategoryDriftUnsupported is the finding category a re-check opens when a source no
@@ -251,7 +251,7 @@ func quotedBySource(op string, fsys fs.FS) (map[string][]Quoted, error) {
 		}
 		raw, rErr := fs.ReadFile(fsys, path)
 		if rErr != nil {
-			return &errs.Error{Op: op, Err: rErr}
+			return toerr.WrapWithMessage(rErr, op)
 		}
 		// A document that will not parse contributes nothing and does not stop the
 		// walk. Written as a positive test rather than as an early return on the
@@ -268,7 +268,7 @@ func quotedBySource(op string, fsys fs.FS) (map[string][]Quoted, error) {
 	// has fetched sources and written no documents yet is an ordinary state, and
 	// every source in it re-checks to unchecked because nothing quotes it.
 	if err != nil && !isNotExist(err) {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }

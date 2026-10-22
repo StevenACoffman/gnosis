@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/StevenACoffman/gnosis/internal/audit"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // tailWindow is how far back verifyAudit reads to find the last line.
@@ -98,7 +98,7 @@ func verifyAudit(bundleDir string, want *audit.Row) error {
 
 	line, err := want.Canonical()
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 
 	tail, err := readTail(op, filepath.Join(bundleDir, stateDir, auditFile), tailWindow)
@@ -131,13 +131,13 @@ func readTail(op, path string, n int64) ([]byte, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = f.Close() }()
 
 	info, err := f.Stat()
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	size := info.Size()
 	if size < n {
@@ -145,7 +145,7 @@ func readTail(op, path string, n int64) ([]byte, error) {
 	}
 	buf := make([]byte, n)
 	if _, err = f.ReadAt(buf, size-n); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return buf, nil
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/okf"
 	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // statusKey is OKF §5.4's per-claim lifecycle field. `deprecated` means kept for links
@@ -41,7 +43,7 @@ func Deprecate(existing []byte, claimID string) ([]byte, error) {
 
 	before, err := okf.Parse(existing)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	out, err := setClaimField(op, existing, claimID, statusKey, "deprecated")
 	if err != nil {
@@ -71,7 +73,7 @@ func Supersedes(existing []byte, claimID, loser string) ([]byte, error) {
 
 	before, err := okf.Parse(existing)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	out, err := appendClaimListItem(op, existing, claimID, supersedesKey, loser)
 	if err != nil {
@@ -149,16 +151,19 @@ func claimEntry(
 	}
 	block, ok := blockAt(lines, fence, claimsKey)
 	if !ok {
-		return nil, entryBounds{}, "", &errs.Error{
-			Code: errs.ENOTFOUND, Message: op + ": the document declares no claims",
-		}
+		return nil, entryBounds{}, "", errcode.WithCode(
+			gnosis.CodeNotFound,
+			op+": the document declares no claims",
+			nil,
+		)
 	}
 	start, marker, ok := entryStart(lines, block, fence, claimID)
 	if !ok {
-		return nil, entryBounds{}, "", &errs.Error{
-			Code:    errs.ENOTFOUND,
-			Message: op + ": the document declares no claim " + claimID,
-		}
+		return nil, entryBounds{}, "", errcode.WithCode(
+			gnosis.CodeNotFound,
+			op+": the document declares no claim "+claimID,
+			nil,
+		)
 	}
 	end := entryFieldEnd(lines, start, fence, marker)
 	return lines, entryBounds{start: start, end: end}, marker + "  ", nil
@@ -191,11 +196,8 @@ func sameDocumentDeprecating(
 			return nil
 		}
 	}
-	return &errs.Error{
-		Code: errs.EINVALID, Op: op,
-		Message: op + ": claim " + claimID +
-			" was not marked deprecated; nothing was written",
-	}
+	return errcode.WithCode(gnosis.CodeInvalid, op+": claim "+claimID+
+		" was not marked deprecated; nothing was written", nil)
 }
 
 // sameDocumentSuperseding is the invariant for a supersession edge.
@@ -220,11 +222,12 @@ func sameDocumentSuperseding(
 			}
 		}
 	}
-	return &errs.Error{
-		Code: errs.EINVALID, Op: op,
-		Message: op + ": claim " + claimID + " does not record superseding " + loser +
+	return errcode.WithCode(
+		gnosis.CodeInvalid,
+		op+": claim "+claimID+" does not record superseding "+loser+
 			"; nothing was written",
-	}
+		nil,
+	)
 }
 
 // unchangedApartFrom re-parses a candidate and checks what every surgery here must
@@ -241,22 +244,24 @@ func unchangedApartFrom(
 ) (*okf.Document, error) {
 	after, err := okf.Parse(out)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if after.Body != before.Body {
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": " + verb + " would change the document body, which it" +
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": "+verb+" would change the document body, which it"+
 				" never does; nothing was written",
-		}
+			nil,
+		)
 	}
 	for _, key := range topLevelKeys(before) {
 		if _, ok := after.Fields[key]; !ok {
-			return nil, &errs.Error{
-				Code: errs.EINVALID, Op: op,
-				Message: op + ": " + verb + " would drop the frontmatter key " + key +
+			return nil, errcode.WithCode(
+				gnosis.CodeInvalid,
+				op+": "+verb+" would drop the frontmatter key "+key+
 					"; nothing was written",
-			}
+				nil,
+			)
 		}
 	}
 	return after, nil
@@ -288,19 +293,20 @@ func unchangedApartFrom(
 func loserRef(op string, loser []byte, claimID string) (string, error) {
 	doc, err := okf.Parse(loser)
 	if err != nil {
-		return "", &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return "", errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	raw, ok := doc.Text(idKey)
 	if !ok {
-		return "", &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": the losing document declares no " + idKey + ", so nothing" +
+		return "", errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": the losing document declares no "+idKey+", so nothing"+
 				" durable can point at it (§5.1.2); `gnosis index rebuild` reports it",
-		}
+			nil,
+		)
 	}
 	id, err := gnosis.ParseID(raw)
 	if err != nil {
-		return "", &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return "", errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return gnosis.ClaimRef(id, claimID), nil
 }
@@ -393,15 +399,15 @@ func (c *Coordinator) writeSupersession(
 		// One document holds both claims, so the winner's bytes already carry the
 		// deprecation — one write, and no order to get wrong.
 		if err := w.WriteConcept(cmd.WinnerPath, winner); err != nil {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 		return nil
 	}
 	if err := w.WriteConcept(cmd.WinnerPath, winner); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	if err := w.WriteConcept(cmd.LoserPath, deprecated); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	return nil
 }
@@ -436,6 +442,6 @@ func supersedeRefused(data map[string]any, err error) (gnosis.Outcome, error) {
 	case errs.ENOTFOUND, errs.EINVALID:
 		return gnosis.Blocked(gnosis.ReasonNeedsHuman, err.Error(), data), nil
 	default:
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // ClaimHit is one claim with what a reader needs to identify it.
@@ -56,7 +58,7 @@ func (db *DB) SearchClaims(ctx context.Context, query string, limit int) (*Claim
 	const op = "index.DB.SearchClaims"
 
 	if strings.TrimSpace(query) == "" {
-		return nil, &errs.Error{Code: errs.EINVALID, Message: op + ": empty query"}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": empty query", nil)
 	}
 
 	rows, err := db.sql.QueryContext(ctx, `
@@ -71,7 +73,7 @@ func (db *DB) SearchClaims(ctx context.Context, query string, limit int) (*Claim
 		LIMIT ?`,
 		query, limit)
 	if err != nil {
-		return nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -79,12 +81,12 @@ func (db *DB) SearchClaims(ctx context.Context, query string, limit int) (*Claim
 	for rows.Next() {
 		var h ClaimHit
 		if err := rows.Scan(&h.ID, &h.Path, &h.Lead); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out.Hits = append(out.Hits, h)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	// Counted after the query and not derived from it: the shortfall is a property of
@@ -93,7 +95,7 @@ func (db *DB) SearchClaims(ctx context.Context, query string, limit int) (*Claim
 	row := db.sql.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM claims WHERE lead IS NULL OR lead = ''`)
 	if err := row.Scan(&out.Unextracted); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }
@@ -114,7 +116,7 @@ func (db *DB) AllClaims(ctx context.Context) ([]ClaimHit, error) {
 		LEFT JOIN documents d ON d.id = c.document_id
 		ORDER BY d.path, c.id`)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -122,12 +124,12 @@ func (db *DB) AllClaims(ctx context.Context) ([]ClaimHit, error) {
 	for rows.Next() {
 		var h ClaimHit
 		if sErr := rows.Scan(&h.ID, &h.Path, &h.Lead); sErr != nil {
-			return nil, &errs.Error{Op: op, Err: sErr}
+			return nil, toerr.WrapWithMessage(sErr, op)
 		}
 		out = append(out, h)
 	}
 	if rErr := rows.Err(); rErr != nil {
-		return nil, &errs.Error{Op: op, Err: rErr}
+		return nil, toerr.WrapWithMessage(rErr, op)
 	}
 	return out, nil
 }

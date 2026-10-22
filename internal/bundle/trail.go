@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/audit"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Trail is the parsed write trail together with what would not parse.
@@ -46,12 +47,9 @@ func (t *Trail) Whole() error {
 	for _, n := range t.Malformed {
 		lines = append(lines, strconv.Itoa(n))
 	}
-	return &errs.Error{
-		Code: errs.EINVALID,
-		Message: "bundle.Trail.Whole: " + auditFile + " has " +
-			strconv.Itoa(len(t.Malformed)) + " unreadable line(s) (" +
-			strings.Join(lines, ", ") + "); the trail cannot be counted",
-	}
+	return errcode.WithCode(gnosis.CodeInvalid, "bundle.Trail.Whole: "+auditFile+" has "+
+		strconv.Itoa(len(t.Malformed))+" unreadable line(s) ("+
+		strings.Join(lines, ", ")+"); the trail cannot be counted", nil)
 }
 
 // Newest is the timestamp of the last row, or the zero time for none.

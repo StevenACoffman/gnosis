@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Adjudicate records a human decision on a claim and writes its warrant (§10.4).
@@ -101,7 +101,7 @@ func (a *Adjudicate) Validate() error {
 	if len(bad) == 0 {
 		return nil
 	}
-	return &errs.Error{Code: errs.EINVALID, Message: op + ": " + strings.Join(bad, "; ")}
+	return errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
 }
 
 // badActors reports what is wrong with the adjudicator and the co-signer.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // SourceRow is one fetch record, as the index holds it.
@@ -70,18 +70,18 @@ func (db *DB) ReplaceSources(ctx context.Context, rows []SourceRow) error {
 
 	tx, err := db.sql.BeginTx(ctx, nil)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	if _, err = tx.ExecContext(ctx, `DELETE FROM sources_fetched`); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	if err = insertSources(ctx, tx, rows); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	if err = tx.Commit(); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	return nil
 }
@@ -96,7 +96,7 @@ func insertSources(ctx context.Context, tx *sql.Tx, rows []SourceRow) error {
 			archive_path, extractor, extractor_version, extracted_from, reject_reason
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = stmt.Close() }()
 
@@ -107,7 +107,7 @@ func insertSources(ctx context.Context, tx *sql.Tx, rows []SourceRow) error {
 			r.Disposition, r.ArchivePath, r.Extractor, r.ExtractorVersion,
 			r.ExtractedFrom, r.RejectReason,
 		); err != nil {
-			return &errs.Error{Op: op, Message: op + ": " + r.URI, Err: err}
+			return toerr.WrapWithMessage(err, op+": "+r.URI)
 		}
 	}
 	return nil
@@ -130,7 +130,7 @@ func (db *DB) Sources(ctx context.Context) ([]SourceRow, error) {
 		FROM sources_fetched
 		ORDER BY uri, record_sha256`)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -140,12 +140,12 @@ func (db *DB) Sources(ctx context.Context) ([]SourceRow, error) {
 		if err = rows.Scan(&r.RecordSHA256, &r.URI, &r.SourceSHA256, &r.ByteSize,
 			&r.MediaType, &r.Disposition, &r.ArchivePath, &r.Extractor,
 			&r.ExtractorVersion, &r.ExtractedFrom, &r.RejectReason); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out = append(out, r)
 	}
 	if err = rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }

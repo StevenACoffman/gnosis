@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // SpendPrompt removes an answered prompt and its metadata.
@@ -42,7 +42,7 @@ func (w *Writer) SpendPrompt(key string) error {
 	for _, rel := range []string{promptPath(key), promptMetaPath(key)} {
 		full := filepath.Join(w.dir, filepath.FromSlash(rel))
 		if err := os.Remove(full); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 	}
 	return nil

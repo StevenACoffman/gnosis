@@ -13,8 +13,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/ontology"
 	"github.com/StevenACoffman/gnosis/internal/standards"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/markdown"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // conceptPrefix is the bundle-absolute prefix OKF §6.1 recommends for links
@@ -37,11 +37,11 @@ func Snapshot(fsys fs.FS, idx IndexState, fresh FreshnessState) (*lint.Snapshot,
 
 	docs, err := Load(fsys)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	logLines, hasLog, err := LoadLog(fsys)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	archived, err := archivedPaths(fsys)
@@ -353,7 +353,7 @@ func archivedPaths(fsys fs.FS) (map[string]bool, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }

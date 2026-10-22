@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // LinkRow is one link as found in a document body.
@@ -63,7 +63,7 @@ func (db *DB) Outbound(ctx context.Context, id gnosis.ID) ([]Resolved, error) {
 		WHERE l.source_document_id = ?
 		ORDER BY l.href`, id.String())
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -71,12 +71,12 @@ func (db *DB) Outbound(ctx context.Context, id gnosis.ID) ([]Resolved, error) {
 	for rows.Next() {
 		var r Resolved
 		if err := rows.Scan(&r.Href, &r.TargetID, &r.Title, &r.External); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out = append(out, r)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }
@@ -101,7 +101,7 @@ func (db *DB) Inbound(ctx context.Context, id gnosis.ID) ([]Resolved, error) {
 		WHERE l.target_document_id = ?
 		ORDER BY d.path`, id.String())
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -109,12 +109,12 @@ func (db *DB) Inbound(ctx context.Context, id gnosis.ID) ([]Resolved, error) {
 	for rows.Next() {
 		var r Resolved
 		if err := rows.Scan(&r.Href, &r.TargetID, &r.Title, &r.External); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out = append(out, r)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }

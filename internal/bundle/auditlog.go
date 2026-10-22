@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/audit"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // auditFile is the write trail, inside stateDir and therefore gitignored.
@@ -43,12 +43,12 @@ func appendRow(bundleDir string, row *audit.Row) error {
 
 	line, err := row.Canonical()
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 
 	dir := filepath.Join(bundleDir, stateDir)
 	if mkErr := os.MkdirAll(dir, 0o750); mkErr != nil {
-		return &errs.Error{Op: op, Err: mkErr}
+		return toerr.WrapWithMessage(mkErr, op)
 	}
 	// 0o600 rather than 0o640: the trail names who did what, and it is per-user
 	// state under a gitignored directory, so there is no group that should be
@@ -56,15 +56,15 @@ func appendRow(bundleDir string, row *audit.Row) error {
 	f, err := os.OpenFile(filepath.Join(dir, auditFile),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	if _, err = f.Write(line); err != nil {
-		return errors.Join(&errs.Error{Op: op, Err: err}, f.Close())
+		return errors.Join(toerr.WrapWithMessage(err, op), f.Close())
 	}
 	if cErr := f.Close(); cErr != nil {
 		// A close error on an append means the write may not have reached the
 		// disk, which for a trail is the same as not having happened.
-		return &errs.Error{Op: op, Err: cErr}
+		return toerr.WrapWithMessage(cErr, op)
 	}
 	return nil
 }
@@ -96,7 +96,7 @@ func AuditTrail(bundleDir string) (Trail, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return Trail{Rows: []audit.Row{}}, nil
 		}
-		return Trail{}, &errs.Error{Op: op, Err: err}
+		return Trail{}, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -119,7 +119,7 @@ func AuditTrail(bundleDir string) (Trail, error) {
 		// The scan stopped part way, so Malformed undercounts and the rows are a
 		// prefix rather than the trail. Reporting a Trail here would be reporting a
 		// count this function knows is wrong.
-		return Trail{}, &errs.Error{Op: op, Err: sErr}
+		return Trail{}, toerr.WrapWithMessage(sErr, op)
 	}
 	return out, nil
 }

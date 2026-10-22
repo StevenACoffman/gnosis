@@ -11,8 +11,9 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/relay"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/identity"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // promptDir is where emitted prompts land, inside stateDir.
@@ -99,10 +100,11 @@ func (w *Writer) Prompts(opts *PromptOptions) ([]Pending, error) {
 	for _, uri := range opts.URIs {
 		rec, ok := records[uri]
 		if !ok {
-			return nil, &errs.Error{
-				Code:    errs.ENOTFOUND,
-				Message: op + ": " + uri + " has no fetch record; run `gnosis fetch` first",
-			}
+			return nil, errcode.WithCode(
+				gnosis.CodeNotFound,
+				op+": "+uri+" has no fetch record; run `gnosis fetch` first",
+				nil,
+			)
 		}
 		pending, pErr := w.renderPending(op, opts, &rec)
 		if pErr != nil {
@@ -116,24 +118,34 @@ func (w *Writer) Prompts(opts *PromptOptions) ([]Pending, error) {
 
 // renderPending renders and, when the answer is not already known, writes one
 // prompt.
+// notDurable refuses a source with no archived text.
+//
+// A referenced source has nothing to build a prompt from, and refusing is honest: asking
+// a model about a URI it cannot read produces claims quoted from nothing.
+//
+// Extracted when the toerr migration pushed `renderPending` one line past the length
+// limit — which is the linter doing its job rather than an obstacle. The refusal is a
+// self-contained thought, and naming it says what "not durable" means here.
+func notDurable(op string, rec *archive.Record) error {
+	return errcode.WithCode(
+		gnosis.CodeInvalid,
+		op+": "+rec.URI+" is "+string(rec.Disposition)+
+			"; there is no archived text to extract from",
+		nil,
+	)
+}
+
 func (w *Writer) renderPending(
 	op string,
 	opts *PromptOptions,
 	rec *archive.Record,
 ) (Pending, error) {
 	if !rec.Disposition.Durable() {
-		// A referenced source has no archived text, so there is nothing to build a
-		// prompt from. Refusing is honest: asking a model about a URI it cannot
-		// read produces claims quoted from nothing.
-		return Pending{}, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": " + rec.URI + " is " + string(rec.Disposition) +
-				"; there is no archived text to extract from",
-		}
+		return Pending{}, notDurable(op, rec)
 	}
 	text, err := os.ReadFile(filepath.Join(w.dir, filepath.FromSlash(rec.ArchivePath)))
 	if err != nil {
-		return Pending{}, &errs.Error{Op: op, Err: err}
+		return Pending{}, toerr.WrapWithMessage(err, op)
 	}
 
 	prompt := relay.Render(&relay.Request{
@@ -173,10 +185,10 @@ func (w *Writer) renderPending(
 	rel := promptPath(prompt.Key)
 	full := filepath.Join(w.dir, filepath.FromSlash(rel))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
-		return Pending{}, &errs.Error{Op: op, Err: mkErr}
+		return Pending{}, toerr.WrapWithMessage(mkErr, op)
 	}
 	if wErr := atomicfile.WriteFile(full, []byte(prompt.Text), 0o640); wErr != nil {
-		return Pending{}, &errs.Error{Op: op, Err: wErr}
+		return Pending{}, toerr.WrapWithMessage(wErr, op)
 	}
 	pending.Path = rel
 	// The miss is recorded after the prompt is on disk, so the log never claims a
@@ -259,12 +271,13 @@ func (w *Writer) conceptHash(op, rel string) (string, error) {
 	raw, err := os.ReadFile(filepath.Join(w.dir, filepath.FromSlash(rel)))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", &errs.Error{
-				Code:    errs.ENOTFOUND,
-				Message: op + ": " + rel + " is not in this bundle",
-			}
+			return "", errcode.WithCode(
+				gnosis.CodeNotFound,
+				op+": "+rel+" is not in this bundle",
+				nil,
+			)
 		}
-		return "", &errs.Error{Op: op, Err: err}
+		return "", toerr.WrapWithMessage(err, op)
 	}
 	return identity.Hash(string(raw)), nil
 }

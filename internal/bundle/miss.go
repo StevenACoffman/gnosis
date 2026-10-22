@@ -15,7 +15,8 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // missFile records every prompt this user's gnosis emitted, inside stateDir and
@@ -134,7 +135,7 @@ func LoadMisses(bundleDir string) ([]Miss, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -154,7 +155,7 @@ func LoadMisses(bundleDir string) ([]Miss, error) {
 		out = append(out, m)
 	}
 	if sErr := scanner.Err(); sErr != nil {
-		return nil, &errs.Error{Op: op, Err: sErr}
+		return nil, toerr.WrapWithMessage(sErr, op)
 	}
 	return out, nil
 }
@@ -179,29 +180,30 @@ func (w *Writer) RecordMiss(m *Miss) error {
 		return err
 	}
 	if m.Reason == gnosis.MissReasonUnset {
-		return &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": a miss with no reason cannot be grouped, and the group" +
+		return errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": a miss with no reason cannot be grouped, and the group"+
 				" is the report",
-		}
+			nil,
+		)
 	}
 	line, err := json.Marshal(m)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	dir := filepath.Join(w.dir, stateDir)
 	if mkErr := os.MkdirAll(dir, 0o750); mkErr != nil {
-		return &errs.Error{Op: op, Err: mkErr}
+		return toerr.WrapWithMessage(mkErr, op)
 	}
 	f, err := os.OpenFile(filepath.Join(dir, missFile),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = f.Close() }()
 
 	if _, wErr := f.Write(append(line, '\n')); wErr != nil {
-		return &errs.Error{Op: op, Err: wErr}
+		return toerr.WrapWithMessage(wErr, op)
 	}
 	return nil
 }

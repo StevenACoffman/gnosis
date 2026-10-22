@@ -23,6 +23,8 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // encode writes one JSON value with its status.
@@ -54,7 +56,7 @@ func decode[T any](r *http.Request) (T, error) {
 
 	var v T
 	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
-		return v, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return v, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return v, nil
 }

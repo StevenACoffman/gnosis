@@ -12,8 +12,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/relay"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // pairSide is one claim of a pair, with the archived text it rests on.
@@ -85,15 +85,15 @@ func (w *Writer) PairPrompts(ctx context.Context, opts *CriticOptions) (*Critiqu
 func (w *Writer) snapshot(ctx context.Context, op string) (*lint.Snapshot, error) {
 	idx, err := LoadIndex(ctx, w.dir)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	fresh, err := LoadFreshness(w.dir)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	snap, err := Snapshot(os.DirFS(w.dir), idx, fresh)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return snap, nil
 }
@@ -153,7 +153,7 @@ func (w *Writer) pairPrompt(
 		raw, err := os.ReadFile(
 			filepath.Join(w.dir, filepath.FromSlash(sides[i].ArchivePath)))
 		if err != nil {
-			return Pending{}, &errs.Error{Op: op, Err: err}
+			return Pending{}, toerr.WrapWithMessage(err, op)
 		}
 		texts[i] = string(raw)
 	}
@@ -187,10 +187,10 @@ func (w *Writer) pairPrompt(
 	rel := promptPath(prompt.Key)
 	full := filepath.Join(w.dir, filepath.FromSlash(rel))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
-		return Pending{}, &errs.Error{Op: op, Err: mkErr}
+		return Pending{}, toerr.WrapWithMessage(mkErr, op)
 	}
 	if wErr := atomicfile.WriteFile(full, []byte(prompt.Text), 0o640); wErr != nil {
-		return Pending{}, &errs.Error{Op: op, Err: wErr}
+		return Pending{}, toerr.WrapWithMessage(wErr, op)
 	}
 	// §6.4's miss, and this one is the clearest case in the log: §10.3 states outright
 	// that no deterministic predicate can settle this, so the checks that ran and
@@ -229,7 +229,7 @@ func (w *Writer) filePairCritique(
 	if err != nil {
 		// Wrapped so the operation is in the message; the EINVALID survives, which is
 		// what lets the command report a malformed reply as the agent's to fix.
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	for _, ref := range meta.PairRefs {

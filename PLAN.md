@@ -862,6 +862,7 @@ steps for a test to walk. Rows 2.15–2.33 were reconstructed from the sections 
 | 5.7 — markdown, glossary     | [x] done | A renderer that escapes before emitting markup; the vocabulary panel lists what a page uses — see §6.58                                                                                                                                                                 |
 | 5.8 — candidate selector     | [x] done | §6.2's rules 1, 2 and 4, with the `claim_sources` join rule 1 had no column for; rule 3 reported as not run — see §6.59                                                                                                                                                 |
 | 5.9 — the two-claim critic   | [x] done | §10.3's judge prompt over the residue, blinded by the same construction; coverage for both claims — see §6.59                                                                                                                                                           |
+| 5.10 — errs.Error → toerr    | [x] done | All 436 literals migrated: toerr wraps, errcode classifies; a parser did the rewrite after regexps mangled the multi-line ones — see §6.60                                                                                                                              |
 
 Three findings from the per-step reviews changed the design rather than the code
 around it:
@@ -3752,3 +3753,82 @@ carried a warrant naming its adjudicator; the emitted prompt contains no trace o
 is §10.3's requirement, and the section is explicit that the type cannot be the whole
 guarantee — "what a type cannot prevent is the projection folding one into a field that
 does exist" — so the test is on what the projection writes.
+
+______________________________________________________________________
+
+### 6.60 A Rewrite That Had to Be Parsed, and Two Defects the Struct Was Hiding
+
+skillet's entry left gnosis a choice: migrate its `errs.Error` literals to toerr, or own an
+`Error` type as adh now does. **Migrating is right and owning one would not be**, because
+the two repositories are not in the same position. adh's 203 literals went through an
+alias, so owning a type cost one file; gnosis's 436 are direct literals across 105 files,
+so owning a type costs the same rewrite and leaves gnosis maintaining an error type instead
+of using one. Only the destination differed, and one destination already exists.
+
+**Five compatibility facts were measured before a single literal moved**, because a
+436-site rewrite cannot be walked back cheaply.
+
+`errs.ErrorCode` already reads a toerr `errcode` error and an `*errs.Error` alike — skillet
+made it so when it consolidated the split — which is the fact the whole plan rests on: the
+53 classification sites keep working *during* the migration, so it is incremental rather
+than a big bang. Nothing in gnosis type-asserts `*errs.Error`, reads `.Op` or `.Message`,
+or calls `errs.ErrorMessage` at all, so only two things are observable: the string
+`Error()` produces and what `ErrorCode` classifies it as. And four of the five shapes keep
+their text byte-for-byte, because `WrapWithMessage` renders `"message: cause"` — exactly
+what `{Op, Err}` rendered, which is 197 of the sites.
+
+The exception needed composing rather than translating. `errcode.WithCode(code, op, err)`
+renders `"cause (op)"` where gnosis renders `"op: cause"`, so a coded wrap became
+`WithCode(code, "", WrapWithMessage(err, op))` — the code outside, the wrap inside, which is
+skillet's own division of labour rather than a workaround.
+
+**The first attempt used regular expressions and had to be reverted.** It mangled every
+literal whose field values spanned lines — the ordinary shape here, because gnosis's
+messages are concatenated fragments — and worse, it turned two `{Op, Message}` leaves into
+`WrapWithMessage(nil, …)`, which **returns nil**: two functions would have reported success
+on a failure path. The revert was the right move and the plan had called for it in advance:
+436 sites is too many to debug at the end.
+
+The replacement uses the parser for *extents* and then splices text. Both halves matter. A
+composite literal's extent is a parser's answer and not a regexp's; and reprinting the AST
+would reformat code this migration is not about and risk moving comments, so the
+replacement goes into the original bytes. It converted all 436 in one pass.
+
+**Two defects the struct had been hiding surfaced as soon as the literals became calls.**
+
+Nine sites carried a `Message` that never rendered: `errs.Error.Error()` prefers `Err`
+over `Message`, and with no `ErrorMessage` caller anywhere those strings were unreachable
+in every direction. They now appear, which is a deliberate behaviour change — nine error
+messages gain the detail somebody wrote for them.
+
+Twenty-seven sites in ten files rendered their operation twice. `{Code, Message, Op}`
+renders `Op + ": " + Message`, and those messages already began with `op + ": "`, so a
+reader saw `standards.LoadRegisters: standards.LoadRegisters: …`. The migration
+reproduced it faithfully — and then it was visible in the source as `op+": "+op+": `,
+which is the argument for fixing it: leaving it would have read as damage this change
+caused.
+
+**This entry first recorded both counts wrong — eight and seven — and the second fix as
+done while all twenty-seven sites still carried it.** Both counts were re-measured from
+the tree at the parent commit with a parser, not a search, and the doubled operation is
+now pinned by tests rather than by this paragraph: `TestALoaderNamesItsOperationOnce`
+covers the five standards loaders, and the Synthesize no-title test covers the bundle
+shape.
+
+**One doubling route remains and is not this change's.** `readConcept` wraps an I/O
+error other than not-exist with its *caller's* `op`, and `deferConflict`, `adjudicate`
+and both reads in `supersede` hand that error to a refusal helper that wraps it with the
+same `op` again. It predates the migration, needs an I/O fault to reach, and the fix is a
+convention question: `FileConflict` relies on the borrowed `op` to name itself, so
+re-scoping `readConcept`'s wrap either drops a frame there or doubles its not-found leaf.
+
+**`.WithCode(` joins `.WrapWithMessage(` in wrapcheck's list, and that is not a
+relaxation.** It carries a status *and* the cause, whose `Unwrap` chain it preserves, so
+`errors.Is`/`As` reach through it exactly as they reach through the wrapper already
+registered. skillet registers both; gnosis had only the first because until now it
+classified with a struct literal.
+
+**What this does not do: it does not delete `errs`.** `errs.ErrorCode` stays as gnosis's
+classifier — it is the vocabulary the §8.0 envelope's `reason` tokens are built from, and
+it now reads toerr errors natively. Retiring the *type* is what skillet asked for; retiring
+the *package* would move a shared vocabulary into one consumer.

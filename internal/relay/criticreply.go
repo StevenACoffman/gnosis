@@ -6,8 +6,9 @@ import (
 	"github.com/goccy/go-yaml"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // criticCategoryPrefix namespaces a verdict's category.
@@ -116,7 +117,11 @@ func ParseCriticReply(src []byte) (CriticReply, error) {
 	}
 	var doc criticReplyDoc
 	if uErr := yaml.Unmarshal([]byte(block), &doc); uErr != nil {
-		return CriticReply{}, &errs.Error{Code: errs.EINVALID, Op: op, Err: uErr}
+		return CriticReply{}, errcode.WithCode(
+			gnosis.CodeInvalid,
+			"",
+			toerr.WrapWithMessage(uErr, op),
+		)
 	}
 	return validateCriticReply(op, &doc)
 }
@@ -167,9 +172,11 @@ func validateCriticReply(op string, doc *criticReplyDoc) (CriticReply, error) {
 		})
 	}
 	if len(bad) > 0 {
-		return CriticReply{}, &errs.Error{
-			Code: errs.EINVALID, Message: op + ": " + strings.Join(bad, "; "),
-		}
+		return CriticReply{}, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": "+strings.Join(bad, "; "),
+			nil,
+		)
 	}
 	return out, nil
 }

@@ -289,6 +289,12 @@ linters:
         # preserved) plus a message and trace frame — a genuine wrap, so wrapcheck
         # should treat it like the built-in .Wrap(/.WithMessage( it already allows.
         - .WrapWithMessage(
+        # toerr's coded constructor: carries a status *and* the cause, whose Unwrap
+        # chain it preserves — so `errors.Is`/`As` reach through it exactly as they
+        # reach through .WrapWithMessage(. Registered for the same reason and not to
+        # quieten anything: skillet registers both, and gnosis had only the first
+        # because until now it classified with a struct literal instead.
+        - .WithCode(
 
     # ── depguard ─────────────────────────────────────────────────────────────
     # spec.md: climax uses its own command pattern; no third-party CLI frameworks.

@@ -7,7 +7,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/lint"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // SubjectPopulation is what one subject key has accumulated.
@@ -215,7 +215,7 @@ func LoadPopulation(dir string) (*Population, error) {
 
 	snap, err := Snapshot(os.DirFS(dir), IndexState{}, FreshnessState{})
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return Subjects(snap), nil
 }

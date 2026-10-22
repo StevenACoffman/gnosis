@@ -4,7 +4,8 @@ import (
 	_ "embed"
 	"strconv"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // ChallengeFileName is where the challenge window lives, relative to the bundle root.
@@ -61,11 +62,12 @@ func LoadChallenge(src []byte) (*Challenge, error) {
 		return nil, err
 	}
 	if c.UnansweredDays.Value <= 0 {
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": unanswered_days must be positive; a window of zero" +
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": unanswered_days must be positive; a window of zero"+
 				" reports every challenge the moment it is filed",
-		}
+			nil,
+		)
 	}
 	return &c, nil
 }

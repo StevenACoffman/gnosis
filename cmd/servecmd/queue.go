@@ -11,8 +11,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/scan"
 	"github.com/StevenACoffman/gnosis/internal/web"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // subjectContext is what §10.6.2 and §10.6.2.1 ask be shown beside a decision.
@@ -50,7 +50,7 @@ func (q *queue) Waiting(ctx context.Context) ([]web.Item, error) {
 
 	drafts, err := bundle.Review(q.dir, q.rules)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	// The drafts themselves, so an item can show what the document says rather than
 	// what it is called. A failure to parse them is not a failure to list what is

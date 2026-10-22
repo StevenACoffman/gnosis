@@ -13,8 +13,9 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/relay"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // CriticOptions asks for cold-critic prompts (§10.5).
@@ -207,11 +208,8 @@ func (w *Writer) FileCritique(key string, src []byte, warn io.Writer) (*Verdict,
 		return nil, err
 	}
 	if meta.Kind != PromptCritic && meta.Kind != PromptCriticPair {
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": key " + key + " is a " + string(meta.Kind) +
-				" prompt; a critic verdict is filed only against a critic prompt",
-		}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": key "+key+" is a "+string(meta.Kind)+
+			" prompt; a critic verdict is filed only against a critic prompt", nil)
 	}
 	if meta.Kind == PromptCriticPair {
 		return w.filePairCritique(op, key, src, &meta, warn)
@@ -223,13 +221,14 @@ func (w *Writer) FileCritique(key string, src []byte, warn io.Writer) (*Verdict,
 	// against later. A refusal here costs one re-emission; the row costs a claim's
 	// steering history, silently.
 	if strings.TrimSpace(meta.DocumentID) == "" {
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": prompt " + key + " was emitted before critic prompts" +
-				" recorded a document identifier, and its coverage would be keyed on" +
-				" a reference nothing can resolve; re-run `gnosis critic` to emit it" +
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": prompt "+key+" was emitted before critic prompts"+
+				" recorded a document identifier, and its coverage would be keyed on"+
+				" a reference nothing can resolve; re-run `gnosis critic` to emit it"+
 				" again",
-		}
+			nil,
+		)
 	}
 
 	// Cached before parsed, as admit does: the model call has happened, and throwing
@@ -245,7 +244,7 @@ func (w *Writer) FileCritique(key string, src []byte, warn io.Writer) (*Verdict,
 		// happened. The EINVALID survives: `errs.ErrorCode` walks the chain, so a
 		// caller can still tell "the agent replied badly" from "the disk failed",
 		// which is the distinction the command layer renders differently.
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return w.recordVerdict(key, &meta, &reply, warn)
 }
@@ -336,7 +335,7 @@ func (w *Writer) draw(
 	}
 	std, err := LoadSampleStandards(w.dir)
 	if err != nil {
-		return nil, 0, &errs.Error{Op: op, Err: err}
+		return nil, 0, toerr.WrapWithMessage(err, op)
 	}
 	n := opts.SampleN
 	if n <= 0 {
@@ -365,7 +364,7 @@ func (w *Writer) criticPrompt(
 ) (Pending, error) {
 	text, err := os.ReadFile(filepath.Join(w.dir, filepath.FromSlash(target.ArchivePath)))
 	if err != nil {
-		return Pending{}, &errs.Error{Op: op, Err: err}
+		return Pending{}, toerr.WrapWithMessage(err, op)
 	}
 	examined, notExamined := CoveredAngles(critiques, target.Ref)
 	prompt := relay.RenderCritic(&relay.CriticRequest{
@@ -399,10 +398,10 @@ func (w *Writer) criticPrompt(
 	rel := promptPath(prompt.Key)
 	full := filepath.Join(w.dir, filepath.FromSlash(rel))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
-		return Pending{}, &errs.Error{Op: op, Err: mkErr}
+		return Pending{}, toerr.WrapWithMessage(mkErr, op)
 	}
 	if wErr := atomicfile.WriteFile(full, []byte(prompt.Text), 0o640); wErr != nil {
-		return Pending{}, &errs.Error{Op: op, Err: wErr}
+		return Pending{}, toerr.WrapWithMessage(wErr, op)
 	}
 	// **The one miss this corpus can act on** (§6.4). A critique is asked because no
 	// deterministic check decides whether a quotation *bears on* the claim it is

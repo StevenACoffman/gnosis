@@ -28,8 +28,9 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/frontmatter"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // requiredKey is the one frontmatter field OKF §4.1 makes mandatory. A concept
@@ -62,18 +63,16 @@ func Parse(src []byte) (*Document, error) {
 
 	block, body := frontmatter.Split(string(src))
 	if block == "" {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": document has no frontmatter block",
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": document has no frontmatter block",
+			nil,
+		)
 	}
 
 	fields := map[string]any{}
 	if err := yaml.Unmarshal([]byte(block), &fields); err != nil {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": frontmatter is not valid YAML",
-		}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": frontmatter is not valid YAML", nil)
 	}
 
 	// YAML 1.2 still coerces unquoted numeric-looking scalars: `type: 1.20`
@@ -84,21 +83,20 @@ func Parse(src []byte) (*Document, error) {
 	t, isText := raw.(string)
 	switch {
 	case !present || raw == nil:
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": frontmatter must carry a " + requiredKey,
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": frontmatter must carry a "+requiredKey,
+			nil,
+		)
 	case !isText:
-		return nil, &errs.Error{
-			Code: errs.EINVALID,
-			Message: fmt.Sprintf(
-				"%s: %s decoded as %T, not text — quote the value", op, requiredKey, raw),
-		}
+		return nil, errcode.WithCode(gnosis.CodeInvalid, fmt.Sprintf(
+			"%s: %s decoded as %T, not text — quote the value", op, requiredKey, raw), nil)
 	case t == "":
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + requiredKey + " must not be empty",
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": "+requiredKey+" must not be empty",
+			nil,
+		)
 	}
 
 	return &Document{Fields: fields, Body: body, block: block}, nil

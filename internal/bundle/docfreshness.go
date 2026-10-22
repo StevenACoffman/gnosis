@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // DocFreshness is one document's freshness, as a reader should see it.
@@ -136,16 +137,14 @@ func documentAt(bundleDir, rel string) (*Document, error) {
 
 	docs, err := Load(os.DirFS(bundleDir))
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	for i := range docs {
 		if docs[i].Path == rel {
 			return &docs[i], nil
 		}
 	}
-	return nil, &errs.Error{
-		Code: errs.ENOTFOUND, Message: op + ": no document at " + rel,
-	}
+	return nil, errcode.WithCode(gnosis.CodeNotFound, op+": no document at "+rel, nil)
 }
 
 // describeFreshness is the pure half: everything above it is I/O.

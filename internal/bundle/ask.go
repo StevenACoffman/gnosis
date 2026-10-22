@@ -13,7 +13,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/relay"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // askDefaultLimit is how many claims a question retrieves when the caller names no
@@ -156,10 +157,11 @@ func (w *Writer) AskPrompt(ctx context.Context, opts *AskOptions) (*Asked, error
 	}
 	query := AskQuery(opts.Question)
 	if query == "" {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": the question holds no word to search for",
-		}
+		return nil, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": the question holds no word to search for",
+			nil,
+		)
 	}
 	limit := opts.Limit
 	if limit <= 0 {
@@ -177,7 +179,7 @@ func (w *Writer) AskPrompt(ctx context.Context, opts *AskOptions) (*Asked, error
 		// Wrapped rather than returned bare: a malformed FTS5 query reaching here is
 		// AskQuery's defect and not the caller's, so the operation that built it has
 		// to be in the message.
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	docs, err := Load(os.DirFS(w.dir))
 	if err != nil {
@@ -234,10 +236,10 @@ func (w *Writer) askPrompt(
 	rel := promptPath(prompt.Key)
 	full := filepath.Join(w.dir, filepath.FromSlash(rel))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
-		return Pending{}, &errs.Error{Op: op, Err: mkErr}
+		return Pending{}, toerr.WrapWithMessage(mkErr, op)
 	}
 	if wErr := atomicfile.WriteFile(full, []byte(prompt.Text), 0o640); wErr != nil {
-		return Pending{}, &errs.Error{Op: op, Err: wErr}
+		return Pending{}, toerr.WrapWithMessage(wErr, op)
 	}
 	// §6.4's miss, and this one is the reason the log exists. Retrieval reached step 5
 	// of §11.2's ladder: the deterministic layers found claims and could not compose an

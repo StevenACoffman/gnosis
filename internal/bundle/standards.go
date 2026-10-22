@@ -11,7 +11,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/scan"
 	"github.com/StevenACoffman/gnosis/internal/standards"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // LoadArchiveStandards reads a bundle's archive gates, falling back to the seed.
@@ -88,12 +88,12 @@ func loadStandards[T any](
 	if errors.Is(err, fs.ErrNotExist) {
 		src = seed()
 	} else if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	out, err := parse(src)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }

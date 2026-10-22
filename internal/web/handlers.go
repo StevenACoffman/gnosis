@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // defaultSearchLimit bounds a query that names no limit.
@@ -178,9 +178,11 @@ func searchLimit(raw string) (int, error) {
 	}
 	limit, err := strconv.Atoi(raw)
 	if err != nil || limit < 1 {
-		return 0, &errs.Error{
-			Code: errs.EINVALID, Message: op + ": limit must be a positive number, got " + raw,
-		}
+		return 0, errcode.WithCode(
+			gnosis.CodeInvalid,
+			op+": limit must be a positive number, got "+raw,
+			nil,
+		)
 	}
 	return limit, nil
 }

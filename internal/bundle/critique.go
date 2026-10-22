@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // coverageFile records what earlier critiques of each claim looked at, inside stateDir
@@ -87,7 +87,7 @@ func (c *Critique) UnmarshalJSON(data []byte) error {
 		NotExamined []json.RawMessage `json:"not_examined"`
 	}
 	if err := json.Unmarshal(data, &row); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	*c = Critique(row.plain)
 	c.NotExamined = nil
@@ -103,7 +103,7 @@ func (c *Critique) UnmarshalJSON(data []byte) error {
 		}
 		var gap finding.Unexamined
 		if err := json.Unmarshal(raw, &gap); err != nil {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 		c.NotExamined = append(c.NotExamined, gap)
 	}
@@ -126,7 +126,7 @@ func LoadCritiques(bundleDir string) ([]Critique, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -146,7 +146,7 @@ func LoadCritiques(bundleDir string) ([]Critique, error) {
 		out = append(out, c)
 	}
 	if sErr := scanner.Err(); sErr != nil {
-		return nil, &errs.Error{Op: op, Err: sErr}
+		return nil, toerr.WrapWithMessage(sErr, op)
 	}
 	return out, nil
 }
@@ -176,21 +176,21 @@ func (w *Writer) RecordCritique(c *Critique) error {
 	}
 	line, err := json.Marshal(c)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	dir := filepath.Join(w.dir, stateDir)
 	if mkErr := os.MkdirAll(dir, 0o750); mkErr != nil {
-		return &errs.Error{Op: op, Err: mkErr}
+		return toerr.WrapWithMessage(mkErr, op)
 	}
 	f, err := os.OpenFile(filepath.Join(dir, coverageFile),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = f.Close() }()
 
 	if _, wErr := f.Write(append(line, '\n')); wErr != nil {
-		return &errs.Error{Op: op, Err: wErr}
+		return toerr.WrapWithMessage(wErr, op)
 	}
 	return nil
 }

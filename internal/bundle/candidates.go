@@ -7,8 +7,8 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // candidateLimit bounds a selection.
@@ -62,13 +62,13 @@ func Candidates(
 
 	db, err := OpenIndexForRead(ctx, bundleDir)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = db.Close() }()
 
 	found, err := db.CandidatesFor(ctx, archivePaths, candidateLimit)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	out := &Selection{Candidates: found, NotRun: []finding.Unexamined{tagRuleGap()}}
 	if concept == "" {
@@ -100,7 +100,7 @@ func conflictCandidates(
 
 	docs, err := Load(os.DirFS(bundleDir))
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	seen := make(map[string]bool, len(already))
 	for _, c := range already {

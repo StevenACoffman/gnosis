@@ -6,7 +6,9 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Reply is what an agent sent back for one prompt.
@@ -93,7 +95,7 @@ func ParseReply(src []byte) (Reply, error) {
 
 	var doc replyDoc
 	if err := yaml.Unmarshal([]byte(block), &doc); err != nil {
-		return Reply{}, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return Reply{}, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return validateReply(op, &doc)
 }
@@ -127,10 +129,7 @@ func validateReply(op string, doc *replyDoc) (Reply, error) {
 	}
 
 	if len(bad) > 0 {
-		return Reply{}, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + strings.Join(bad, "; "),
-		}
+		return Reply{}, errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
 	}
 	return out, nil
 }
@@ -153,16 +152,10 @@ func oneBlock(op, src string) (string, error) {
 	blocks := yamlBlocks(src)
 	switch {
 	case len(blocks) == 0:
-		return "", &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": no ```yaml block in the reply",
-		}
+		return "", errcode.WithCode(gnosis.CodeInvalid, op+": no ```yaml block in the reply", nil)
 	case len(blocks) > 1:
-		return "", &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": the reply carries " +
-				plural(len(blocks)) + "; exactly one is required",
-		}
+		return "", errcode.WithCode(gnosis.CodeInvalid, op+": the reply carries "+
+			plural(len(blocks))+"; exactly one is required", nil)
 	}
 	return blocks[0], nil
 }

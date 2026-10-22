@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // This file is the normalizing seam §9.6 asks for: everything that knows what another
@@ -98,7 +98,7 @@ func ReadClaudeCode(r io.Reader) ([]Session, error) {
 		session.Turns = append(session.Turns, turn)
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	out := make([]Session, 0, len(order))
