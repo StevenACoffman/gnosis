@@ -19,6 +19,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/ontology"
 	"github.com/StevenACoffman/gnosis/internal/schema"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // logDoc seeds OKF §9's update log with no entries. Entry headings must be
@@ -169,7 +170,7 @@ func (c *Config) exec(ctx context.Context, _ []string) error {
 			// The append reported success and the row is not on disk, which no
 			// other signal reveals. Best-effort covers a *known* gap; it must not
 			// cover a trail that lied about writing (§15).
-			return root.ExitError(root.CodeError)
+			return toerr.Wrap(root.ExitError(root.CodeError))
 		}
 	}
 	return c.report(result)

@@ -8,6 +8,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/standards"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Graded is one case and what the corpus did with it.
@@ -140,7 +141,7 @@ func (c *Config) reportCases(result *CaseResult) error {
 	if result.Failed == 0 {
 		return nil
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // emitCases writes the machine envelope for --cases.
@@ -155,5 +156,5 @@ func (c *Config) emitCases(result *CaseResult) error {
 	if err := c.EmitFindings(root.ReasonNeedsHuman, message, result); err != nil {
 		return fmt.Errorf("search: %w", err)
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }

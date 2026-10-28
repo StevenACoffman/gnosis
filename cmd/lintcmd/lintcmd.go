@@ -18,6 +18,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Config holds the configuration for the lint command.
@@ -122,7 +123,7 @@ func (c *Config) emit(report lint.Report) error {
 		"the corpus has blocking findings", report); err != nil {
 		return fmt.Errorf("lint: %w", err)
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // render writes the human form: findings first, then what was skipped.
@@ -136,7 +137,7 @@ func (c *Config) render(report lint.Report) error {
 	_, _ = fmt.Fprintf(c.Stderr, "%d finding(s), %d check(s) skipped\n",
 		len(report.Diagnostics), len(report.Skipped))
 	if hasBlocking(report.Diagnostics) {
-		return root.ExitError(root.CodeFindings)
+		return toerr.Wrap(root.ExitError(root.CodeFindings))
 	}
 	return nil
 }

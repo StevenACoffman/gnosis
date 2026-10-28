@@ -12,6 +12,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // longHelp is the command's prose, extracted from New because a page of help text
@@ -165,7 +166,7 @@ func exitFor(outcome gnosis.Outcome) error {
 	if outcome.Status == gnosis.StatusOK {
 		return nil
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // fail and usage adapt root's reporting to this command's name.

@@ -6,6 +6,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Result is the payload.
@@ -98,7 +99,7 @@ func (c *Config) reportMisses(result *Result) error {
 		if err := c.EmitFindings(root.ReasonNeedsHuman, message, result); err != nil {
 			return fmt.Errorf("ingest: %w", err)
 		}
-		return root.ExitError(root.CodeFindings)
+		return toerr.Wrap(root.ExitError(root.CodeFindings))
 	}
 	_, _ = fmt.Fprintf(c.Stderr, "%s:\n", message)
 	for i := range result.Prompts {
@@ -107,7 +108,7 @@ func (c *Config) reportMisses(result *Result) error {
 				result.Prompts[i].Key[:12], result.Prompts[i].URI)
 		}
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // writeHuman renders for a person, naming the file to answer rather than only the

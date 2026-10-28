@@ -12,6 +12,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // longHelp is the command's prose, extracted from New because a page of help text inside
@@ -108,7 +109,7 @@ func (c *Config) report(gated *bundle.Gated) error {
 	}
 	c.summarise(gated)
 	if gated.Blocks() {
-		return root.ExitError(root.CodeFindings)
+		return toerr.Wrap(root.ExitError(root.CodeFindings))
 	}
 	return nil
 }
@@ -125,7 +126,7 @@ func (c *Config) emit(gated *bundle.Gated) error {
 		gated); err != nil {
 		return fmt.Errorf("gate: %w", err)
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // summarise writes the sentence §17.1 asks for, and the counts around it.

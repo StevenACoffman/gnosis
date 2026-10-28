@@ -13,6 +13,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // longHelp is the command's prose, extracted from New for `misscmd`'s reason.
@@ -146,13 +147,13 @@ func (c *Config) report(outcome gnosis.Outcome) error {
 			return fmt.Errorf("defer: %w", err)
 		}
 		if outcome.Status != gnosis.StatusOK {
-			return root.ExitError(outcome.Code)
+			return toerr.Wrap(root.ExitError(outcome.Code))
 		}
 		return nil
 	}
 	if outcome.Status != gnosis.StatusOK {
 		_, _ = fmt.Fprintf(c.Stderr, "%s: %s\n", outcome.Status, outcome.Message)
-		return root.ExitError(outcome.Code)
+		return toerr.Wrap(root.ExitError(outcome.Code))
 	}
 	data, _ := outcome.Data.(map[string]any)
 	if deferred, _ := data["deferred"].(bool); !deferred {

@@ -12,6 +12,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Config holds the configuration for the doctor command.
@@ -79,7 +80,7 @@ func (c *Config) emit(result *Result) error {
 		"the knowledge base is not set up correctly", result); err != nil {
 		return fmt.Errorf("doctor: %w", err)
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // render writes the human form.
@@ -105,7 +106,7 @@ func (c *Config) render(result *Result) error {
 		env.IndexVersion, env.SchemaVersion, len(result.Diagnostics))
 
 	if blocking(result.Diagnostics) {
-		return root.ExitError(root.CodeFindings)
+		return toerr.Wrap(root.ExitError(root.CodeFindings))
 	}
 	return nil
 }

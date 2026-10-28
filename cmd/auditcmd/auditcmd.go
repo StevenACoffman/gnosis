@@ -13,6 +13,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // defaultWindowDays is --gained's period when no --since is given.
@@ -445,7 +446,7 @@ func (c *Config) reportWithheld(result *bundle.Unauthorized) error {
 	if wErr := c.warnIfFloor(result.Complete(), result.Unreadable); wErr != nil {
 		return wErr
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // emitWithheld writes the machine envelope for --unsupported.
@@ -463,7 +464,7 @@ func (c *Config) emitWithheld(result *bundle.Unauthorized) error {
 	if wErr := c.warnIfFloor(result.Complete(), result.Unreadable); wErr != nil {
 		return wErr
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // report renders the list.
@@ -504,7 +505,7 @@ func (c *Config) report(result *Result) error {
 	if wErr := c.warnIfPartial(result); wErr != nil {
 		return wErr
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // emit writes the machine envelope.
@@ -522,7 +523,7 @@ func (c *Config) emit(result *Result) error {
 	if wErr := c.warnIfPartial(result); wErr != nil {
 		return wErr
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // warnIfPartial says so when the count is a floor.

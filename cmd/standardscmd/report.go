@@ -6,6 +6,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Result is the payload.
@@ -42,7 +43,7 @@ func (c *Config) report(found []bundle.Loosened) error {
 		if err := c.EmitFindings(root.ReasonNeedsHuman, message, &result); err != nil {
 			return fmt.Errorf("standards check: %w", err)
 		}
-		return root.ExitError(root.CodeFindings)
+		return toerr.Wrap(root.ExitError(root.CodeFindings))
 	}
 
 	_, _ = fmt.Fprintf(c.Stderr, "%s:\n", message)
@@ -55,5 +56,5 @@ func (c *Config) report(found []bundle.Loosened) error {
 		_, _ = fmt.Fprintf(c.Stderr,
 			"\nrecord these in %s (SPEC §6.2), or re-run with --log\n", bundle.LogFile)
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }

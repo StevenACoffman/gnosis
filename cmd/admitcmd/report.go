@@ -5,6 +5,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // report relays the coordinator's envelope.
@@ -34,7 +35,7 @@ func exitFor(outcome gnosis.Outcome) error {
 	if outcome.Code == root.CodeOK {
 		return nil
 	}
-	return root.ExitError(outcome.Code)
+	return toerr.Wrap(root.ExitError(outcome.Code))
 }
 
 // writeAccepted says what the reply became, which is not one thing.

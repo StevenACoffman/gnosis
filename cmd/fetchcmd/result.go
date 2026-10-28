@@ -10,6 +10,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/finding"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Source is what became of one fetched source.
@@ -250,7 +251,7 @@ func (c *Config) report(result *Result) error {
 		return nil
 	}
 	_, _ = fmt.Fprintf(c.Stderr, "\n%s\n", withdrawnMessage(result))
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // emit writes the machine envelope.
@@ -274,7 +275,7 @@ func (c *Config) emit(result *Result) error {
 	if err != nil {
 		return fmt.Errorf("fetch: %w", err)
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }
 
 // withdrawnMessage is the one sentence both output forms use, so the human reading
