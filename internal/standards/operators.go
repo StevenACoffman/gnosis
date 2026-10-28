@@ -69,13 +69,12 @@ func LoadOperators(src []byte) (*Operators, error) {
 	var out Operators
 	md, err := toml.Decode(string(src), &out)
 	if err != nil {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": unknown key "+undecoded[0].String(),
-			nil,
 		)
 	}
 	if err := validateOperators(op, &out); err != nil {
@@ -120,5 +119,5 @@ func validateOperators(op string, in *Operators) error {
 
 // operatorProblem builds the one error shape this loader returns.
 func operatorProblem(op, why string) error {
-	return errcode.WithCode(gnosis.CodeInvalid, op+": "+why, nil)
+	return errcode.New(gnosis.CodeInvalid, op+": "+why)
 }

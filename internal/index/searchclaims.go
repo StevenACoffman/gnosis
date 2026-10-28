@@ -58,7 +58,7 @@ func (db *DB) SearchClaims(ctx context.Context, query string, limit int) (*Claim
 	const op = "index.DB.SearchClaims"
 
 	if strings.TrimSpace(query) == "" {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": empty query", nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": empty query")
 	}
 
 	rows, err := db.sql.QueryContext(ctx, `
@@ -73,7 +73,7 @@ func (db *DB) SearchClaims(ctx context.Context, query string, limit int) (*Claim
 		LIMIT ?`,
 		query, limit)
 	if err != nil {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	defer func() { _ = rows.Close() }()
 

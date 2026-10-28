@@ -63,16 +63,15 @@ func Parse(src []byte) (*Document, error) {
 
 	block, body := frontmatter.Split(string(src))
 	if block == "" {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": document has no frontmatter block",
-			nil,
 		)
 	}
 
 	fields := map[string]any{}
 	if err := yaml.Unmarshal([]byte(block), &fields); err != nil {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": frontmatter is not valid YAML", nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": frontmatter is not valid YAML")
 	}
 
 	// YAML 1.2 still coerces unquoted numeric-looking scalars: `type: 1.20`
@@ -83,19 +82,17 @@ func Parse(src []byte) (*Document, error) {
 	t, isText := raw.(string)
 	switch {
 	case !present || raw == nil:
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": frontmatter must carry a "+requiredKey,
-			nil,
 		)
 	case !isText:
-		return nil, errcode.WithCode(gnosis.CodeInvalid, fmt.Sprintf(
-			"%s: %s decoded as %T, not text — quote the value", op, requiredKey, raw), nil)
+		return nil, errcode.New(gnosis.CodeInvalid, fmt.Sprintf(
+			"%s: %s decoded as %T, not text — quote the value", op, requiredKey, raw))
 	case t == "":
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+requiredKey+" must not be empty",
-			nil,
 		)
 	}
 

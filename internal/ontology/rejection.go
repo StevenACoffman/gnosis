@@ -57,10 +57,9 @@ func checkRejections(op, kind, key string, aliases []string, rejected []Rejectio
 
 // rejectionErr renders a rejection problem, naming the entry it is in.
 func rejectionErr(op, kind, key, detail string) error {
-	return errcode.WithCode(
+	return errcode.New(
 		gnosis.CodeInvalid,
 		fmt.Sprintf("%s: %s %q: %s", op, kind, key, detail),
-		nil,
 	)
 }
 

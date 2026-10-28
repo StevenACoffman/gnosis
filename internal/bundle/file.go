@@ -90,11 +90,10 @@ func (w *Writer) FileAnswer(opts *FileOptions) (*Filed, error) {
 		return nil, err
 	}
 	if meta.Kind != PromptAsk {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": key "+opts.Key+" is a "+string(meta.Kind)+
 				" prompt; `gnosis file` takes an answer to `gnosis ask`",
-			nil,
 		)
 	}
 	reply, err := relay.ParseAnswer(opts.Reply, meta.Cites)
@@ -109,11 +108,10 @@ func (w *Writer) FileAnswer(opts *FileOptions) (*Filed, error) {
 		// A declination is a real answer and it is not a concept. Refusing it here
 		// says so; filing it would put "the corpus does not say" into the corpus,
 		// where the next reader would retrieve it as a claim.
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": this reply declined to answer, which is a real answer"+
 				" and not a document: "+reply.Unanswered,
-			nil,
 		)
 	}
 
@@ -130,11 +128,10 @@ func (w *Writer) FileAnswer(opts *FileOptions) (*Filed, error) {
 		// Between the prompt and the reply somebody deleted a claim the answer rests
 		// on. Refused rather than filed without it: a draft citing evidence that is
 		// gone would pass the gate on the quotations that remain and assert the rest.
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": the corpus no longer holds "+strings.Join(missing, ", ")+
 				"; re-run `gnosis ask` against the corpus as it is now",
-			nil,
 		)
 	}
 	return w.fileDraft(op, opts, &reply, claims, sourceURIs(claims, sources))

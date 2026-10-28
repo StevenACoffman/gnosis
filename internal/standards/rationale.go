@@ -27,10 +27,9 @@ func checkRationales(op string, cfg any) error {
 		return nil
 	}
 	sort.Strings(missing)
-	return errcode.WithCode(
+	return errcode.New(
 		gnosis.CodeInvalid,
 		op+": value(s) with no rationale: "+strings.Join(missing, ", "),
-		nil,
 	)
 }
 

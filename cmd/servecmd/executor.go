@@ -54,10 +54,9 @@ func (e *executor) Execute(ctx context.Context, cmd web.Command) (gnosis.Outcome
 
 	actor := e.actorOf(ctx)
 	if actor == gnosis.ActorUnset {
-		return gnosis.Outcome{}, errcode.WithCode(
+		return gnosis.Outcome{}, errcode.New(
 			gnosis.CodeUnauthorized,
 			op+": no authenticated actor, so no decision can be recorded",
-			nil,
 		)
 	}
 	inner, err := e.build(op, cmd, actor)
@@ -120,15 +119,14 @@ func (e *executor) build(
 			Rationale: cmd.Rationale,
 		}, nil
 	case web.CommandUnset:
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": no kind named", nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": no kind named")
 	default:
 		// Unreachable through the handler, which validates first. Named rather than
 		// defaulted so a kind added to `web` has to be classified here, which is the
 		// whole value of an exhaustive switch over a vocabulary that grows.
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+string(cmd.Kind)+" is not a mutation this serves",
-			nil,
 		)
 	}
 }

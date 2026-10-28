@@ -129,12 +129,11 @@ func parseFindings(op string, raw []byte) (*finding.Result, error) {
 			Unexamined:  envelope.Data.Unexamined,
 		}, nil
 	}
-	return nil, errcode.WithCode(
+	return nil, errcode.New(
 		gnosis.CodeInvalid,
 		op+": the file is neither a finding.Result (a JSON object with a"+
 			" `diagnostics` array) nor a gnosis envelope (one with `data.diagnostics`)."+
 			" `gnosis lint --jsonl` writes the second",
-		nil,
 	)
 }
 

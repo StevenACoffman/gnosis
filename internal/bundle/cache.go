@@ -80,17 +80,16 @@ func LoadCached(bundleDir, key string) (CachedReply, bool, error) {
 
 	var out CachedReply
 	if uErr := json.Unmarshal(data, &out); uErr != nil {
-		return CachedReply{}, false, errcode.WithCode(
+		return CachedReply{}, false, errcode.Link(
 			gnosis.CodeInvalid,
 			"",
 			toerr.WrapWithMessage(uErr, op),
 		)
 	}
 	if out.Key != key {
-		return CachedReply{}, false, errcode.WithCode(
+		return CachedReply{}, false, errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+CachePath(key)+" holds a reply for key "+out.Key,
-			nil,
 		)
 	}
 	return out, true, nil
@@ -111,7 +110,7 @@ func (w *Writer) StoreCached(entry *CachedReply) error {
 		return err
 	}
 	if entry.Key == "" {
-		return errcode.WithCode(gnosis.CodeInvalid, op+": entry has no key", nil)
+		return errcode.New(gnosis.CodeInvalid, op+": entry has no key")
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {

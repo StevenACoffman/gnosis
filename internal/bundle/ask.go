@@ -157,10 +157,9 @@ func (w *Writer) AskPrompt(ctx context.Context, opts *AskOptions) (*Asked, error
 	}
 	query := AskQuery(opts.Question)
 	if query == "" {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": the question holds no word to search for",
-			nil,
 		)
 	}
 	limit := opts.Limit

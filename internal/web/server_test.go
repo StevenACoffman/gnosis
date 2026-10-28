@@ -49,7 +49,7 @@ func (f *fakeReader) Concept(context.Context, string) (*web.Page, error) {
 	case f.err != nil:
 		return nil, f.err
 	case f.page == nil:
-		return nil, errcode.WithCode(gnosis.CodeNotFound, "no such concept", nil)
+		return nil, errcode.New(gnosis.CodeNotFound, "no such concept")
 	default:
 		return f.page, nil
 	}

@@ -38,29 +38,27 @@ type ID string
 func ParseID(s string) (ID, error) {
 	const op = "gnosis.ParseID"
 	if len(s) != idLen {
-		return "", errcode.WithCode(
+		return "", errcode.New(
 			CodeInvalid,
 			op+": identifier must be a 36-character hyphenated UUID",
-			nil,
 		)
 	}
 	// Position 14 is the version nibble in 8-4-4-4-12 layout: the first
 	// character of the third group.
 	if s[14] != uuidVersion7 {
-		return "", errcode.WithCode(CodeInvalid, op+": identifier must be UUID version 7", nil)
+		return "", errcode.New(CodeInvalid, op+": identifier must be UUID version 7")
 	}
 	for i, r := range s {
 		if i == 8 || i == 13 || i == 18 || i == 23 {
 			if r != '-' {
-				return "", errcode.WithCode(CodeInvalid, op+": hyphen expected in UUID layout", nil)
+				return "", errcode.New(CodeInvalid, op+": hyphen expected in UUID layout")
 			}
 			continue
 		}
 		if !isLowerHex(r) {
-			return "", errcode.WithCode(
+			return "", errcode.New(
 				CodeInvalid,
 				op+": identifier must be lowercase hexadecimal",
-				nil,
 			)
 		}
 	}

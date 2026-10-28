@@ -95,7 +95,7 @@ func ParseReply(src []byte) (Reply, error) {
 
 	var doc replyDoc
 	if err := yaml.Unmarshal([]byte(block), &doc); err != nil {
-		return Reply{}, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return Reply{}, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return validateReply(op, &doc)
 }
@@ -129,7 +129,7 @@ func validateReply(op string, doc *replyDoc) (Reply, error) {
 	}
 
 	if len(bad) > 0 {
-		return Reply{}, errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
+		return Reply{}, errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "))
 	}
 	return out, nil
 }
@@ -152,10 +152,10 @@ func oneBlock(op, src string) (string, error) {
 	blocks := yamlBlocks(src)
 	switch {
 	case len(blocks) == 0:
-		return "", errcode.WithCode(gnosis.CodeInvalid, op+": no ```yaml block in the reply", nil)
+		return "", errcode.New(gnosis.CodeInvalid, op+": no ```yaml block in the reply")
 	case len(blocks) > 1:
-		return "", errcode.WithCode(gnosis.CodeInvalid, op+": the reply carries "+
-			plural(len(blocks))+"; exactly one is required", nil)
+		return "", errcode.New(gnosis.CodeInvalid, op+": the reply carries "+
+			plural(len(blocks))+"; exactly one is required")
 	}
 	return blocks[0], nil
 }

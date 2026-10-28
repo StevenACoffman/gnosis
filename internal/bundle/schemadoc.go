@@ -159,7 +159,7 @@ func declaredTypes(op, bundleDir string) ([]schema.TypeEntry, error) {
 	}
 	o, err := ontology.Load(raw)
 	if err != nil {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	out := make([]schema.TypeEntry, 0, len(o.Types))
 	for i := range o.Types {

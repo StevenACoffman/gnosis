@@ -59,7 +59,7 @@ func (v Value[T]) justification() string { return v.Rationale }
 func decode(op string, src []byte, dst any) error {
 	md, err := toml.Decode(string(src), dst)
 	if err != nil {
-		return errcode.WithCode(gnosis.CodeInvalid, op+": "+err.Error(), nil)
+		return errcode.New(gnosis.CodeInvalid, op+": "+err.Error())
 	}
 	undecoded := md.Undecoded()
 	if len(undecoded) == 0 {
@@ -70,9 +70,8 @@ func decode(op string, src []byte, dst any) error {
 		keys = append(keys, k.String())
 	}
 	sort.Strings(keys)
-	return errcode.WithCode(
+	return errcode.New(
 		gnosis.CodeInvalid,
 		op+": unrecognised key(s): "+strings.Join(keys, ", "),
-		nil,
 	)
 }

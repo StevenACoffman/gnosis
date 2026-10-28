@@ -56,7 +56,7 @@ func decode[T any](r *http.Request) (T, error) {
 
 	var v T
 	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
-		return v, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return v, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return v, nil
 }

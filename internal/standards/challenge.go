@@ -62,11 +62,10 @@ func LoadChallenge(src []byte) (*Challenge, error) {
 		return nil, err
 	}
 	if c.UnansweredDays.Value <= 0 {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": unanswered_days must be positive; a window of zero"+
 				" reports every challenge the moment it is filed",
-			nil,
 		)
 	}
 	return &c, nil

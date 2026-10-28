@@ -44,23 +44,21 @@ func AppendConflict(existing []byte, e *gnosis.ConflictEdge) ([]byte, error) {
 		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if !e.Valid() {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": a deferral needs the concept, the finding, who deferred"+
 				" it, when, and why — §17.0 asks for all three of the last, because a"+
 				" conflict that stopped being reported without them went quiet rather"+
 				" than being decided about",
-			nil,
 		)
 	}
 	if already(before, e.Finding) {
 		// Refused rather than appended twice. A second entry for one finding would
 		// leave two deferrals of one conflict with two reasons, and no way to say
 		// which is current.
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeConflict,
 			op+": conflict "+e.Finding+" is already deferred here",
-			nil,
 		)
 	}
 
@@ -143,19 +141,18 @@ func sameDocumentPlusOneConflict(op string, before *okf.Document, out []byte) er
 		return toerr.WrapWithMessage(err, op)
 	}
 	if after.Body != before.Body {
-		return errcode.WithCode(gnosis.CodeInvalid, op+": the body changed", nil)
+		return errcode.New(gnosis.CodeInvalid, op+": the body changed")
 	}
 	for _, key := range topLevelKeys(before) {
 		if _, ok := after.Fields[key]; !ok {
-			return errcode.WithCode(gnosis.CodeInvalid, op+": the key "+key+" was dropped", nil)
+			return errcode.New(gnosis.CodeInvalid, op+": the key "+key+" was dropped")
 		}
 	}
 	if len(conflictsOf(after)) != len(conflictsOf(before))+1 {
-		return errcode.WithCode(
+		return errcode.New(
 			gnosis.CodeInvalid,
 			op+": the document does not hold exactly one more conflict,"+
 				" so the entry went somewhere other than the conflicts block",
-			nil,
 		)
 	}
 	return nil

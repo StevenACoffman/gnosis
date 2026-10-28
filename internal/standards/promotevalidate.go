@@ -31,7 +31,7 @@ func (p *Promote) validate(op string) error {
 		return nil
 	}
 	sort.Strings(bad)
-	return errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
+	return errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "))
 }
 
 // ComparePromote reports which gate thresholds old → cur moved in the loosening

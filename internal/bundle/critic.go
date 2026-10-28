@@ -208,8 +208,8 @@ func (w *Writer) FileCritique(key string, src []byte, warn io.Writer) (*Verdict,
 		return nil, err
 	}
 	if meta.Kind != PromptCritic && meta.Kind != PromptCriticPair {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": key "+key+" is a "+string(meta.Kind)+
-			" prompt; a critic verdict is filed only against a critic prompt", nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": key "+key+" is a "+string(meta.Kind)+
+			" prompt; a critic verdict is filed only against a critic prompt")
 	}
 	if meta.Kind == PromptCriticPair {
 		return w.filePairCritique(op, key, src, &meta, warn)
@@ -221,13 +221,12 @@ func (w *Writer) FileCritique(key string, src []byte, warn io.Writer) (*Verdict,
 	// against later. A refusal here costs one re-emission; the row costs a claim's
 	// steering history, silently.
 	if strings.TrimSpace(meta.DocumentID) == "" {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": prompt "+key+" was emitted before critic prompts"+
 				" recorded a document identifier, and its coverage would be keyed on"+
 				" a reference nothing can resolve; re-run `gnosis critic` to emit it"+
 				" again",
-			nil,
 		)
 	}
 

@@ -109,11 +109,10 @@ func writeOnce(op, bundleDir, rel string, data []byte) (bool, error) {
 	case err == nil && bytes.Equal(existing, data):
 		return false, nil
 	case err == nil:
-		return false, errcode.WithCode(
+		return false, errcode.New(
 			gnosis.CodeConflict,
 			op+": "+rel+" holds different bytes than its own name"+
 				"; a content-addressed path cannot be updated, so this is corruption",
-			nil,
 		)
 	case !errors.Is(err, fs.ErrNotExist):
 		return false, toerr.WrapWithMessage(err, op)

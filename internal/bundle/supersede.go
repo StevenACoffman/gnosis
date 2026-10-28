@@ -151,18 +151,16 @@ func claimEntry(
 	}
 	block, ok := blockAt(lines, fence, claimsKey)
 	if !ok {
-		return nil, entryBounds{}, "", errcode.WithCode(
+		return nil, entryBounds{}, "", errcode.New(
 			gnosis.CodeNotFound,
 			op+": the document declares no claims",
-			nil,
 		)
 	}
 	start, marker, ok := entryStart(lines, block, fence, claimID)
 	if !ok {
-		return nil, entryBounds{}, "", errcode.WithCode(
+		return nil, entryBounds{}, "", errcode.New(
 			gnosis.CodeNotFound,
 			op+": the document declares no claim "+claimID,
-			nil,
 		)
 	}
 	end := entryFieldEnd(lines, start, fence, marker)
@@ -196,8 +194,8 @@ func sameDocumentDeprecating(
 			return nil
 		}
 	}
-	return errcode.WithCode(gnosis.CodeInvalid, op+": claim "+claimID+
-		" was not marked deprecated; nothing was written", nil)
+	return errcode.New(gnosis.CodeInvalid, op+": claim "+claimID+
+		" was not marked deprecated; nothing was written")
 }
 
 // sameDocumentSuperseding is the invariant for a supersession edge.
@@ -222,11 +220,10 @@ func sameDocumentSuperseding(
 			}
 		}
 	}
-	return errcode.WithCode(
+	return errcode.New(
 		gnosis.CodeInvalid,
 		op+": claim "+claimID+" does not record superseding "+loser+
 			"; nothing was written",
-		nil,
 	)
 }
 
@@ -247,20 +244,18 @@ func unchangedApartFrom(
 		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if after.Body != before.Body {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+verb+" would change the document body, which it"+
 				" never does; nothing was written",
-			nil,
 		)
 	}
 	for _, key := range topLevelKeys(before) {
 		if _, ok := after.Fields[key]; !ok {
-			return nil, errcode.WithCode(
+			return nil, errcode.New(
 				gnosis.CodeInvalid,
 				op+": "+verb+" would drop the frontmatter key "+key+
 					"; nothing was written",
-				nil,
 			)
 		}
 	}
@@ -293,20 +288,19 @@ func unchangedApartFrom(
 func loserRef(op string, loser []byte, claimID string) (string, error) {
 	doc, err := okf.Parse(loser)
 	if err != nil {
-		return "", errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return "", errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	raw, ok := doc.Text(idKey)
 	if !ok {
-		return "", errcode.WithCode(
+		return "", errcode.New(
 			gnosis.CodeInvalid,
 			op+": the losing document declares no "+idKey+", so nothing"+
 				" durable can point at it (§5.1.2); `gnosis index rebuild` reports it",
-			nil,
 		)
 	}
 	id, err := gnosis.ParseID(raw)
 	if err != nil {
-		return "", errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return "", errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return gnosis.ClaimRef(id, claimID), nil
 }

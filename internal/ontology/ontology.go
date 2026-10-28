@@ -124,7 +124,7 @@ func Load(src []byte) (*Ontology, error) {
 	var f file
 	md, err := toml.Decode(string(src), &f)
 	if err != nil {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": "+err.Error(), nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": "+err.Error())
 	}
 	// A key the decoder did not consume is almost always a typo, and silently
 	// ignoring it would leave a flag the author believes is set.
@@ -134,10 +134,9 @@ func Load(src []byte) (*Ontology, error) {
 			keys = append(keys, k.String())
 		}
 		sort.Strings(keys)
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": unrecognised key(s): "+strings.Join(keys, ", "),
-			nil,
 		)
 	}
 
@@ -239,11 +238,10 @@ func (o *Ontology) indexSubjects(op string) error {
 		}
 		seen[sub.Key] = true
 		if !sub.Dimension.valid() {
-			return errcode.WithCode(
+			return errcode.New(
 				gnosis.CodeInvalid,
 				fmt.Sprintf("%s: subject %q has unknown dimension %q",
 					op, sub.Key, sub.Dimension),
-				nil,
 			)
 		}
 		if err := checkRejections(op, "subject", sub.Key.String(),
@@ -272,12 +270,12 @@ func (o *Ontology) indexSubjects(op string) error {
 // exactly where it was, minus a surface term somebody was using.
 func claim[K ~string](index map[string]K, folded string, key K, op, kind string) error {
 	if prior, taken := index[folded]; taken && prior != key {
-		return errcode.WithCode(gnosis.CodeInvalid, fmt.Sprintf(
+		return errcode.New(gnosis.CodeInvalid, fmt.Sprintf(
 			"%s: %s alias %q is claimed by both %q and %q; "+
 				"if they mean the same thing, merge them into one %s with both "+
 				"as aliases, and if they mean different things, give each a "+
 				"distinct key (%s.%s, %s.%s) and leave %q claimed by neither",
-			op, kind, folded, prior, key, kind, prior, folded, key, folded, folded), nil)
+			op, kind, folded, prior, key, kind, prior, folded, key, folded, folded))
 	}
 	index[folded] = key
 	return nil
@@ -285,9 +283,8 @@ func claim[K ~string](index map[string]K, folded string, key K, op, kind string)
 
 // dup reports a repeated key.
 func dup(op, kind, key string) error {
-	return errcode.WithCode(
+	return errcode.New(
 		gnosis.CodeInvalid,
 		fmt.Sprintf("%s: %s %q is declared more than once", op, kind, key),
-		nil,
 	)
 }

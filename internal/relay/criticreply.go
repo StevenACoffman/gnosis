@@ -117,7 +117,7 @@ func ParseCriticReply(src []byte) (CriticReply, error) {
 	}
 	var doc criticReplyDoc
 	if uErr := yaml.Unmarshal([]byte(block), &doc); uErr != nil {
-		return CriticReply{}, errcode.WithCode(
+		return CriticReply{}, errcode.Link(
 			gnosis.CodeInvalid,
 			"",
 			toerr.WrapWithMessage(uErr, op),
@@ -172,10 +172,9 @@ func validateCriticReply(op string, doc *criticReplyDoc) (CriticReply, error) {
 		})
 	}
 	if len(bad) > 0 {
-		return CriticReply{}, errcode.WithCode(
+		return CriticReply{}, errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+strings.Join(bad, "; "),
-			nil,
 		)
 	}
 	return out, nil

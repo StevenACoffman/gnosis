@@ -119,10 +119,9 @@ func OpenIndexForRead(ctx context.Context, bundleDir string) (*index.DB, error) 
 	path := IndexPath(bundleDir)
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, errcode.WithCode(
+			return nil, errcode.New(
 				gnosis.CodeNotFound,
 				op+": no index at "+path+"; run `gnosis index rebuild`",
-				nil,
 			)
 		}
 		return nil, toerr.WrapWithMessage(err, op)

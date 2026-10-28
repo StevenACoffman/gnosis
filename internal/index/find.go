@@ -49,10 +49,9 @@ func (db *DB) Find(ctx context.Context, ref string) (*Detail, error) {
 
 	id, ok := identifierIn(ref)
 	if !ok {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+ref+" contains no document identifier",
-			nil,
 		)
 	}
 
@@ -61,10 +60,9 @@ func (db *DB) Find(ctx context.Context, ref string) (*Detail, error) {
 		`SELECT id, path, title, byte_size, content_hash FROM documents WHERE id = ?`,
 		id.String()).Scan(&d.ID, &d.Path, &d.Title, &d.Bytes, &d.ContentHash)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeNotFound,
 			op+": no document with identifier "+id.String(),
-			nil,
 		)
 	}
 	if err != nil {

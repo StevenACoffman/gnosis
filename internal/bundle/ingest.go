@@ -100,10 +100,9 @@ func (w *Writer) Prompts(opts *PromptOptions) ([]Pending, error) {
 	for _, uri := range opts.URIs {
 		rec, ok := records[uri]
 		if !ok {
-			return nil, errcode.WithCode(
+			return nil, errcode.New(
 				gnosis.CodeNotFound,
 				op+": "+uri+" has no fetch record; run `gnosis fetch` first",
-				nil,
 			)
 		}
 		pending, pErr := w.renderPending(op, opts, &rec)
@@ -127,11 +126,10 @@ func (w *Writer) Prompts(opts *PromptOptions) ([]Pending, error) {
 // limit — which is the linter doing its job rather than an obstacle. The refusal is a
 // self-contained thought, and naming it says what "not durable" means here.
 func notDurable(op string, rec *archive.Record) error {
-	return errcode.WithCode(
+	return errcode.New(
 		gnosis.CodeInvalid,
 		op+": "+rec.URI+" is "+string(rec.Disposition)+
 			"; there is no archived text to extract from",
-		nil,
 	)
 }
 
@@ -271,10 +269,9 @@ func (w *Writer) conceptHash(op, rel string) (string, error) {
 	raw, err := os.ReadFile(filepath.Join(w.dir, filepath.FromSlash(rel)))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", errcode.WithCode(
+			return "", errcode.New(
 				gnosis.CodeNotFound,
 				op+": "+rel+" is not in this bundle",
-				nil,
 			)
 		}
 		return "", toerr.WrapWithMessage(err, op)

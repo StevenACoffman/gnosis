@@ -83,11 +83,10 @@ func LoadSample(src []byte) (*Sample, error) {
 		return nil, err
 	}
 	if s.CriticDefault.Value <= 0 {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": critic_default must be positive; a draw of none is a"+
 				" critic that examines nothing and reports that it ran",
-			nil,
 		)
 	}
 	return &s, nil

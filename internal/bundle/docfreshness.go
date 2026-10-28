@@ -144,7 +144,7 @@ func documentAt(bundleDir, rel string) (*Document, error) {
 			return &docs[i], nil
 		}
 	}
-	return nil, errcode.WithCode(gnosis.CodeNotFound, op+": no document at "+rel, nil)
+	return nil, errcode.New(gnosis.CodeNotFound, op+": no document at "+rel)
 }
 
 // describeFreshness is the pure half: everything above it is I/O.

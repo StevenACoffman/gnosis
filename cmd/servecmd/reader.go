@@ -113,10 +113,9 @@ func (r *reader) document(rel string) (body, docType string, err error) {
 			return docs[i].Body, string(docs[i].Type), nil
 		}
 	}
-	return "", "", errcode.WithCode(
+	return "", "", errcode.New(
 		gnosis.CodeNotFound,
 		op+": "+rel+" is indexed and not on disk",
-		nil,
 	)
 }
 

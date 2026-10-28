@@ -34,7 +34,7 @@ func (db *DB) Search(ctx context.Context, query string, limit int) ([]Hit, error
 	const op = "index.DB.Search"
 
 	if strings.TrimSpace(query) == "" {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": empty query", nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": empty query")
 	}
 
 	// The body comes back raw and the snippet is rendered from it here rather than
@@ -54,7 +54,7 @@ func (db *DB) Search(ctx context.Context, query string, limit int) ([]Hit, error
 	if err != nil {
 		// FTS5 reports a syntax error through the driver, and it is the caller's
 		// syntax. Classifying it as EINVALID is what lets the command exit 2.
-		return nil, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	defer func() { _ = rows.Close() }()
 

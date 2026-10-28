@@ -190,7 +190,7 @@ func (m *PromptMeta) Valid() error {
 	if len(bad) == 0 {
 		return nil
 	}
-	return errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
+	return errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "))
 }
 
 // Archives are the tier-0 files this prompt's quotations must be found in.
@@ -379,17 +379,16 @@ func LoadPromptMeta(bundleDir, key string) (PromptMeta, error) {
 	data, err := os.ReadFile(filepath.Join(bundleDir, filepath.FromSlash(promptMetaPath(key))))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return PromptMeta{}, errcode.WithCode(
+			return PromptMeta{}, errcode.New(
 				gnosis.CodeNotFound,
 				op+": no prompt was emitted for key "+key,
-				nil,
 			)
 		}
 		return PromptMeta{}, toerr.WrapWithMessage(err, op)
 	}
 	var out PromptMeta
 	if uErr := json.Unmarshal(data, &out); uErr != nil {
-		return PromptMeta{}, errcode.WithCode(
+		return PromptMeta{}, errcode.Link(
 			gnosis.CodeInvalid,
 			"",
 			toerr.WrapWithMessage(uErr, op),

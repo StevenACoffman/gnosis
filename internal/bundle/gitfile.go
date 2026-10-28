@@ -34,10 +34,9 @@ func FileAtRef(bundleDir, ref, rel string) ([]byte, error) {
 	repo, err := git.PlainOpenWithOptions(bundleDir,
 		&git.PlainOpenOptions{DetectDotGit: true})
 	if err != nil {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+bundleDir+" is not inside a git worktree",
-			nil,
 		)
 	}
 	hash, err := repo.ResolveRevision(plumbing.Revision(ref))
@@ -48,7 +47,7 @@ func FileAtRef(bundleDir, ref, rel string) ([]byte, error) {
 		// not resolve is a typo in an argument, and treating it as the same code
 		// made `--since no-such-ref` compare silently against the seed and report
 		// nothing — which the test caught.
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": no such revision: "+ref, nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": no such revision: "+ref)
 	}
 	commit, err := repo.CommitObject(*hash)
 	if err != nil {
@@ -62,10 +61,9 @@ func fileFromCommit(op string, commit *object.Commit, ref, rel string) ([]byte, 
 	f, err := commit.File(rel)
 	if err != nil {
 		if errors.Is(err, object.ErrFileNotFound) {
-			return nil, errcode.WithCode(
+			return nil, errcode.New(
 				gnosis.CodeNotFound,
 				op+": "+rel+" was not in the tree at "+ref,
-				nil,
 			)
 		}
 		return nil, toerr.WrapWithMessage(err, op)

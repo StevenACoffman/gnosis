@@ -94,7 +94,7 @@ func (f *Fetcher) Fetch(ctx context.Context, uri string) ([]archive.Candidate, e
 		}
 		return []archive.Candidate{c}, nil
 	default:
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": no adapter for "+uri, nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": no adapter for "+uri)
 	}
 }
 
@@ -171,7 +171,7 @@ func fetchDir(dir string) ([]archive.Candidate, error) {
 		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if len(out) == 0 {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": no files under "+dir, nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": no files under "+dir)
 	}
 	return out, nil
 }
@@ -192,7 +192,7 @@ func (f *Fetcher) fetchURL(ctx context.Context, uri string) (archive.Candidate, 
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, http.NoBody)
 	if err != nil {
-		return archive.Candidate{}, errcode.WithCode(
+		return archive.Candidate{}, errcode.Link(
 			gnosis.CodeInvalid,
 			"",
 			toerr.WrapWithMessage(err, op),

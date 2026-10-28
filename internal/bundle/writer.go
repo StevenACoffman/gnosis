@@ -108,13 +108,12 @@ func AcquireWriter(ctx context.Context, bundleDir string) (*Writer, error) {
 	lock := flock.New(filepath.Join(dir, lockFile))
 	held, err := lock.TryLockContext(ctx, lockPoll)
 	if err != nil {
-		return nil, errcode.WithCode(gnosis.CodeConflict, "", toerr.WrapWithMessage(err, op))
+		return nil, errcode.Link(gnosis.CodeConflict, "", toerr.WrapWithMessage(err, op))
 	}
 	if !held {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeConflict,
 			op+": another writer holds "+bundleDir,
-			nil,
 		)
 	}
 	return &Writer{dir: bundleDir, lock: lock}, nil
@@ -178,10 +177,9 @@ func (w *Writer) WriteConcept(rel string, content []byte) error {
 	}
 	clean := path.Clean(rel)
 	if !strings.HasPrefix(clean, conceptDir+"/") || strings.Contains(clean, "..") {
-		return errcode.WithCode(
+		return errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+rel+" is not a concept path",
-			nil,
 		)
 	}
 	full := filepath.Join(w.dir, filepath.FromSlash(clean))
@@ -207,10 +205,9 @@ func (w *Writer) held(op string) error {
 	if w != nil && w.lock != nil {
 		return nil
 	}
-	return errcode.WithCode(
+	return errcode.New(
 		gnosis.CodeInternal,
 		op+": the bundle's writer lock is not held; the Writer was released",
-		nil,
 	)
 }
 

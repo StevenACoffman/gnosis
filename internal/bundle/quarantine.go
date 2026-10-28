@@ -72,10 +72,9 @@ func ReadQuarantined(bundleDir, rel string) ([]byte, error) {
 	data, err := os.ReadFile(full)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, errcode.WithCode(
+			return nil, errcode.New(
 				gnosis.CodeNotFound,
 				op+": nothing quarantined at "+rel,
-				nil,
 			)
 		}
 		return nil, toerr.WrapWithMessage(err, op)
@@ -157,10 +156,9 @@ func quarantinePath(op, bundleDir, rel string) (string, error) {
 	clean := filepath.Clean(filepath.FromSlash(rel))
 	if rel == "" || filepath.IsAbs(clean) || clean == ".." ||
 		strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", errcode.WithCode(
+		return "", errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+rel+" is not a path inside the bundle",
-			nil,
 		)
 	}
 	return filepath.Join(bundleDir, stateDir, quarantineDir, clean), nil

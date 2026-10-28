@@ -178,10 +178,9 @@ func searchLimit(raw string) (int, error) {
 	}
 	limit, err := strconv.Atoi(raw)
 	if err != nil || limit < 1 {
-		return 0, errcode.WithCode(
+		return 0, errcode.New(
 			gnosis.CodeInvalid,
 			op+": limit must be a positive number, got "+raw,
-			nil,
 		)
 	}
 	return limit, nil

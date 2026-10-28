@@ -271,7 +271,7 @@ func (c *Coordinator) readConcept(op, rel string) (*okf.Document, string, error)
 	}
 	doc, err := okf.Parse(raw)
 	if err != nil {
-		return nil, "", errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return nil, "", errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return doc, identity.Hash(string(raw)), nil
 }

@@ -10,10 +10,11 @@ import (
 // # Why these exist rather than skillet's string codes at every site
 //
 // The family's division is **toerr wraps, errcode classifies** (skillet's own words), so
-// a coded leaf is `errcode.WithCode(status, message, cause)`. `errcode`'s vocabulary is
-// wider than gnosis needs — eleven statuses, drawn from HTTP and gRPC — and two of them
+// a coded leaf is `errcode.New(status, message)` and a coded wrap is
+// `errcode.Link(status, message, cause)`. `errcode`'s vocabulary is wider than gnosis
+// needs — sixteen statuses, gRPC's canonical codes apart from OK — and two of them
 // map onto one skillet code each way. Naming the five gnosis uses puts that choice in one
-// place instead of at 131 call sites, and makes the round trip below assertable.
+// place instead of at every call site, and makes the round trip below assertable.
 //
 // # Every one of them round-trips
 //

@@ -66,31 +66,28 @@ func LoadStrengths(src []byte) (*Strengths, error) {
 	var out Strengths
 	md, err := toml.Decode(string(src), &out)
 	if err != nil {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": unknown key "+undecoded[0].String(),
-			nil,
 		)
 	}
 	for i := range out.Marker {
 		row := &out.Marker[i]
 		row.Word = strings.ToLower(strings.TrimSpace(row.Word))
 		if row.Word == "" {
-			return nil, errcode.WithCode(
+			return nil, errcode.New(
 				gnosis.CodeInvalid,
 				op+": a marker row carries no word",
-				nil,
 			)
 		}
 		if row.Role != StrengthUniversal && row.Role != StrengthHedged {
-			return nil, errcode.WithCode(
+			return nil, errcode.New(
 				gnosis.CodeInvalid,
 				op+": marker "+row.Word+" has role "+string(row.Role)+
 					"; want universal or hedged",
-				nil,
 			)
 		}
 	}

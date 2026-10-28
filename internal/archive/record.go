@@ -141,13 +141,12 @@ func ParseRecord(data []byte) (Record, error) {
 
 	var rec Record
 	if err := json.Unmarshal(data, &rec); err != nil {
-		return Record{}, errcode.WithCode(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
+		return Record{}, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	if rec.URI == "" || rec.Disposition == DispositionUnset {
-		return Record{}, errcode.WithCode(
+		return Record{}, errcode.New(
 			gnosis.CodeInvalid,
 			op+": record has no uri or no disposition",
-			nil,
 		)
 	}
 	return rec, nil

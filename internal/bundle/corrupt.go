@@ -27,5 +27,5 @@ import (
 // ever needs to branch on corruption programmatically, that is the real need a
 // sixth code would answer, and TODO records it.
 func corrupt(op, what, detail string) error {
-	return errcode.WithCode(gnosis.CodeInvalid, op+": corruption in "+what+": "+detail, nil)
+	return errcode.New(gnosis.CodeInvalid, op+": corruption in "+what+": "+detail)
 }

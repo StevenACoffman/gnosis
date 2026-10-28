@@ -116,7 +116,7 @@ func LoadRetrieval(src []byte) (*Retrieval, error) {
 		return nil, err
 	}
 	if why := malformed(&out); len(why) > 0 {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(why, "; "), nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(why, "; "))
 	}
 	return &out, nil
 }

@@ -94,7 +94,7 @@ func ParseAnswer(src []byte, allowed []string) (AnswerReply, error) {
 	}
 	var doc answerReplyDoc
 	if uErr := yaml.Unmarshal([]byte(block), &doc); uErr != nil {
-		return AnswerReply{}, errcode.WithCode(
+		return AnswerReply{}, errcode.Link(
 			gnosis.CodeInvalid,
 			"",
 			toerr.WrapWithMessage(uErr, op),
@@ -129,10 +129,9 @@ func validateAnswer(op string, doc *answerReplyDoc, allowed []string) (AnswerRep
 			" answer, which is indistinguishable from an empty reply")
 	}
 	if len(bad) > 0 {
-		return AnswerReply{}, errcode.WithCode(
+		return AnswerReply{}, errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+strings.Join(bad, "; "),
-			nil,
 		)
 	}
 	return out, nil

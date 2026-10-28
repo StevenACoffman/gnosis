@@ -259,11 +259,10 @@ func ParseScopeQuery(docType, status, under, trust string, fresh, provable bool)
 	if raw := strings.TrimSpace(trust); raw != "" {
 		tier, ok := gnosis.ParseTier(raw)
 		if !ok {
-			return ScopeQuery{}, errcode.WithCode(
+			return ScopeQuery{}, errcode.New(
 				gnosis.CodeInvalid,
 				op+": trust "+raw+" is not one of "+
 					strings.Join(gnosis.Tiers(), ", "),
-				nil,
 			)
 		}
 		q.Trust, q.Trusted = tier, true

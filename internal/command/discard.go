@@ -102,5 +102,5 @@ func (d *Discard) Validate() error {
 	if len(bad) == 0 {
 		return nil
 	}
-	return errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
+	return errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "))
 }

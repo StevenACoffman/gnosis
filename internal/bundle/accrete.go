@@ -103,11 +103,10 @@ func Accrete(existing *okf.Document, id gnosis.ID, reply *relay.Reply) (*Accrete
 		// The invariant, checked rather than asserted. Reaching this means the
 		// rendering changed a body while claiming only to add evidence, and writing
 		// it would be a silent rewrite.
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": accretion would change the document body, which is "+
 				"synthesis rather than accretion (§6.3); nothing was written",
-			nil,
 		)
 	}
 	out.Content = content

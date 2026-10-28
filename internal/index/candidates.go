@@ -72,7 +72,7 @@ func (db *DB) CandidatesFor(
 	const op = "index.DB.CandidatesFor"
 
 	if limit < 1 {
-		return nil, errcode.WithCode(gnosis.CodeInvalid, op+": limit must be positive", nil)
+		return nil, errcode.New(gnosis.CodeInvalid, op+": limit must be positive")
 	}
 	if len(archivePaths) == 0 {
 		// No archived text means no claim can rest on it. An empty result rather than

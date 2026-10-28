@@ -47,9 +47,9 @@ func (t *Trail) Whole() error {
 	for _, n := range t.Malformed {
 		lines = append(lines, strconv.Itoa(n))
 	}
-	return errcode.WithCode(gnosis.CodeInvalid, "bundle.Trail.Whole: "+auditFile+" has "+
+	return errcode.New(gnosis.CodeInvalid, "bundle.Trail.Whole: "+auditFile+" has "+
 		strconv.Itoa(len(t.Malformed))+" unreadable line(s) ("+
-		strings.Join(lines, ", ")+"); the trail cannot be counted", nil)
+		strings.Join(lines, ", ")+"); the trail cannot be counted")
 }
 
 // Newest is the timestamp of the last row, or the zero time for none.

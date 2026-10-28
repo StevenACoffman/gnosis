@@ -65,12 +65,11 @@ func AppendChallenge(existing []byte, c *gnosis.Challenge) ([]byte, error) {
 		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if strings.TrimSpace(c.Rationale) == "" {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": a challenge needs a rationale (§10.7.2); a reader who"+
 				" cannot say why a claim is wrong has filed a doubt, and the corpus"+
 				" has no way to act on a doubt",
-			nil,
 		)
 	}
 
@@ -122,10 +121,9 @@ func insertChallenge(op string, existing []byte, c *gnosis.Challenge) ([]byte, e
 // Ensures: the index of the closing `---`, or EINVALID naming the problem. Pure.
 func frontmatterEnd(op string, lines []string) (int, error) {
 	if len(lines) == 0 || strings.TrimRight(lines[0], " \t\r") != "---" {
-		return 0, errcode.WithCode(
+		return 0, errcode.New(
 			gnosis.CodeInvalid,
 			op+": the document has no frontmatter fence",
-			nil,
 		)
 	}
 	for i := 1; i < len(lines); i++ {
@@ -133,7 +131,7 @@ func frontmatterEnd(op string, lines []string) (int, error) {
 			return i, nil
 		}
 	}
-	return 0, errcode.WithCode(gnosis.CodeInvalid, op+": the frontmatter is not closed", nil)
+	return 0, errcode.New(gnosis.CodeInvalid, op+": the frontmatter is not closed")
 }
 
 // listEnd is the index just past the last line of an existing top-level list block, and
@@ -223,29 +221,26 @@ func sameDocumentPlusOneChallenge(op string, before *okf.Document, out []byte) e
 		return toerr.WrapWithMessage(err, op)
 	}
 	if after.Body != before.Body {
-		return errcode.WithCode(
+		return errcode.New(
 			gnosis.CodeInvalid,
 			op+": filing the challenge would change the document body,"+
 				" which a challenge never does; nothing was written",
-			nil,
 		)
 	}
 	for _, key := range topLevelKeys(before) {
 		if _, ok := after.Fields[key]; !ok {
-			return errcode.WithCode(
+			return errcode.New(
 				gnosis.CodeInvalid,
 				op+": filing the challenge would drop the frontmatter key "+
 					key+"; nothing was written",
-				nil,
 			)
 		}
 	}
 	if want := len(challengesOf(before)) + 1; len(challengesOf(after)) != want {
-		return errcode.WithCode(
+		return errcode.New(
 			gnosis.CodeInvalid,
 			op+": the challenge did not land in gnosis_challenges;"+
 				" nothing was written",
-			nil,
 		)
 	}
 	return nil
@@ -290,7 +285,7 @@ func (w *Writer) FileChallenge(rel string, c *gnosis.Challenge) (string, error) 
 	existing, err := os.ReadFile(full)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return "", errcode.WithCode(gnosis.CodeNotFound, op+": no document at "+rel, nil)
+			return "", errcode.New(gnosis.CodeNotFound, op+": no document at "+rel)
 		}
 		return "", toerr.WrapWithMessage(err, op)
 	}
@@ -377,7 +372,7 @@ func previewChallenge(bundleDir, rel string, c *gnosis.Challenge) ([]byte, error
 	existing, err := os.ReadFile(full)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, errcode.WithCode(gnosis.CodeNotFound, op+": no document at "+rel, nil)
+			return nil, errcode.New(gnosis.CodeNotFound, op+": no document at "+rel)
 		}
 		return nil, toerr.WrapWithMessage(err, op)
 	}
@@ -469,18 +464,16 @@ func CloseChallenge(existing []byte, challengeID string) ([]byte, error) {
 	}
 	block, ok := blockAt(lines, end, challengesKey)
 	if !ok {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeNotFound,
 			op+": the document carries no challenges",
-			nil,
 		)
 	}
 	start, marker, ok := entryStart(lines, block, end, challengeID)
 	if !ok {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeNotFound,
 			op+": the document carries no challenge "+challengeID,
-			nil,
 		)
 	}
 
@@ -537,20 +530,18 @@ func onlyThisChallengeClosed(
 		return toerr.WrapWithMessage(err, op)
 	}
 	if after.Body != before.Body {
-		return errcode.WithCode(
+		return errcode.New(
 			gnosis.CodeInvalid,
 			op+": closing a challenge would change the document body,"+
 				" which it never does; nothing was written",
-			nil,
 		)
 	}
 	for _, key := range topLevelKeys(before) {
 		if _, ok := after.Fields[key]; !ok {
-			return errcode.WithCode(
+			return errcode.New(
 				gnosis.CodeInvalid,
 				op+": closing a challenge would drop the frontmatter key "+
 					key+"; nothing was written",
-				nil,
 			)
 		}
 	}
@@ -568,17 +559,16 @@ func onlyThisChallengeClosed(
 		case id == challengeID:
 			closed = c.State == gnosis.ChallengeClosed
 		case c.State != was[id]:
-			return errcode.WithCode(
+			return errcode.New(
 				gnosis.CodeInvalid,
 				op+": closing "+challengeID+" would also change"+
 					" challenge "+id+"; nothing was written",
-				nil,
 			)
 		}
 	}
 	if !closed {
-		return errcode.WithCode(gnosis.CodeInvalid, op+": challenge "+challengeID+
-			" was not recorded as closed; nothing was written", nil)
+		return errcode.New(gnosis.CodeInvalid, op+": challenge "+challengeID+
+			" was not recorded as closed; nothing was written")
 	}
 	return nil
 }

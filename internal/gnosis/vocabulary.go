@@ -36,7 +36,7 @@ type Surface string
 // and a tool that narrowed them would reject conformant foreign documents.
 func ParseTypeKey(s string) (TypeKey, error) {
 	if strings.TrimSpace(s) == "" {
-		return "", errcode.WithCode(CodeInvalid, "gnosis.ParseTypeKey: type must not be empty", nil)
+		return "", errcode.New(CodeInvalid, "gnosis.ParseTypeKey: type must not be empty")
 	}
 	return TypeKey(s), nil
 }
@@ -51,12 +51,11 @@ func ParseSubjectKey(s string) (SubjectKey, error) {
 	const op = "gnosis.ParseSubjectKey"
 	switch {
 	case strings.TrimSpace(s) == "":
-		return "", errcode.WithCode(CodeInvalid, op+": subject must not be empty", nil)
+		return "", errcode.New(CodeInvalid, op+": subject must not be empty")
 	case strings.ContainsFunc(s, isSpace):
-		return "", errcode.WithCode(
+		return "", errcode.New(
 			CodeInvalid,
 			op+": subject key must not contain whitespace; aliases carry phrasing",
-			nil,
 		)
 	}
 	return SubjectKey(s), nil

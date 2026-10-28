@@ -78,22 +78,20 @@ func AppendWarrant(existing []byte, claimID string, w *gnosis.Warrant) ([]byte, 
 		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if strings.TrimSpace(w.Rationale) == "" {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": a warrant needs a rationale (§10.6.4), at every"+
 				" authority including sole",
-			nil,
 		)
 	}
 	declared := docClaims(before)
 	for i := range declared {
 		if declared[i].ID == claimID && declared[i].Warrant.Adjudicated() {
-			return nil, errcode.WithCode(
+			return nil, errcode.New(
 				gnosis.CodeInvalid,
 				op+": claim "+claimID+" already carries a warrant;"+
 					" a reversal is a new warrant naming the one it overturns"+
 					" (§10.6.5), never an edit of it",
-				nil,
 			)
 		}
 	}
@@ -123,10 +121,9 @@ func insertWarrant(
 	}
 	at, indent, found := claimEntryEnd(lines, end, claimID)
 	if !found {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeNotFound,
 			op+": the document declares no claim "+claimID,
-			nil,
 		)
 	}
 	entry := renderWarrant(indent, w)
@@ -309,20 +306,18 @@ func sameDocumentPlusOneWarrant(
 		return toerr.WrapWithMessage(err, op)
 	}
 	if after.Body != before.Body {
-		return errcode.WithCode(
+		return errcode.New(
 			gnosis.CodeInvalid,
 			op+": adjudicating would change the document body, which an"+
 				" adjudication never does; nothing was written",
-			nil,
 		)
 	}
 	for _, key := range topLevelKeys(before) {
 		if _, ok := after.Fields[key]; !ok {
-			return errcode.WithCode(
+			return errcode.New(
 				gnosis.CodeInvalid,
 				op+": adjudicating would drop the frontmatter key "+key+
 					"; nothing was written",
-				nil,
 			)
 		}
 	}
@@ -354,20 +349,18 @@ func landedOnlyOn(op string, before, after *okf.Document, claimID string) error 
 		case c.ID == claimID:
 			found = c.Warrant.Adjudicated()
 		case c.Warrant.Adjudicated() && !was[c.ID]:
-			return errcode.WithCode(
+			return errcode.New(
 				gnosis.CodeInvalid,
 				op+": the warrant landed on claim "+c.ID+" rather than "+
 					claimID+"; nothing was written",
-				nil,
 			)
 		}
 	}
 	if !found {
-		return errcode.WithCode(
+		return errcode.New(
 			gnosis.CodeInvalid,
 			op+": the warrant did not land on claim "+claimID+
 				"; nothing was written",
-			nil,
 		)
 	}
 	return nil
@@ -519,7 +512,7 @@ func readConcept(op, bundleDir, rel string) ([]byte, error) {
 	data, err := os.ReadFile(full)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, errcode.WithCode(gnosis.CodeNotFound, op+": no document at "+rel, nil)
+			return nil, errcode.New(gnosis.CodeNotFound, op+": no document at "+rel)
 		}
 		return nil, toerr.WrapWithMessage(err, op)
 	}

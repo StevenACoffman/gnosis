@@ -180,11 +180,10 @@ func (w *Writer) RecordMiss(m *Miss) error {
 		return err
 	}
 	if m.Reason == gnosis.MissReasonUnset {
-		return errcode.WithCode(
+		return errcode.New(
 			gnosis.CodeInvalid,
 			op+": a miss with no reason cannot be grouped, and the group"+
 				" is the report",
-			nil,
 		)
 	}
 	line, err := json.Marshal(m)

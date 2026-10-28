@@ -89,10 +89,9 @@ func Synthesize(
 	const op = "bundle.Synthesize"
 
 	if reply.Title == "" || reply.Type == "" {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": a rewrite must carry a title and a type",
-			nil,
 		)
 	}
 	before := quoteSetOf(claimsOf(existing))
@@ -266,7 +265,7 @@ func (w *Writer) rewritable(op, rel string) (*okf.Document, string, []string, er
 	}
 	doc, err := okf.Parse(raw)
 	if err != nil {
-		return nil, "", nil, errcode.WithCode(
+		return nil, "", nil, errcode.Link(
 			gnosis.CodeInvalid,
 			"",
 			toerr.WrapWithMessage(err, op),
@@ -274,11 +273,10 @@ func (w *Writer) rewritable(op, rel string) (*okf.Document, string, []string, er
 	}
 	sources := existingSources(doc)
 	if len(sources) == 0 {
-		return nil, "", nil, errcode.WithCode(
+		return nil, "", nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": "+rel+" declares no sources, so a rewrite would "+
 				"have nothing to keep its quotations against",
-			nil,
 		)
 	}
 	return doc, hash, sources, nil
@@ -305,11 +303,10 @@ func archivesFor(op, dir string, uris []string) ([]string, error) {
 		}
 	}
 	if len(out) == 0 {
-		return nil, errcode.WithCode(
+		return nil, errcode.New(
 			gnosis.CodeInvalid,
 			op+": none of this document's sources has archived text; "+
 				"run `gnosis fetch` on them before rewriting it",
-			nil,
 		)
 	}
 	return out, nil

@@ -1652,6 +1652,16 @@ anywhere** — it was a description cited as prior art and counted as a family m
   it. `TestAReadFaultNamesItsOperationOnce` pins all four paths — PLAN §6.60. Whether
   gnosis keeps borrowed `op` strings at all is still open: toerr's frames make them
   optional, and dropping them is a change to every error string.
+- [x] **gnosis is on toerr v0.3.0, off the deprecated `errcode.WithCode`.** It is removed
+  in the first toerr release after v0.4.0, so this had to land first. The 139 calls with a
+  literal nil cause are `errcode.New`; the 22 with a cause are `errcode.Link`. `Link`
+  returns nil for a nil cause where `WithCode` built a leaf, so each of the 22 was checked
+  first: every one sits in an error branch and wraps `WrapWithMessage(err, op)` of a
+  non-nil `err`. The rewrite spliced the parser's extents, as the `errs` migration did,
+  so no call changed its layout; `gofmt -r` was tried first and dropped trailing commas.
+  No leaf had an empty message, the one case whose text v0.3.0 renders differently.
+  wrapcheck lists `.Link(` in place of `.WithCode(`, and `errcode.New(`, which its
+  default `errors.New(` entry does not match.
   **`errs` itself stays.** `errs.ErrorCode` is the vocabulary §8.0's `reason` tokens are
   built from and it reads toerr errors natively; retiring the type is what skillet asked
   for, and retiring the package would move a shared vocabulary into one consumer.

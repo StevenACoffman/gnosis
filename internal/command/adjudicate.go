@@ -101,7 +101,7 @@ func (a *Adjudicate) Validate() error {
 	if len(bad) == 0 {
 		return nil
 	}
-	return errcode.WithCode(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "), nil)
+	return errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "))
 }
 
 // badActors reports what is wrong with the adjudicator and the co-signer.

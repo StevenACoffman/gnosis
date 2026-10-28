@@ -23,9 +23,9 @@ func TestEveryCodeRoundTrips(t *testing.T) {
 		t.Run(want, func(t *testing.T) {
 			t.Parallel()
 
-			err := errcode.WithCode(status, "something went wrong", nil)
+			err := errcode.New(status, "something went wrong")
 			if got := errs.ErrorCode(err); got != want {
-				t.Errorf("errs.ErrorCode(WithCode(%v)) = %q, want %q", status, got, want)
+				t.Errorf("errs.ErrorCode(New(%v)) = %q, want %q", status, got, want)
 			}
 		})
 	}
@@ -55,8 +55,8 @@ func TestTheCodesAreDistinct(t *testing.T) {
 func TestAWrappedCodedErrorStillClassifies(t *testing.T) {
 	t.Parallel()
 
-	inner := errcode.WithCode(gnosis.CodeNotFound, "no such document", nil)
-	wrapped := errcode.WithCode(gnosis.CodeNotFound, "", inner)
+	inner := errcode.New(gnosis.CodeNotFound, "no such document")
+	wrapped := errcode.Link(gnosis.CodeNotFound, "", inner)
 	if got := errs.ErrorCode(wrapped); got != errs.ENOTFOUND {
 		t.Errorf("a wrapped coded error classifies as %q, want not_found", got)
 	}
