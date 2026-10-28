@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"runtime/debug"
 
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/gnosis/internal/ontology"
 	"github.com/StevenACoffman/gnosis/internal/standards"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Inspect gathers the state of the apparatus around a bundle.
@@ -41,20 +42,31 @@ func Inspect(ctx context.Context, dir string) (lint.Environment, error) {
 
 	docs, err := Load(os.DirFS(dir))
 	if err != nil {
-		return env, &errs.Error{Op: op, Err: err}
+		return env, toerr.WrapWithMessage(err, op)
 	}
 	env.Documents = len(docs)
+	env.Adjudicators = len(adjudicators(docs))
+	env.Authority = gnosis.FoldAuthority(env.Adjudicators)
+
+	// The previous authority comes from the committed log rather than from a stored
+	// baseline, which is what makes this comparison possible at all: `log.md` travels
+	// with the corpus, so two colleagues at one commit read the same announcement.
+	logLines, _, err := LoadLog(os.DirFS(dir))
+	if err != nil {
+		return env, toerr.WrapWithMessage(err, op)
+	}
+	env.Announced, env.AnnouncedFound = LastAnnouncedAuthority(logLines)
 
 	idx, err := LoadIndex(ctx, dir)
 	if err != nil {
-		return env, &errs.Error{Op: op, Err: err}
+		return env, toerr.WrapWithMessage(err, op)
 	}
 	env.IndexPresent = idx.Present
 	env.IndexedRows = len(idx.Rows)
 	if idx.Present {
 		env.IndexVersion, env.SchemaMissing, env.SchemaUnexpected, err = inspectIndex(ctx, dir)
 		if err != nil {
-			return env, &errs.Error{Op: op, Err: err}
+			return env, toerr.WrapWithMessage(err, op)
 		}
 	}
 	return env, nil
@@ -103,17 +115,17 @@ func inspectIndex(
 
 	db, err := index.Open(ctx, IndexPath(dir))
 	if err != nil {
-		return 0, nil, nil, &errs.Error{Op: op, Err: err}
+		return 0, nil, nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = db.Close() }()
 
 	version, err = db.Version(ctx)
 	if err != nil {
-		return 0, nil, nil, &errs.Error{Op: op, Err: err}
+		return 0, nil, nil, toerr.WrapWithMessage(err, op)
 	}
 	shape, err := db.CheckShape(ctx)
 	if err != nil {
-		return 0, nil, nil, &errs.Error{Op: op, Err: err}
+		return 0, nil, nil, toerr.WrapWithMessage(err, op)
 	}
 	return version, shape.Missing, shape.Unexpected, nil
 }

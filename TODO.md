@@ -85,7 +85,7 @@ ______________________________________________________________________
   so the layout is expensive to change once real evidence exists. `log.md` has the
   same shape but is expected to conflict and is human-resolvable, so it stays as
   OKF §9 specifies.
-- [ ] **The write-coordinator transport is decided; building it waits on a trigger.**
+- [x] **The write-coordinator transport is decided; building it waits on a trigger.**
   *Decided 2026-08-24 (§4.6.2.2), and mostly by reading §13 rather than by choosing.
   `gnosis serve` already carries the coordinator and the viewer in one process — two
   servers would be two authorities over one bundle — and that server is authenticated
@@ -114,6 +114,16 @@ ______________________________________________________________________
   **The expected revision now has a name and an owner.** It is the same object as
   §4.6.2.1's diff-bound token, which §13's review queue needs anyway, so it lands with
   the queue rather than as a separate prerequisite nobody had recorded.
+  **Built 2026-09-03 with §13's server, and the trigger fired by being built.** `gnosis
+  serve` opens both listeners over one handler, carries the §8.0 envelope, and takes the
+  approver from the authenticated request — which `web.Command` makes structural by
+  having no approver field, so a body naming one is dropped by the decoder rather than
+  refused by a check.
+  **The diff-bound token is still not built, and now for a stated reason rather than for
+  want of a home.** The escalated path is refused over the wire entirely (§4.6.2.1), so
+  the token would guard a path that does not exist — a mechanism with no reader, which
+  this file has recorded seven times. Its trigger is the first escalated decision
+  somebody needs to complete without a terminal.
 - [x] **The writer lock's contract is a type now, and one caller was not honouring it.**
   *`bundle.Writer` is obtainable only by taking the lock, and every write is a method
   on it — `Audit`, `StoreEvidence`, `StoreCached`, `RecordChecks`, `Prompts`,
@@ -900,22 +910,46 @@ ______________________________________________________________________
   **The trigger that would change it**: a claim-level search result a reader cannot
   identify from its lead alone. The columns stay in the schema so adding them later is a
   migration nobody has to design.
-- [ ] **Five specified checks remain, and none is buildable today.** *Down from twelve,
-  then from six when `constraint-drift`'s recorded blocker turned out to be wrong.
-  Re-measured 2026-08-27 against the tree rather than against these entries: `Warrant` and
-  `Challenge` appear nowhere in it, §14.4's durability classes are specified and unbuilt,
-  and nothing stores a previous link state. `filename-drift`, `limitations`, `duplicate`, `command`, `evidence` and
-  `language` were built; the six left each name their blocker below, because "unbuilt"
-  and "unbuildable" have been confused four times in this file and counting them together
-  is what caused it.*
+- [ ] **Two specified checks remain: `newly-orphaned`, which needs a baseline nothing
+  stores, and `gap`, which §12's own table marks as not deterministic.** *Everything else
+  in this entry was built, and each struck line keeps what building it turned up.*
+  **The count's own history is the reason the list is kept rather than trimmed.** Twelve,
+  then six when `constraint-drift`'s recorded blocker turned out to be wrong, then back to
+  six when `warrant` turned out to have been missed by every count, then two on 2026-09-02
+  when `durability`, `warrant`, `co-sign` and `unanswered-challenge` landed. It has been
+  wrong in both directions, and each time for the same reason: "unbuilt" and "unbuildable"
+  were counted together. Every line below names its blocker or says what closed it.
+  **`warrant` is the fifteenth check and was named by none of the three counts** — not by
+  §12.1's thirteen, not by "`coverage` was the fourteenth", not by this entry's five.
+  *Found 2026-09-02 by diffing §12's list against `lint.Checks()` rather than against
+  either table.* It is the same blind spot §12.1 records — a row absent from the enforced
+  table and a checker absent from the registry agree with each other — and it survived a
+  pass that was **looking for exactly this**, which is the part worth keeping: the count
+  was recomputed from the two tables, and the check missing from both is invisible to
+  that method by construction. The list in §12 is the only surface that names it, and
+  nothing walks that list.
   - `newly-orphaned` — needs a **baseline**. Nothing stores a previous link state, and
     "had an inbound link before" is not derivable from one commit.
-  - `durability` — needs §14.4's durability classes and §14.4.1's centrality. Neither
-    exists.
-  - `co-sign` — needs `gnosis_warrant`. §10.6's warrants are unbuilt and nothing reads
-    the key.
-  - `unanswered-challenge` — needs `gnosis_challenges` and a window in `standards/`.
-    Nothing writes challenges.
+  - ~~`durability`~~ — **built 2026-09-02.** It needed §14.4's four states and
+    §14.4.1's centrality, and neither existed; both do now. Two things it turned up are
+    in PLAN §6.48: the claim grain cannot express a `referenced` source, so the signal
+    is computed per document — which is what §12's row said all along — and §14.4.1's
+    two boundaries collapse to one, because there are only two treatments and a
+    document between a median and a cut would belong to no class.
+  - ~~`warrant`~~ — **built 2026-09-02**, and the entry's own blocker dissolved rather
+    than being cleared: the *adjudicated* class is derived from carrying a warrant, and
+    the half of §12's row that needs an independent marker reads `gnosis_supersedes`,
+    which is structural evidence rather than an author's assertion. A `class:` key was
+    refused for exactly the reason recorded here — it would let a claim assert the class
+    the check exists to verify.
+  - ~~`co-sign`~~ — **built 2026-09-02** with the rest of §10.6.4. Escalation is
+    computed, not declared: normative by type, or load-bearing by §14.4.1's centrality.
+    An override with a recorded reason passes, because a gate whose overrides are
+    countable is still a gate.
+  - ~~`unanswered-challenge`~~ — **built 2026-09-02** with `gnosis challenge` as its
+    writer and `standards/challenge.toml` as its window. The window is 30 days and its
+    rationale says plainly that no corpus has yet carried a challenge, so the number is
+    chosen for what it makes visible rather than measured.
   - `constraint-drift` — **built 2026-08-27, and this line was wrong about its own
     blocker.** *"No corpus has a pin" was not the obstacle: a pin **could not be
     expressed**. Nothing parsed `gnosis_constraint`, `DocClaim` had no field for one, and
@@ -1135,9 +1169,32 @@ ______________________________________________________________________
   **Both roles ship; only `reason` has a reader.** The conclusion rows wait on §17.4's
   `lead` check, which waits on extraction. The file says so, so an unused row is not
   read as a dead one.
-- [ ] **Surface definitions where terms are used.** `glossary-18F` is a small
+- [x] **Surface definitions where terms are used.** `glossary-18F` is a small
   accessible panel resolving `data-term` attributes inline, as shipped on FEC.gov. A
   glossary nobody opens is not an ontology. Phase 5, with the viewer.
+  **The viewer landed 2026-09-03 and this did not**, which is a scheduling fact rather
+  than a discovery: §13 lists what `serve` provides and does not list this, and the
+  viewer's first pass renders a concept's body escaped rather than as markdown. Inline
+  definitions need a renderer that produces markup, so both belong to the same second
+  pass — and that renderer arrives with its own sanitiser, which is the part worth doing
+  deliberately rather than alongside something else.
+  **Both landed 2026-09-04, and the sanitiser turned out to be the renderer's shape
+  rather than a component.** A general markdown library accepts raw HTML by design, so it
+  would have needed an allow-list maintained against exactly the input an allow-list is
+  worst at — a model-written body. Escaping first and emitting markup afterwards makes
+  the property structural: the only markup on the page is what the renderer writes, and a
+  construct it does not know renders as its own literal text. Links are allow-listed to
+  corpus-relative paths, because a deny-list of schemes has to anticipate the one nobody
+  thought of.
+  **The panel lists only the terms the page uses**, definitions taken from the ontology's
+  `desc`, and it includes aliases — §5.8.2 makes an alias the phrase an author actually
+  writes, so a glossary that knew only the key would define a term the reader cannot see
+  and stay silent about the one they can.
+  **What the first test of it got wrong is worth keeping.** It forbade strings like
+  `onerror` anywhere in the output and failed on `&lt;img src=x onerror=alert(1)&gt;` —
+  which is escaped text a reader sees as the words somebody typed. Passing it would have
+  required *deleting* content, so the assertion became: strip the tags the renderer may
+  emit, and require that no angle bracket survives.
 - [x] **Initial `standards/` values are written, and this entry was stale.**
   *Measured 2026-08-23: `standards/archive.toml`, `promote.toml`, `sample.toml` and
   `retrieval-cases.toml` all exist as embedded seeds, every value carrying the rationale
@@ -1558,6 +1615,56 @@ anywhere** — it was a description cited as prior art and counted as a family m
   reason** pins the property that three other backlogs now reference. Cheap, and it is the
   difference between a documented intent and a checked one — which is the distinction this
   specification spends §18 on.
+- [x] **`errs.Error` is retired from gnosis: all 436 literals now use toerr.** *skillet's
+  entry left this as gnosis's call — migrate the literals, or own an `Error` type as adh
+  does. Migrating is right: adh's 203 went through an alias so owning a type cost one
+  file, and gnosis's are direct literals across 105 files, so owning one costs the same
+  rewrite and leaves gnosis maintaining an error type instead of using one.*
+  **The counts in skillet's entry are close and not right**, which is worth correcting
+  there because that entry's own lesson was a consumer count nobody re-measured: the tree
+  had **436 literals in 105 files and 53 `ErrorCode` calls**, not 429 in 131 with 57.
+  **What made it safe was measuring five things first.** `errs.ErrorCode` already reads
+  both representations, so the classification sites kept working throughout; nothing
+  type-asserts `*errs.Error`, reads its fields, or calls `errs.ErrorMessage`; and four of
+  the five shapes keep their `Error()` text byte-for-byte, because `WrapWithMessage`
+  renders exactly what `{Op, Err}` did. A coded wrap composes — `WithCode(code, "",
+  WrapWithMessage(err, op))` — because the direct form would have changed every one of
+  those messages.
+  **The first attempt used regular expressions and was reverted.** It mangled every
+  literal whose values spanned lines, and turned two leaves into `WrapWithMessage(nil, …)`
+  — which returns nil, so two functions would have reported success on a failure path. The
+  rewriter that worked parses for extents and splices text: a literal's extent is a
+  parser's answer, and reprinting the AST would reformat code this was not about.
+  **Two defects the struct was hiding are now fixed**, both stated rather than smuggled:
+  nine messages that never rendered (`Error()` prefers `Err`) now do, and thirty-six
+  sites in thirteen files that rendered their operation twice no longer do. *This entry
+  first said eight and seven, then twenty-seven in ten; measured with a parser it is
+  thirty-six in thirteen. The migration fixed thirty-four and missed two in `fetch.go`,
+  whose spaces around `+` a search did not match; they are fixed since, and the property
+  is under test.*
+- [x] **`readConcept`'s I/O wrap doubled its caller's operation on four paths.** It wraps
+  a non-not-exist read error with the *caller's* `op`, and `deferConflict`, `adjudicate`
+  and both reads in `supersede` passed that error to a refusal helper that wrapped it with
+  the same `op` again. Pre-existing (the migration kept it byte-for-byte) and reachable only
+  on an I/O fault. *Fixed at the call sites, not in `readConcept`*, because `FileConflict`
+  relies on the borrowed `op` to name itself. Each refusal helper now has a classify-only
+  step that returns any other cause unchanged, and the call sites after `readConcept` use
+  it. `TestAReadFaultNamesItsOperationOnce` pins all four paths — PLAN §6.60. Whether
+  gnosis keeps borrowed `op` strings at all is still open: toerr's frames make them
+  optional, and dropping them is a change to every error string.
+- [x] **gnosis is on toerr v0.3.0, off the deprecated `errcode.WithCode`.** It is removed
+  in the first toerr release after v0.4.0, so this had to land first. The 139 calls with a
+  literal nil cause are `errcode.New`; the 22 with a cause are `errcode.Link`. `Link`
+  returns nil for a nil cause where `WithCode` built a leaf, so each of the 22 was checked
+  first: every one sits in an error branch and wraps `WrapWithMessage(err, op)` of a
+  non-nil `err`. The rewrite spliced the parser's extents, as the `errs` migration did,
+  so no call changed its layout; `gofmt -r` was tried first and dropped trailing commas.
+  No leaf had an empty message, the one case whose text v0.3.0 renders differently.
+  wrapcheck lists `.Link(` in place of `.WithCode(`, and `errcode.New(`, which its
+  default `errors.New(` entry does not match.
+  **`errs` itself stays.** `errs.ErrorCode` is the vocabulary §8.0's `reason` tokens are
+  built from and it reads toerr errors natively; retiring the type is what skillet asked
+  for, and retiring the package would move a shared vocabulary into one consumer.
 - [ ] **If a second tool emits a check report, `Skip{Check, Reason}` promotes.** That is
   the trigger `skillet` recorded, and gnosis is the current sole holder. *Re-checked
   against skillet v0.26.0 on 2026-08-27: no `Skip` type there, and the new packages that
@@ -2454,7 +2561,7 @@ ______________________________________________________________________
   part that would be a silent content change, and it is rare rather than pervasive. So this repository formats with `rumdl` and the invocation is
   `rumdl fmt --disable MD063 <authored files>`; `mdformat` is not part of the toolchain
   and the earlier entries naming it were describing an intention rather than a decision.
-- [ ] **A claim records who approved it and not what authority they held.** `Actor` is
+- [x] **A claim records who approved it and not what authority they held.** `Actor` is
   `human:<id>` and `gnosis_warrant` carries a rationale, so a corpus can say *Priya
   adjudicated this* and cannot say *the platform team owns this rule*. `haft`'s decision
   records carry a role rather than only an identity, which makes two things possible that
@@ -2507,3 +2614,311 @@ ______________________________________________________________________
   history — and adding the key before something displays it would repeat the mistake this
   project has recorded three times. So this is **no longer blocked on the warrant**; it is
   blocked on the queue.
+  **Both halves shipped 2026-09-04, with the queue as the reader they waited for.**
+  §10.6.2's domain history is a fold over recorded adjudications and a claim's subject,
+  displayed beside the subject's `owner`, and the page says in words that neither grants
+  authority. Two things the build settled: the count is per **first dotted segment** of
+  the subject, which is §10.6.2's own `retry.*` example and not seniority across the
+  corpus; and it **resolves the surface** to a key first, because §5.8.2's aliases mean
+  counting the strings would split one person's history across their colleagues'
+  spellings.
+  **The owner is deliberately absent from the lint snapshot**, which is what makes
+  §10.6.2.1's third refusal structural: no check can reach it, so a gate reading it would
+  have to visibly widen its inputs.
+- [x] **`PLAN.md`'s progress table stopped at Step 2.14 while its narrative ran to
+  §6.46.** *Closed 2026-09-03, and verified rather than asserted: the table now runs to
+  `3.7 — critic`, every discrete item in §4 and §6 carries `[ ]` or `[x]`, and
+  `grep -c '[ ] open' PLAN.md` reports zero. The retrospective sections deliberately
+  carry no boxes — a checkbox on a finding invites reading it as work — and that
+  exception is stated above the table rather than left to be inferred.* Original:
+  *Measured 2026-09-02: the table's last row is `2.14 — accounting fixes`, and
+  §6.19 through §6.46 — the §14 backlog, tiers 2 and 3, `gnosis schema`, the subject
+  decision, the operator patterns, `coverage`, the conflict frame, twelve checks becoming
+  six — have no row at all.* A reader consults the table first, so the plan understates
+  its own state by roughly a dozen passes.
+  **It is the §12.1 blind spot one document over.** That table drifts only in the
+  direction nothing can see — a row absent and a checker absent agree — and this one
+  drifts the same way: a pass with no row and no reader is silent. The difference is that
+  §12.1's is checked against the registry in both directions and this one is checked
+  against nothing, because there is no registry of plan steps to walk.
+  **The remedy is the cheaper half of that**: the discrete items carry `[ ]`/`[x]` now, so
+  what is open is greppable rather than inferred from prose, and a pass that lands adds a
+  row in the same edit that adds its §6 section. A derived check would need plan steps to
+  be identifiers, which they are not and should not become.
+- [x] **A retrospective section stated an open question that was closed an hour later, and
+  nothing pointed forward.** *`PLAN.md` §6.46 ends "three data points for a rule that
+  could be written down"; SPEC §17.5 wrote it down, `runNamed` enforces it, and `TODO.md`
+  records it closed. The rule existed before the sentence saying it did not was a day
+  old.* Confirmed by commit order rather than by reading: §6.46 landed in `08d2de6` and
+  §17.5 in `873bafd`.
+  **The failure is not the staleness, it is the direction.** A §6 section is a record of
+  what a pass turned up, so it is correct that it is not edited afterwards — but a reader
+  who arrives at it has no way to learn the question was settled, and the sentence reads
+  as a live gap. Two of the seven open entries in this file were closed the same way and
+  were only found by re-measuring against the tree.
+  **The remedy is one sentence, not a process**: a §6 paragraph that names something still
+  open must name where it is tracked — this file — and the entry here is what gets closed.
+  A retrospective that owns a backlog item is a backlog kept in two places, which is the
+  shape §12.1's hand-maintained list was replaced for.
+  **Stated and swept 2026-09-03.** The convention is written above §6's table, beside the
+  checkbox rule it is the prose half of, and six sections gained a pointer: five naming
+  the entry here that holds the question, and one naming the §6 section that closed it.
+  The sweep was bounded to sentences that read as a live gap rather than run over every
+  section, because a pointer on a decision nobody need revisit is the noise this is
+  supposed to remove.
+- [ ] **§10.6's adjudication window is not declared, so the authority rises and never
+  falls.** *Built around on 2026-09-02: `bundle.adjudicators` counts distinct `human:`
+  actors across the corpus's whole history, because §10.6 counts them "within a declared
+  window" and nothing declares one.* A colleague who left last year therefore still holds
+  a corpus at `paired`, and the co-signature they cannot supply is required of everybody
+  else.
+  **Inventing the window is what §6.2 refuses**, and this one is not a threshold nobody
+  can argue with — it decides who the corpus thinks it has. **The trigger is observable
+  and needs no number**: the first corpus whose authority requires a co-signer nobody
+  active can supply. Until then §10.6.3's override is the escape hatch, it is permitted
+  at `paired`, and it leaves exactly the trail that would make the case for a window.
+  Not a blocker for anything: `co-sign` reads the authority *the warrant records*
+  (§10.6.3), so a decision made under a authority that has since moved is unaffected.
+- [x] **A tier change is reported and not announced (§10.6.3).** *`gnosis doctor` prints
+  the derived authority and the count behind it; what it cannot say is that the authority
+  **moved**, because nothing stores a previous value.* Same baseline `newly-orphaned`
+  waits on, and the same shape: a state a rebuild re-derives, compared against one it
+  cannot.
+  **The cheapest home is `log.md` rather than a stored baseline**, following §6.2's
+  precedent for a threshold change — a decision with a reason, in the tier a colleague
+  reads. That makes the announcement a *write* rather than a comparison, which is why it
+  waits for a write command that has reason to touch the corpus: `adjudicate` is the
+  obvious one, since an authority moves when somebody adjudicates for the first time.
+  **Built 2026-09-03, and the baseline this waited on turned out not to be needed.**
+  `log.md` *is* the stored previous value: `adjudicate` announces the move it causes and
+  `LastAnnouncedAuthority` reads the last announcement back, so the comparison is against
+  a committed line every colleague already pulls rather than against a per-user file two
+  colleagues could disagree about. `doctor` gained the other half — a corpus whose
+  derived authority nobody announced is reported, which is what catches a `verified` list
+  edited by hand. The sentence is `gnosis.AuthorityMove.String`'s, written once, so the
+  log entry and the diagnostic cannot describe one event two ways.
+- [x] **The two-claim conflict residue has no producer, and the critic is waiting for
+  it.** *§10.3 routes semantic contradiction between claims that survive the decidable
+  predicates to `gnosis critic` — "a cold-critic prompt that sees the two claims and
+  their sources but never the reasoning that produced either". Step 3.7 built the
+  single-claim critique (§10.5's sample) and not that one, because it has no CLI surface
+  in §8.4 and, more to the point, nothing emits the pairs.*
+  **`conflict` reports what it can decide and says nothing about what it cannot.** §10.2.0
+  records that it implements one of six predicates deliberately; the pairs it declines
+  are not collected anywhere, so a critic prompt about them would have to re-derive the
+  candidate set — which is §6.2's selector, in a check that performs no I/O.
+  **The trigger is the producer, not the prompt.** The prompt is this relay with a
+  different template and a two-claim `CriticClaim`; what does not exist is something that
+  says *these two claims are worth a person's or a model's attention and no predicate can
+  separate them*. When `conflict` grows that output, the critic reads it.
+  **The producer landed 2026-09-04 and the prompt did not, which is what this entry
+  asked for.** `conflict` now reports `conflict:unseparated` — two claims on one resolved
+  subject that a predicate ran on and could not decide — each with a content-addressed id
+  that a deferral can be recorded against and still match after a rebuild.
+  **The population needed deciding and the entry did not say how.** A similarity
+  threshold is refused by §10.3, so "claims that look alike" was unavailable; a declared
+  subject is the corpus's own statement that two claims are about one thing, and it is the
+  only population that needs no number nobody has calibrated. Two claims that both parse
+  to a bound are the interval predicate's pair, so they are excluded — reporting them here
+  would make one examined pair read as two findings.
+  **What remains is the prompt**, which is this relay with a two-claim template and no
+  CLI surface in §8.4 to reach it by. The queue now shows the pairs side by side, which
+  is what §10.3 wanted a judge to see, so the model's turn is no longer what blocks a
+  person from deciding.
+  **And the prompt landed 2026-09-04**, reached by `gnosis critic --pairs` rather than a
+  second command — the same lock, prompt store and `--response` path. It asks whether both
+  claims can hold and never which is right (§10.2.2), compares each against its own source,
+  and files coverage for **both** claims, because a row for one of two would let a later
+  single-claim critique re-ask what this one answered. No sample and no seed: the pairs are
+  what the predicates already failed on, so drawing from them would leave a known
+  contradiction unexamined for a reason nobody could name.
+- [x] **Three progress rows said `open` for a day after the work landed, and I reported
+  them done.** *Closed 2026-09-03: rows 3.4, 3.5 and 3.6 read `[x] done`, and the count
+  that would have caught it is now what gets run before reporting a step complete. The
+  lesson stays recorded because the remedy is a habit rather than a mechanism, and a
+  habit with no written reason is the first thing dropped by whoever is in a hurry.* *Found 2026-09-02 while counting the table: rows 3.4, 3.5 and 3.6 still
+  read `[ ] open` after `challenge`, `adjudicate` and `supersede` shipped, because the
+  edits that were supposed to close them matched an unpadded table row and `rumdl fmt`
+  had already padded it. The replacement silently did nothing and nothing checked.*
+  **It is the entry two above this one, recurring within the day it was written.** That
+  one says a claim about the record is not the record; this is the same failure in the
+  mechanism added to prevent it, which is worth more as evidence than as an
+  embarrassment: a checkbox is greppable, and I did not grep.
+  **The remedy is the count, not more care.** `grep -c '\[ \] open' PLAN.md` before
+  reporting a step complete takes a second and cannot be forgotten quietly, because a
+  wrong number is visible where a wrong prose sentence is not. Recorded rather than
+  automated: a test over a plan table would need plan steps to be identifiers, which
+  they are not and should not become.
+- [x] **Ten of §8's commands were unbuilt and this file named none of them.** *Measured
+  2026-09-03 by diffing §8.1–8.5's command list against `cmd.register`, which is the
+  method that found `warrant` and the only one that can see this: a command absent from
+  the registry and absent from the backlog agree with each other.* `miss report` and
+  `gate` were built the same day; `conflict` and `stale` turned out to name functions that
+  shipped as `lint` checks, and §8.4 is corrected rather than the commands written.
+  **What remains, and none of it is blocked.** `ask` and `file` (§8.3's answer relay),
+  `export`, `manifest` and `proof create` (§8.5 — and `skillet/manifest` and
+  `skillet/proof` both exist in v0.27.0, so the stated dependency is present), `mine`
+  (§10.2's heuristic tier), and `serve` (§13, Phase 5). §19 puts the first six in
+  Phase 4, so they are **scheduled rather than gated** — the distinction this entry
+  exists to keep, because "not built" has been confused with "not buildable" five times
+  now.
+  **Five of the six shipped 2026-09-03 and the sixth was refused with its reason.**
+  `ask`, `file`, `export`, `proof create` and `mine` are built and registered. `manifest`
+  is **not**, and the finding is the one `ruleset/conflict` recorded: `manifest.Diff`
+  matches entries by **location**, and a gnosis location is a view §5.1.1 changes on
+  every retitle — so a manifest over this corpus would report a renamed concept as one
+  removed and one added. For a committed corpus `git diff --name-only` already answers
+  the question the file would, and a second answer that can disagree with the first is
+  worse than none. SPEC §8.5 and §16.2 are corrected; the trigger is the first
+  downstream tool that asks gnosis what changed and cannot use git to find out.
+  **And `serve` shipped 2026-09-04, which closes this entry.** All ten of §8's commands
+  are now accounted for: seven built, two that named `lint` checks and were corrected in
+  §8.4 rather than written, and `manifest` refused with its reason above. The method that
+  found them — diffing a specification's command list against `cmd.register` — is the
+  part worth keeping, because it is the only one that can see a command absent from both
+  the registry and the backlog.
+  **The stated dependency being present is not the same as fitting**, which is what this
+  entry got right in one direction and wrong in the other: `skillet/proof` fit exactly
+  and `skillet/manifest` did not, and both were in the same sentence as though the
+  question were availability.
+- [x] **§6.2's candidate selector is unbuilt, and this file named no part of it.**
+  *Found 2026-09-04 while looking for the reader of `gnosis_conflicts`: §6.2's fourth
+  rule is "claims whose `gnosis_conflicts` names the incoming source", and there is no
+  selector for it to be a rule of.* All four rules are absent — the shared `source_id`,
+  the one-hop link neighbourhood, the tag-plus-FTS5 rank cut, and the conflict edge.
+  **It is the §12.1 blind spot again**, which is why nothing caught it: a selector absent
+  from the code and absent from the backlog agree with each other, and the only method
+  that sees it is reading a specification section against the tree.
+  **Three of the four are buildable now and the third is not.** Rules 1, 2 and 4 are
+  index queries over tables that exist; rule 3 needs a declared rank cut in `standards/`
+  (§6.5), and §6.2's own argument against inventing one applies — a threshold nobody can
+  calibrate is what that section refuses.
+  **What it waits for is a caller.** The selector's consumer is accretion during ingest:
+  §6.2 exists so that an incoming source finds the claims it might update without asking
+  a model per candidate. Building the query before something ingests-with-candidates
+  would be a mechanism with no reader.
+  **Built 2026-09-04, and the caller was already there wearing a flag.** `gnosis ingest
+  --into c/x.md` is the operator answering by hand the question §6.2 exists to answer for
+  them, so the reader is `ingest` *without* it: three rules run, the candidates are
+  reported with the rule that found each, and nothing is chosen — §6.2 selects and §6.3
+  accretes into a document a person named.
+  **Rule 1 had no column, which the entry did not know.** `sources_fetched` projects tier
+  0 and `claims` projects the corpus, and nothing joined them — a claim's archive paths
+  lived only in frontmatter. `claim_sources` is that join, filled by `index rebuild` like
+  every other projection, and it arrived with its reader in the same change.
+  **Rule 3 stays unbuilt with both blockers named** — no `tags` projection (§5.5) and no
+  declared rank cut (§6.5) — and the selection *reports* it as not run rather than
+  omitting it, because three rules of four run silently would look like four.
+- [ ] **§9.6's outcome labelling needs a vocabulary nobody can write yet.** *Found
+  2026-09-03 while building `gnosis mine`.* The reference implementation "labels outcomes
+  from feedback signals", which means reading what disappointment sounds like — and a
+  vocabulary of that is a `standards/` value with a rationale (§6.2), which nobody can
+  write from measurement until a corpus has mined enough sessions to measure.
+  **What shipped instead is stronger for the two halves it does cover.** Retry chains and
+  recurring intents both reduce to *the same question asked more than once* — within a
+  session it is a retry by definition, across sessions it is one nobody wrote down — and
+  that comparison uses the corpus's own fold and carries no number anybody chose. The
+  sentiment reading would have been a second, weaker way to detect what repetition
+  detects exactly.
+  The trigger is a corpus with enough mined sessions to write the vocabulary from
+  measurement rather than from imagination.
+- [x] **`gnosis_conflicts` is specified in §5.4 and nothing reads or writes it.** *Found
+  in the same pass, by reading the frontmatter table against the parsers.* §5.4 gives it
+  a meaning — "open contradiction findings, each naming a concept id and a finding id" —
+  and §6.2's candidate selector names it as its fourth rule: "claims whose
+  `gnosis_conflicts` names the incoming source". Neither exists.
+  **It is the same shape as the two-claim residue below**, and probably the same work:
+  the key is where a conflict finding would be *committed* so that a later selector can
+  read it back, which is what `conflict` has nowhere to put its output today. Worth
+  building with that producer rather than before it — a frontmatter family nothing writes
+  is the mistake this file has recorded seven times.
+  **Built 2026-09-04, and the row it implements is narrower than it read.** §5.4 said
+  "open contradiction findings", and an open one must not live there: §10.7.4's rule is
+  decisions committed, observations cached, and a conflict the predicates compute is
+  re-derived every run. The two words that settle it are "finding id" — a finding id
+  belongs to §5.5's table, whose state is §17.0's three values, and §10.7.4 is explicit
+  that `deferred` is the one no rebuild can recover. So the family holds **deferrals**,
+  written by `gnosis defer`.
+  **Three readers, which is what kept it from being unread state.** The review queue
+  stops showing a deferred pair; `lint` keeps reporting it and names who deferred it and
+  why, because §17.0 makes auditing the deferred set a different activity from reviewing
+  the open one; and `conflict-edge` reports an entry that has gone stale — naming a
+  concept the corpus dropped, half-written, or deferring a conflict nobody reports any
+  more.
+  **§6.2's fourth selector rule still has no reader, and the reason is not this key.**
+  That rule needs the candidate selector, which turns out to be unbuilt in its entirety —
+  so adding rule 4 alone would be a query with no caller. It arrives with the selector,
+  and that is a separate item nobody had recorded.
+- [x] **`relay.CriticReply.NotExamined` carries less than the family type it mirrors.**
+  *`finding.Unexamined` is `{Aspect, Reason}` with a `Valid()` that requires both, and
+  skillet's comment on it is explicitly about parsing a critic's reply. gnosis's critic
+  carries `not_examined: []string` — which aspect, never why not.* Found while building
+  the findings gate, which reads `finding.Unexamined` through and prints both halves.
+  **The reason is the half that makes an unexamined aspect actionable.** "The source's
+  methodology" tells a reader nothing; "the excerpt does not include it" tells them
+  whether a better excerpt would fix it. §10.5's whole argument for the block is that a
+  gap must be legible, and half of it is not.
+  **The cost is a prompt change, which is cheap now and expensive later.** Every critic
+  cache key is a hash of the prompt (§6.1), so changing the reply format re-asks every
+  critique — and today that is nothing, because the format is one day old and no corpus
+  holds a coverage ledger. Waiting makes it a migration.
+  **Taken 2026-09-03, at the price the entry named.** `NotExamined` is
+  `[]finding.Unexamined` from the reply through `Critique`, `CoveredAngles`, `Verdict`
+  and the prompt that steers the next critic; an entry naming an aspect with no reason is
+  refused rather than half-recorded, which is `Valid()`'s rule and not a second one. The
+  ledger reads the old bare-string shape as an aspect whose reason says where it came
+  from — "recorded before critiques carried a reason" — rather than inventing one or
+  failing the load of the one file whose purpose is being matched against later. A corpus
+  written before the change and one written after it were read back in the same run.
+- [x] **The supersession edge named a path where §5.4 requires an identifier.** *Found
+  2026-09-03 while reading §5.4 for `--status`, and corrected the same day: the edge is
+  `<gnosis_id>#<claim-id>`, the coverage ledger moved with it, and §10.4 now records why
+  the two sections only appeared to disagree.* The path form reads better and breaks on
+  the first retitle, because §5.1.1 puts the slug in the path — so the edge would have
+  named a file that does not exist, pointing at the one claim nobody looks at any more.
+  **What it cost to find was one reading and what it would have cost later is a
+  migration**, which is the argument for reading a specification section against the code
+  that implements a *different* one: the defect was in a write path nobody was going to
+  re-open.
+
+## The Verification Record Comes from Skillet (2026-09-07)
+
+Source: skillet's OKF trust-field decision, which this repository's own code triggered.
+
+- [x] **`bundle.Verification` is one of two identical hand-written copies, and skillet is
+      taking the type.** DONE 2026-09-08 against skillet **v0.31.0**, landed on
+      v0.34.0 after the errs.Error migration that every release since v0.29.0 needs, since
+      no release has both `verification` and `errs.Error`. The local type and its
+      doc are deleted; `Claim.Verified` is `[]verification.Event`. Five files:
+      `bundle.go`, `gatedoc.go`, two tests, and a doc reference in `internal/gnosis/warrant.go`
+      that named the old type.
+      **`cmd/servecmd/queue.go` needed no change**, checked rather than assumed because
+      another session had it open: `verifiedActors` ranges over `.Verified` and reads `v.By`,
+      which does not name the element type.
+      **Replaced rather than aliased.** A one-line `type Verification = verification.Event`
+      would have left every call site untouched, and that is the objection — a call site that
+      names the shared type shows the sharing, while an alias reads exactly like a local type
+      and can be turned back into a struct in one edit nobody notices. adh had just paid for
+      that with `adh.Error = errs.Error`.
+      **One reason stayed local**: why the actor is read raw rather than parsed into
+      `gnosis.Actor`, since §14.1.1 makes frontmatter actors the wider population. It moved to
+      the `Verified` field, where `warrant.go`'s cross-reference can still reach it.
+      **`FoldTrust` is untouched**, which is the decision working: the record is shared and
+      the judgement is not. `internal/bundle/bundle.go:187` declares `{By string, At string}`;
+      adh's `contextstore.Verification` declares the same two fields for the same purpose.
+      **Skillet decided 2026-09-07: the verification *record* is promoted, the *fold* is not.**
+      `Verification{By, At}`, list-valued, moves to skillet; deriving a tier from it stays local
+      to each consumer. The trigger fired because two repos independently hand-wrote a type
+      literally named `Verification` with the same two fields, while their folds differ by
+      design — gnosis's actor enum is closed to three kinds to count distinct humans (SPEC
+      §10.6.4), adh's classifier answers human-or-machine for a context-unit tier. The
+      `Generated`/`Verified` *block* is still not promoted, for the recorded reason that YAML
+      cannot round-trip and a block struct would be decode-only.
+      **`FoldTrust` stays here and that is the point.** `internal/gnosis/actor.go`'s closed
+      three-kind enum exists because §10.6.4 counts distinct humans, and SPEC §14.1 says it
+      implements OKF §5.3's fold verbatim. A shared fold would have to widen it or break
+      adh's; neither is acceptable, so only the record moves.
+      **Decode-only here, and that is accepted.** This repository re-emits its frontmatter
+      block verbatim because re-encoding YAML cannot round-trip, so a shared element is for
+      reading a `verified` list, not for writing one. What it buys is one definition instead
+      of two, not an encoder.

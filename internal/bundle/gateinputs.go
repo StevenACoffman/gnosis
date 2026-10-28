@@ -11,8 +11,8 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/okf"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/quotecheck"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // evidenceKey is the frontmatter field carrying a claim's quotations (§5.5).
@@ -135,13 +135,13 @@ func archivedText(op, bundleDir string) (map[string]string, error) {
 		}
 		data, rerr := fs.ReadFile(fsys, name)
 		if rerr != nil {
-			return &errs.Error{Op: op, Err: rerr}
+			return toerr.WrapWithMessage(rerr, op)
 		}
 		out[name] = string(data)
 		return nil
 	})
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }
@@ -182,17 +182,17 @@ func walkRecords(op string, fsys fs.FS, visit func(*archive.Record)) error {
 		}
 		data, rerr := fs.ReadFile(fsys, name)
 		if rerr != nil {
-			return &errs.Error{Op: op, Err: rerr}
+			return toerr.WrapWithMessage(rerr, op)
 		}
 		rec, rerr := archive.ParseRecord(data)
 		if rerr != nil {
-			return &errs.Error{Op: op, Message: op + ": " + name, Err: rerr}
+			return toerr.WrapWithMessage(rerr, op+": "+name)
 		}
 		visit(&rec)
 		return nil
 	})
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	return nil
 }
@@ -252,7 +252,7 @@ func titlesByFold(bundleDir string) (map[string][]string, error) {
 
 	docs, err := Load(os.DirFS(bundleDir))
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	out := map[string][]string{}
 	for i := range docs {

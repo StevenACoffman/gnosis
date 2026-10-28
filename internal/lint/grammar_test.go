@@ -63,7 +63,7 @@ func TestTheDetectorFindsTheThreeMessagesThatShipped(t *testing.T) {
 }
 
 // TestTheDetectorLeavesTheFixedFormsAlone is the adversarial half, and the one that would
-// do real damage: `noun(n, word)` renders "1 unresolvable command" and "1 quotation", and
+// do real damage: `Noun(n, word)` renders "1 unresolvable command" and "1 quotation", and
 // a detector that flagged those would make the remedy look like the defect. Somebody would
 // then "fix" a correct message by breaking it.
 func TestTheDetectorLeavesTheFixedFormsAlone(t *testing.T) {

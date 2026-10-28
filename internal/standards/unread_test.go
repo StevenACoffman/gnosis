@@ -25,10 +25,12 @@ import (
 // name when a reader lands is a one-line ritual a source scan cannot ask for.
 func TestEveryDeclaredValueIsClassified(t *testing.T) {
 	t.Parallel()
-	// The one value gnosis declares and does not read. §14.4.1 wants it for
-	// "unprovable AND load-bearing" and `unprovable` is Phase 3, so it has nothing
-	// to narrow yet. Deleting this line when the reader lands is the whole ritual.
-	want := []string{"in_degree_cut"}
+	// **Empty as of 2026-09-02**, when `in_degree_cut` gained §14.4.1's `durability`
+	// check as its reader — the last value gnosis declared and did not read. The
+	// assertion is stronger empty than it was full: a threshold added to a standards
+	// struct and not classified in `reading` falls through to unread and fails here,
+	// so this is now the test that says *every* declared value has a reader.
+	var want []string
 
 	got := standards.Unread()
 	if !slices.Equal(got, want) {
@@ -84,11 +86,19 @@ func TestOnlyAnUnreadEditIsReported(t *testing.T) {
 		edit func(*standards.Archive)
 		want []string
 	}{
-		"an unread value moved": {
-			func(a *standards.Archive) { a.InDegreeCut.Value = 9 },
-			[]string{"in_degree_cut"},
-		},
+		// **There is no "an unread value moved" case any more, and that is a fact
+		// about the binary rather than a gap in the test.** Every declared value has
+		// a reader as of 2026-09-02, so `Tuned` correctly reports nothing for every
+		// edit, and the positive half is unreachable without declaring a value with
+		// no reader — at which point TestEveryDeclaredValueIsClassified fails first,
+		// which is the earlier and more useful signal. Fabricating an unread value
+		// here would need a test-only field in a production struct, which rules.md §9
+		// forbids for exactly this kind of convenience.
 		"a consumed value moved": {func(a *standards.Archive) { a.StalenessDays.Value = 30 }, nil},
+		"the last value to gain a reader moved": {
+			func(a *standards.Archive) { a.InDegreeCut.Value = 9 },
+			nil,
+		},
 		"a pinned value moved": {
 			func(a *standards.Archive) { a.HTMLExtractorVersion.Value = "v9" },
 			nil,

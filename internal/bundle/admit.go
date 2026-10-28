@@ -18,6 +18,8 @@ import (
 	"github.com/StevenACoffman/skillet/identity"
 	"github.com/StevenACoffman/skillet/quotecheck"
 	"github.com/StevenACoffman/skillet/textnorm"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // admit consumes an agent's reply and writes the resulting document to quarantine.
@@ -46,7 +48,18 @@ func (c *Coordinator) admit(
 			return gnosis.Blocked(gnosis.ReasonNeedsHuman, err.Error(),
 				map[string]any{"key": cmd.Key}), nil
 		}
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
+	}
+
+	// A key belonging to another command is refused here rather than discovered
+	// downstream. `ParseReply` would reject a verdict or an answer for having no
+	// title, which is a true statement about the wrong thing: the reply is well formed
+	// and the command is not the one that takes it. A caller told "title is empty"
+	// would go and add a title.
+	if filedBy, elsewhere := admittedElsewhere(meta.Kind); elsewhere {
+		return gnosis.Blocked(gnosis.ReasonNeedsHuman,
+			"key "+cmd.Key+" is a "+string(meta.Kind)+" prompt; its reply is filed with "+
+				filedBy, map[string]any{"key": cmd.Key, "kind": string(meta.Kind)}), nil
 	}
 
 	reply, parseErr := relay.ParseReply([]byte(cmd.Reply))
@@ -91,6 +104,10 @@ func (c *Coordinator) applyReply(
 	case PromptSynthesize:
 		return c.synthesizeReply(op, w, cmd, reply, meta, k)
 	case PromptSource, PromptKindUnset:
+	case PromptCritic, PromptCriticPair, PromptAsk:
+		// Unreachable: admittedElsewhere refuses all three before the reply is parsed.
+		// Named rather than defaulted so the compiler keeps asking, which is the whole
+		// value of an exhaustive switch over a kind that grows.
 	}
 	if !cmd.Eff.Writes() {
 		return gnosis.OK(map[string]any{
@@ -250,11 +267,11 @@ func recordSupported(k *checked, quotes []string, sources []quotecheck.Source) {
 func (c *Coordinator) readConcept(op, rel string) (*okf.Document, string, error) {
 	raw, err := os.ReadFile(filepath.Join(c.Dir, filepath.FromSlash(rel)))
 	if err != nil {
-		return nil, "", &errs.Error{Op: op, Err: err}
+		return nil, "", toerr.WrapWithMessage(err, op)
 	}
 	doc, err := okf.Parse(raw)
 	if err != nil {
-		return nil, "", &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, "", errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return doc, identity.Hash(string(raw)), nil
 }
@@ -272,7 +289,7 @@ func (c *Coordinator) cacheReply(
 	if err := w.StoreCached(&CachedReply{
 		Key: cmd.Key, URI: meta.URI, Reply: cmd.Reply,
 	}); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	return nil
 }
@@ -290,7 +307,7 @@ func (c *Coordinator) checkReply(
 	for _, rel := range archives {
 		body, rErr := os.ReadFile(filepath.Join(c.Dir, filepath.FromSlash(rel)))
 		if rErr != nil {
-			return nil, &errs.Error{Op: op, Err: rErr}
+			return nil, toerr.WrapWithMessage(rErr, op)
 		}
 		sources = append(sources, quotecheck.Source{Name: rel, Text: string(body)})
 	}
@@ -368,13 +385,13 @@ func (c *Coordinator) quarantineReply(
 ) (gnosis.Outcome, error) {
 	id, err := gnosis.NewID()
 	if err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	rel := "c/" + id.String() + "-" + gnosis.SlugFrom(reply.Title).String() + ".md"
 
 	content := renderQuarantined(id, reply, k)
 	if _, err = w.Quarantine(rel, content); err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	c.record(w, &audit.Row{
 		At: c.now(), Op: audit.OpAdmit, Actor: string(cmd.Submitter),
@@ -421,4 +438,31 @@ func describe(i int, text string) string {
 		text = text[:width] + "…"
 	}
 	return "claim " + strconv.Itoa(i+1) + ": " + text
+}
+
+// admittedElsewhere reports whether a prompt kind's reply belongs to another command,
+// and names the command.
+//
+// Requires: nothing.
+// Ensures: the invocation that takes this kind of reply, or false when `admit` is the
+// right command for it. Pure.
+//
+// **A function rather than two comparisons at the call site**, because the list grew: a
+// second kind that `admit` does not take arrived a phase after the first, and the
+// pattern the first one set was a condition naming one constant. The next one changes
+// this function and nothing else.
+func admittedElsewhere(kind PromptKind) (filedBy string, elsewhere bool) {
+	switch kind {
+	case PromptCritic, PromptCriticPair:
+		return "`gnosis critic --response`, because a verdict is not a document", true
+	case PromptAsk:
+		return "`gnosis file`, which puts the answer through the promote gate", true
+	case PromptSource, PromptAccrete, PromptSynthesize, PromptKindUnset:
+		return "", false
+	default:
+		// An unknown kind is `admit`'s problem to report, and the switch above is
+		// where it gets reported — routing it away from here would send the caller to
+		// a command that does not know about it either.
+		return "", false
+	}
 }

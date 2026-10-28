@@ -1,6 +1,9 @@
 package bundle
 
-import "github.com/StevenACoffman/skillet/errs"
+import (
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
+)
 
 // corrupt reports that bytes on disk are not what they must be.
 //
@@ -24,8 +27,5 @@ import "github.com/StevenACoffman/skillet/errs"
 // ever needs to branch on corruption programmatically, that is the real need a
 // sixth code would answer, and TODO records it.
 func corrupt(op, what, detail string) error {
-	return &errs.Error{
-		Code:    errs.EINVALID,
-		Message: op + ": corruption in " + what + ": " + detail,
-	}
+	return errcode.New(gnosis.CodeInvalid, op+": corruption in "+what+": "+detail)
 }

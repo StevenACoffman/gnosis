@@ -7,12 +7,12 @@
 #   2. A value moved in the loosening direction is reported and MUST be recorded
 #      in log.md (SPEC §6.2).
 #
-# This file holds one value, which by the reasoning that moved
-# `rebuild_floor_fraction` out of archive.toml is one value too few to earn a
-# file — except that the alternative is worse. The seed does not belong in
-# archive.toml, which is about what enters tier 0, nor in promote.toml, which is
-# about what leaves quarantine. Sampling is neither, and filing it under either
-# would make every future reader ask why.
+# This file held one value for two phases, which by the reasoning that moved
+# `rebuild_floor_fraction` out of archive.toml is one value too few to earn a file —
+# except that the alternative was worse. The seed does not belong in archive.toml,
+# which is about what enters tier 0, nor in promote.toml, which is about what leaves
+# quarantine. Sampling is neither. `critic_default` joined it on 2026-09-02, which is
+# the second value and settles the question the comment was arguing.
 
 [seed]
 value = 20260822
@@ -32,4 +32,28 @@ that reason rather than for §6.2's.
 
 The digits are the date this value was first written down, so a reader can tell at a
 glance that nobody tuned it.
+"""
+
+[critic_default]
+value = 5
+rationale = """
+Five, and the number is not arbitrary: the median of a population lies between the
+smallest and the largest of any five random samples with 93.75% probability, because
+the sample misses the median only if all five fall on one side of it — five coin flips
+landing alike. That is enough to say something real about a corpus at the cost of five
+prompts (SPEC §10.5).
+
+It is the default for `gnosis critic` when `--sample` is omitted, and a corpus that
+wants a different depth should pass the flag rather than argue this number down; what
+the value is *for* is that the cheap answer is a defensible one.
+
+**The direction that loosens is down.** A smaller sample examines less of the corpus, so
+lowering it reduces what a critic reports — which is why the number is here rather than
+compiled into gnosis. A constant changed in a release would loosen every corpus at once
+with no §6.2 record, which is precisely the hole §6.2.2 names.
+
+The mathematics is recorded because it does not depend on this corpus. Nothing about
+five was measured here, and nothing needs to be: it is a property of medians and
+samples, and a later reader tempted to tune it should know they are trading probability
+for prompts rather than correcting a guess.
 """

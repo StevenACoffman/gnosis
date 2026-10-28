@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"path"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // FetchDir is where fetch records live, relative to the bundle root.
@@ -71,7 +73,7 @@ func (r *Record) Canonical() ([]byte, error) {
 	// record would be indistinguishable from an empty source.
 	b, err := json.Marshal(r)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return append(b, '\n'), nil
 }
@@ -139,13 +141,13 @@ func ParseRecord(data []byte) (Record, error) {
 
 	var rec Record
 	if err := json.Unmarshal(data, &rec); err != nil {
-		return Record{}, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return Record{}, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	if rec.URI == "" || rec.Disposition == DispositionUnset {
-		return Record{}, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": record has no uri or no disposition",
-		}
+		return Record{}, errcode.New(
+			gnosis.CodeInvalid,
+			op+": record has no uri or no disposition",
+		)
 	}
 	return rec, nil
 }

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // checkedFile records when this user last verified each source, inside stateDir
@@ -100,7 +100,7 @@ func LoadChecks(bundleDir string) (map[string]Check, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return map[string]Check{}, nil
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -120,7 +120,7 @@ func LoadChecks(bundleDir string) (map[string]Check, error) {
 		out[c.key()] = c
 	}
 	if sErr := scanner.Err(); sErr != nil {
-		return nil, &errs.Error{Op: op, Err: sErr}
+		return nil, toerr.WrapWithMessage(sErr, op)
 	}
 	return out, nil
 }
@@ -166,12 +166,12 @@ func (w *Writer) RecordChecks(at time.Time, sources []Check) error {
 	}
 	dir := filepath.Join(w.dir, stateDir)
 	if mkErr := os.MkdirAll(dir, 0o750); mkErr != nil {
-		return &errs.Error{Op: op, Err: mkErr}
+		return toerr.WrapWithMessage(mkErr, op)
 	}
 	// 0o600: this names what one user looked at and when, in a gitignored
 	// directory, so there is no group with a reason to read it.
 	if wErr := atomicfile.WriteFile(filepath.Join(dir, checkedFile), body, 0o600); wErr != nil {
-		return &errs.Error{Op: op, Err: wErr}
+		return toerr.WrapWithMessage(wErr, op)
 	}
 	return nil
 }
@@ -188,7 +188,7 @@ func renderChecks(op string, checks map[string]Check) ([]byte, error) {
 	for _, k := range keys {
 		line, err := json.Marshal(checks[k])
 		if err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out = append(out, line...)
 		out = append(out, '\n')

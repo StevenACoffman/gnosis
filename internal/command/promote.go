@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Promote moves a quarantined document into the authoritative corpus (§9.4).
@@ -91,8 +91,5 @@ func (p *Promote) Validate() error {
 	if len(bad) == 0 {
 		return nil
 	}
-	return &errs.Error{
-		Code:    errs.EINVALID,
-		Message: op + ": " + strings.Join(bad, "; "),
-	}
+	return errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "))
 }

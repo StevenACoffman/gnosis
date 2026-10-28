@@ -9,7 +9,8 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // stateDir holds everything derived and gitignored (SPEC §4).
@@ -50,11 +51,11 @@ func OpenIndex(ctx context.Context, bundleDir string) (*index.DB, error) {
 
 	dir := filepath.Join(bundleDir, stateDir)
 	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	db, err := index.Open(ctx, filepath.Join(dir, indexFile))
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return db, nil
 }
@@ -79,18 +80,18 @@ func LoadIndex(ctx context.Context, bundleDir string) (IndexState, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return IndexState{}, nil
 		}
-		return IndexState{}, &errs.Error{Op: op, Err: err}
+		return IndexState{}, toerr.WrapWithMessage(err, op)
 	}
 
 	db, err := index.Open(ctx, IndexPath(bundleDir))
 	if err != nil {
-		return IndexState{}, &errs.Error{Op: op, Err: err}
+		return IndexState{}, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = db.Close() }()
 
 	rows, err := db.Indexed(ctx)
 	if err != nil {
-		return IndexState{}, &errs.Error{Op: op, Err: err}
+		return IndexState{}, toerr.WrapWithMessage(err, op)
 	}
 	return IndexState{Rows: rows, Present: true}, nil
 }
@@ -118,16 +119,16 @@ func OpenIndexForRead(ctx context.Context, bundleDir string) (*index.DB, error) 
 	path := IndexPath(bundleDir)
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, &errs.Error{
-				Code:    errs.ENOTFOUND,
-				Message: op + ": no index at " + path + "; run `gnosis index rebuild`",
-			}
+			return nil, errcode.New(
+				gnosis.CodeNotFound,
+				op+": no index at "+path+"; run `gnosis index rebuild`",
+			)
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	db, err := index.Open(ctx, path)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return db, nil
 }

@@ -70,7 +70,7 @@ func markedLanguage(snap *Snapshot) []finding.Diagnostic {
 			Severity: finding.SeverityWarning,
 			Category: "language",
 			Path:     doc.Path,
-			Message: "carries " + noun(len(found), "marked phrase") + ": " +
+			Message: "carries " + Noun(len(found), "marked phrase") + ": " +
 				strings.Join(found, ", ") +
 				" — hedges are often right and the others rarely are;" +
 				" a comparison names what it is against, and an attribution names who." +

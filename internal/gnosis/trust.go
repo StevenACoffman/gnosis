@@ -40,6 +40,50 @@ func (t Tier) String() string {
 	}
 }
 
+// MarshalText renders the tier as a word in the machine envelope, so an agent
+// reading it sees the token OKF §5.3 names rather than an integer whose meaning
+// depends on the order of the constants above.
+//
+// It exists because the type was built in Step 2.12 with no consumer, and an
+// integer is what the envelope would have carried on the day one arrived — the
+// same defect as a value nobody reads, wearing its other face. `Freshness` and
+// `DriftState` carry this method for the same reason.
+func (t Tier) MarshalText() ([]byte, error) { return []byte(t.String()), nil }
+
+// Tiers lists the declared tiers weakest first, for a diagnostic that has to name them.
+//
+// Requires: nothing.
+// Ensures: a freshly built slice, so a caller cannot reorder the list another caller
+// will see. Pure.
+func Tiers() []string {
+	return []string{
+		TierUnverified.String(), TierMachineConfirmed.String(),
+		TierHumanReviewed.String(),
+	}
+}
+
+// ParseTier reads a tier by the token OKF §5.3 names it.
+//
+// Requires: nothing.
+// Ensures: the tier and true, or (TierUnverified, false) for anything the three do not
+// name. Pure.
+//
+// **Comma-ok rather than defaulting to unverified**, because the caller here is a flag:
+// a reader who typed `--trust reviewed` must be told the word is wrong rather than
+// handed every document in the corpus, which is what the weakest tier would admit.
+func ParseTier(s string) (Tier, bool) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case TierHumanReviewed.String():
+		return TierHumanReviewed, true
+	case TierMachineConfirmed.String():
+		return TierMachineConfirmed, true
+	case TierUnverified.String():
+		return TierUnverified, true
+	default:
+		return TierUnverified, false
+	}
+}
+
 // FoldTrust derives a concept's tier from the actors in its `verified` list.
 //
 // Requires: nothing. A nil or empty list is unverified, which is the state of every
@@ -116,4 +160,32 @@ func FoldTrust(verifiedBy []string) Tier {
 func IsHumanActor(by string) bool {
 	kind, id, found := strings.Cut(by, ":")
 	return found && id != "" && kind == KindHuman
+}
+
+// FoldTrustDocument derives a document's tier from the tiers of its claims.
+//
+// Requires: nothing. A document declaring no claims is TierUnverified, which is
+// what a page carrying no verification is — not an error and not a fourth state.
+// Ensures: the weakest tier among the claims. Pure, total.
+//
+// **The weakest, for the reason DocFreshness takes the oldest check.** A page is
+// only as reviewed as its least reviewed assertion, and reporting the strongest
+// would let one human-reviewed claim vouch for every unverified sentence beside
+// it. The two grains are both reported, so a reader who wants to know *which*
+// sentence is unverified is not left inferring it from a page-level word.
+//
+// It takes tiers rather than claims because the per-claim fold is FoldTrust's, and
+// a function taking claims here would have to know how a claim stores its actors —
+// which is exactly the frontmatter knowledge the domain must not carry.
+func FoldTrustDocument(claims []Tier) Tier {
+	if len(claims) == 0 {
+		return TierUnverified
+	}
+	weakest := TierHumanReviewed
+	for _, t := range claims {
+		if t < weakest {
+			weakest = t
+		}
+	}
+	return weakest
 }

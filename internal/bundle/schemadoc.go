@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/ontology"
 	"github.com/StevenACoffman/gnosis/internal/schema"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // SchemaFile is the agent-facing schema document (§5.7), at the bundle root and
@@ -93,7 +95,7 @@ func planMarked(op, bundleDir, name, sibling, preamble string, regions []schema.
 	existing, err := os.ReadFile(filepath.Join(bundleDir, filepath.FromSlash(name)))
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return MarkedDoc{}, &errs.Error{Op: op, Err: err}
+			return MarkedDoc{}, toerr.WrapWithMessage(err, op)
 		}
 		// No file at all is not the unmarked case: there is no prose to protect, and
 		// refusing would leave a corpus with no document and no way to get one.
@@ -141,7 +143,7 @@ func (w *Writer) WriteMarkedDoc(doc *MarkedDoc) error {
 	}
 	full := filepath.Join(w.dir, filepath.FromSlash(doc.Path))
 	if err := atomicfile.WriteFile(full, []byte(doc.Content), 0o640); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	return nil
 }
@@ -153,11 +155,11 @@ func declaredTypes(op, bundleDir string) ([]schema.TypeEntry, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	o, err := ontology.Load(raw)
 	if err != nil {
-		return nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	out := make([]schema.TypeEntry, 0, len(o.Types))
 	for i := range o.Types {

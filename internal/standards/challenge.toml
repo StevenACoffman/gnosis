@@ -1,0 +1,33 @@
+# The window after which an unanswered challenge is reported. See SPEC §10.7.3.
+#
+# The same two rules as standards/archive.toml govern edits here.
+#
+#   1. Every value carries a `rationale`, and the loader rejects one that does
+#      not. Say why the number is the number.
+#   2. A value moved in the loosening direction is reported and MUST be recorded
+#      in log.md (SPEC §6.2). Widening this window silences
+#      `unanswered-challenge` findings, so the direction that loosens is *up*.
+#
+# A file of its own for the reason sample.toml is: a challenge window belongs
+# neither in archive.toml, which is about what enters tier 0, nor in promote.toml,
+# which is about what leaves quarantine. Contesting an accepted claim is neither.
+
+[unanswered_days]
+value = 30
+rationale = """
+Thirty days, and the number is chosen for what it makes visible rather than from
+measurement — no corpus has yet carried a challenge, so there is nothing to
+calibrate against and this rationale says so rather than inventing a study.
+
+Two considerations bound it. §10.7.3 requires that silence be *visible and age*,
+because the complement of "challenges do not block" is that they cannot be ignored
+quietly — so the window must be short enough that a reader who files a challenge
+sees it surface while they still remember filing it. And an unanswered challenge is
+a warning rather than a gate, so a window that is too short costs a line in a lint
+run rather than a blocked build, which is the cheap direction to be wrong in.
+
+A month is also the shortest period over which "nobody has looked at this" is a
+fair thing to say about a colleague. Revisit once a corpus has carried enough
+challenges for the distribution of time-to-resolution to mean anything, and record
+that distribution here when it does.
+"""

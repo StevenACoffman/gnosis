@@ -10,6 +10,7 @@ import (
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/schema"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // link makes AGENTS.md canonical and points each agent's filename at it.
@@ -100,7 +101,7 @@ func (c *Config) report(result *Result) error {
 		}
 	}
 	if acted {
-		return root.ExitError(root.CodeFindings)
+		return toerr.Wrap(root.ExitError(root.CodeFindings))
 	}
 	return nil
 }
@@ -162,5 +163,5 @@ func (c *Config) emitEnvelope(result *Result) error {
 	if err := c.EmitFindings(root.ReasonNeedsHuman, strings.Join(owed, "; "), result); err != nil {
 		return fmt.Errorf("schema: %w", err)
 	}
-	return root.ExitError(root.CodeFindings)
+	return toerr.Wrap(root.ExitError(root.CodeFindings))
 }

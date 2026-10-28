@@ -63,8 +63,9 @@ func someClaimOffersEvidence(snap *Snapshot) (bool, string) {
 		return false, "standards/strength.toml declares no claim-strength markers"
 	}
 	for i := range snap.Documents {
-		for _, claim := range snap.Documents[i].Claims {
-			if len(claim.Quotes) > 0 {
+		claims := snap.Documents[i].Claims
+		for j := range claims {
+			if len(claims[j].Quotes) > 0 {
 				return true, ""
 			}
 		}
@@ -128,7 +129,7 @@ func overAsserted(
 		Category: "coverage",
 		Path:     doc.Path,
 		Message: "claim " + claim.ID + " asserts " + strconv.Quote(marker) + " on " +
-			noun(len(claim.Quotes), "quotation") + stakes(normative) +
+			Noun(len(claim.Quotes), "quotation") + stakes(normative) +
 			"; weaken the wording, or add evidence for the scope it claims —" +
 			" a claim that is genuinely universal and hard to source is worth saying" +
 			" more carefully rather than less",
@@ -196,8 +197,9 @@ func someClaimQuotesUnderDeclaredRegisters(snap *Snapshot) (bool, string) {
 		return false, "standards/registers.toml declares no causal registers"
 	}
 	for i := range snap.Documents {
-		for _, claim := range snap.Documents[i].Claims {
-			if len(claim.Quotes) > 0 {
+		claims := snap.Documents[i].Claims
+		for j := range claims {
+			if len(claims[j].Quotes) > 0 {
 				return true, ""
 			}
 		}

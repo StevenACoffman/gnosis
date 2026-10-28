@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // DocFreshness is one document's freshness, as a reader should see it.
@@ -102,23 +103,9 @@ type ClaimFreshness struct {
 // the function whose boundary cases — a document expiring today, one expiring
 // tomorrow — are the ones worth pinning.
 func FreshnessFor(bundleDir, rel string, now time.Time) (DocFreshness, error) {
-	const op = "bundle.FreshnessFor"
-
-	docs, err := Load(os.DirFS(bundleDir))
+	doc, err := documentAt(bundleDir, rel)
 	if err != nil {
-		return DocFreshness{}, &errs.Error{Op: op, Err: err}
-	}
-	var doc *Document
-	for i := range docs {
-		if docs[i].Path == rel {
-			doc = &docs[i]
-			break
-		}
-	}
-	if doc == nil {
-		return DocFreshness{}, &errs.Error{
-			Code: errs.ENOTFOUND, Message: op + ": no document at " + rel,
-		}
+		return DocFreshness{}, err
 	}
 
 	checks, uris, err := archiveIndex(bundleDir)
@@ -126,6 +113,38 @@ func FreshnessFor(bundleDir, rel string, now time.Time) (DocFreshness, error) {
 		return DocFreshness{}, err
 	}
 	return describeFreshness(now, doc, checks, uris), nil
+}
+
+// documentAt reads the one document a read-path command was asked about.
+//
+// Requires: bundleDir is a bundle root; rel is a bundle-relative document path.
+// Ensures: ENOTFOUND when no document in the bundle carries that path, so a caller
+// never receives a nil document and a nil error. The returned pointer is into a
+// freshly loaded slice, so a caller may not assume it survives another load.
+//
+// Shared by every per-document read signal — freshness and trust so far — because
+// the knowledge it holds is one decision: which file the reference names, and that a
+// path the corpus does not hold is ENOTFOUND rather than an empty answer. Two copies
+// of that would be two places for the second one to disagree.
+//
+// **It walks the whole bundle to find one document**, which is what Load does, and
+// two signals on one command therefore walk it twice. Left as is deliberately: the
+// walk is the shell's cheapest I/O, `show` already opens the index beside it, and a
+// combined reader is the right change at the third signal rather than the second —
+// measured then, not guessed at now.
+func documentAt(bundleDir, rel string) (*Document, error) {
+	const op = "bundle.documentAt"
+
+	docs, err := Load(os.DirFS(bundleDir))
+	if err != nil {
+		return nil, toerr.WrapWithMessage(err, op)
+	}
+	for i := range docs {
+		if docs[i].Path == rel {
+			return &docs[i], nil
+		}
+	}
+	return nil, errcode.New(gnosis.CodeNotFound, op+": no document at "+rel)
 }
 
 // describeFreshness is the pure half: everything above it is I/O.

@@ -5,7 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // checkRationales reports every Value in cfg whose rationale is missing or blank.
@@ -26,10 +27,10 @@ func checkRationales(op string, cfg any) error {
 		return nil
 	}
 	sort.Strings(missing)
-	return &errs.Error{
-		Code:    errs.EINVALID,
-		Message: op + ": value(s) with no rationale: " + strings.Join(missing, ", "),
-	}
+	return errcode.New(
+		gnosis.CodeInvalid,
+		op+": value(s) with no rationale: "+strings.Join(missing, ", "),
+	)
 }
 
 // walk descends v, appending the dotted path of every Value lacking a rationale.

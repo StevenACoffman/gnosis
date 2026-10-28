@@ -153,4 +153,8 @@ func TestARewriteWithNoTitleIsRefusedBeforeTheGate(t *testing.T) {
 	if !strings.Contains(err.Error(), "title") {
 		t.Errorf("the refusal does not say what is missing: %v", err)
 	}
+	// The operation once: the leaf used to carry it in both Op and Message.
+	if n := strings.Count(err.Error(), "bundle.Synthesize"); n != 1 {
+		t.Errorf("the refusal names bundle.Synthesize %d times, want once: %v", n, err)
+	}
 }

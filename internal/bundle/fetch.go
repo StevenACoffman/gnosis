@@ -11,7 +11,9 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // maxFetch bounds what a single fetch will read into memory.
@@ -92,10 +94,7 @@ func (f *Fetcher) Fetch(ctx context.Context, uri string) ([]archive.Candidate, e
 		}
 		return []archive.Candidate{c}, nil
 	default:
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": no adapter for " + uri,
-		}
+		return nil, errcode.New(gnosis.CodeInvalid, op+": no adapter for "+uri)
 	}
 }
 
@@ -130,7 +129,7 @@ func fetchFile(uri, path string) (archive.Candidate, error) {
 
 	data, err := os.ReadFile(strings.TrimPrefix(path, "file://"))
 	if err != nil {
-		return archive.Candidate{}, &errs.Error{Op: op, Err: err}
+		return archive.Candidate{}, toerr.WrapWithMessage(err, op)
 	}
 	return archive.Candidate{
 		URI:       uri,
@@ -169,10 +168,10 @@ func fetchDir(dir string) ([]archive.Candidate, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if len(out) == 0 {
-		return nil, &errs.Error{Code: errs.EINVALID, Message: op + ": no files under " + dir}
+		return nil, errcode.New(gnosis.CodeInvalid, op+": no files under "+dir)
 	}
 	return out, nil
 }
@@ -193,7 +192,11 @@ func (f *Fetcher) fetchURL(ctx context.Context, uri string) (archive.Candidate, 
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, http.NoBody)
 	if err != nil {
-		return archive.Candidate{}, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return archive.Candidate{}, errcode.Link(
+			gnosis.CodeInvalid,
+			"",
+			toerr.WrapWithMessage(err, op),
+		)
 	}
 	client := f.HTTP
 	if client == nil {
@@ -201,25 +204,21 @@ func (f *Fetcher) fetchURL(ctx context.Context, uri string) (archive.Candidate, 
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return archive.Candidate{}, &errs.Error{Op: op, Err: err}
+		return archive.Candidate{}, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return archive.Candidate{}, &errs.Error{
-			Op:      op,
-			Message: op + ": " + uri + ": " + resp.Status,
-		}
+		return archive.Candidate{}, toerr.New(op + ": " + uri + ": " + resp.Status)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxFetch+1))
 	if err != nil {
-		return archive.Candidate{}, &errs.Error{Op: op, Err: err}
+		return archive.Candidate{}, toerr.WrapWithMessage(err, op)
 	}
 	if len(data) > maxFetch {
-		return archive.Candidate{}, &errs.Error{
-			Op:      op,
-			Message: op + ": " + uri + ": response exceeds the fetch limit",
-		}
+		return archive.Candidate{}, toerr.New(
+			op + ": " + uri + ": response exceeds the fetch limit",
+		)
 	}
 	return archive.Candidate{
 		URI:       uri,

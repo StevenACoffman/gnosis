@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // retrievedFile records which claims this user's searches have returned, inside stateDir
@@ -62,7 +62,7 @@ func LoadRetrievals(bundleDir string) (map[string]Retrieval, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return map[string]Retrieval{}, nil
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -82,7 +82,7 @@ func LoadRetrievals(bundleDir string) (map[string]Retrieval, error) {
 		out[r.ClaimID] = r
 	}
 	if sErr := scanner.Err(); sErr != nil {
-		return nil, &errs.Error{Op: op, Err: sErr}
+		return nil, toerr.WrapWithMessage(sErr, op)
 	}
 	return out, nil
 }
@@ -135,14 +135,14 @@ func RecordRetrievals(bundleDir string, at time.Time, claimIDs []string) error {
 	}
 	dir := filepath.Join(bundleDir, stateDir)
 	if mkErr := os.MkdirAll(dir, 0o750); mkErr != nil {
-		return &errs.Error{Op: op, Err: mkErr}
+		return toerr.WrapWithMessage(mkErr, op)
 	}
 	// 0o600 for `checked.jsonl`'s reason: this names what one person searched for and
 	// when, in a gitignored directory, so no group has cause to read it.
 	if wErr := atomicfile.WriteFile(
 		filepath.Join(dir, retrievedFile), body, 0o600,
 	); wErr != nil {
-		return &errs.Error{Op: op, Err: wErr}
+		return toerr.WrapWithMessage(wErr, op)
 	}
 	return nil
 }
@@ -159,7 +159,7 @@ func renderRetrievals(op string, rows map[string]Retrieval) ([]byte, error) {
 	for _, k := range keys {
 		line, err := json.Marshal(rows[k])
 		if err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out = append(out, line...)
 		out = append(out, '\n')

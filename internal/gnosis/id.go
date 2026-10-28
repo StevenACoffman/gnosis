@@ -10,7 +10,9 @@
 // kernel exists to prevent.
 package gnosis
 
-import "github.com/StevenACoffman/skillet/errs"
+import (
+	"github.com/StevenACoffman/toerr/errors/errcode"
+)
 
 // idLen is the length of a canonical UUID in 8-4-4-4-12 hyphenated form.
 const idLen = 36
@@ -36,34 +38,28 @@ type ID string
 func ParseID(s string) (ID, error) {
 	const op = "gnosis.ParseID"
 	if len(s) != idLen {
-		return "", &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": identifier must be a 36-character hyphenated UUID",
-		}
+		return "", errcode.New(
+			CodeInvalid,
+			op+": identifier must be a 36-character hyphenated UUID",
+		)
 	}
 	// Position 14 is the version nibble in 8-4-4-4-12 layout: the first
 	// character of the third group.
 	if s[14] != uuidVersion7 {
-		return "", &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": identifier must be UUID version 7",
-		}
+		return "", errcode.New(CodeInvalid, op+": identifier must be UUID version 7")
 	}
 	for i, r := range s {
 		if i == 8 || i == 13 || i == 18 || i == 23 {
 			if r != '-' {
-				return "", &errs.Error{
-					Code:    errs.EINVALID,
-					Message: op + ": hyphen expected in UUID layout",
-				}
+				return "", errcode.New(CodeInvalid, op+": hyphen expected in UUID layout")
 			}
 			continue
 		}
 		if !isLowerHex(r) {
-			return "", &errs.Error{
-				Code:    errs.EINVALID,
-				Message: op + ": identifier must be lowercase hexadecimal",
-			}
+			return "", errcode.New(
+				CodeInvalid,
+				op+": identifier must be lowercase hexadecimal",
+			)
 		}
 	}
 	return ID(s), nil

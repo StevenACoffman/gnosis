@@ -7,7 +7,7 @@ import (
 
 	"github.com/StevenACoffman/gnosis/internal/okflog"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // LogFile is the corpus history: at the bundle root, and committed.
@@ -47,7 +47,7 @@ func (w *Writer) Log(at time.Time, notes ...string) error {
 	full := filepath.Join(w.dir, LogFile)
 	src, err := os.ReadFile(full)
 	if err != nil && !os.IsNotExist(err) {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	day := at.Format(time.DateOnly)
 	updated := string(src)
@@ -55,7 +55,7 @@ func (w *Writer) Log(at time.Time, notes ...string) error {
 		updated = okflog.Add(updated, day, note)
 	}
 	if wErr := atomicfile.WriteFile(full, []byte(updated), 0o640); wErr != nil {
-		return &errs.Error{Op: op, Err: wErr}
+		return toerr.WrapWithMessage(wErr, op)
 	}
 	return nil
 }

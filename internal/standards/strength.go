@@ -6,7 +6,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // StrengthFileName is where a corpus may override the claim-strength markers.
@@ -64,29 +66,29 @@ func LoadStrengths(src []byte) (*Strengths, error) {
 	var out Strengths
 	md, err := toml.Decode(string(src), &out)
 	if err != nil {
-		return nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": unknown key " + undecoded[0].String(),
-		}
+		return nil, errcode.New(
+			gnosis.CodeInvalid,
+			op+": unknown key "+undecoded[0].String(),
+		)
 	}
 	for i := range out.Marker {
 		row := &out.Marker[i]
 		row.Word = strings.ToLower(strings.TrimSpace(row.Word))
 		if row.Word == "" {
-			return nil, &errs.Error{
-				Code: errs.EINVALID, Op: op,
-				Message: op + ": a marker row carries no word",
-			}
+			return nil, errcode.New(
+				gnosis.CodeInvalid,
+				op+": a marker row carries no word",
+			)
 		}
 		if row.Role != StrengthUniversal && row.Role != StrengthHedged {
-			return nil, &errs.Error{
-				Code: errs.EINVALID, Op: op,
-				Message: op + ": marker " + row.Word + " has role " + string(row.Role) +
+			return nil, errcode.New(
+				gnosis.CodeInvalid,
+				op+": marker "+row.Word+" has role "+string(row.Role)+
 					"; want universal or hedged",
-			}
+			)
 		}
 	}
 	return &out, nil

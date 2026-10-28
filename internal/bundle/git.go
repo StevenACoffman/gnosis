@@ -9,7 +9,7 @@ import (
 	git "github.com/go-git/go-git/v6"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // fetchGit clones a repository and walks it as a directory.
@@ -29,7 +29,7 @@ func (f *Fetcher) fetchGit(ctx context.Context, uri string) ([]archive.Candidate
 
 	dir, err := os.MkdirTemp(f.Root, "gnosis-clone-")
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	// Removed even on the error paths: a failed clone leaves a partial tree, and
 	// the next fetch would find the directory non-empty and fail differently.
@@ -42,7 +42,7 @@ func (f *Fetcher) fetchGit(ctx context.Context, uri string) ([]archive.Candidate
 		Tags:         git.NoTags,
 	})
 	if err != nil {
-		return nil, &errs.Error{Op: op, Message: op + ": clone " + uri, Err: err}
+		return nil, toerr.WrapWithMessage(err, op+": clone "+uri)
 	}
 
 	candidates, err := fetchDir(dir)

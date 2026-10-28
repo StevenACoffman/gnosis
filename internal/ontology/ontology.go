@@ -18,7 +18,8 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Type is a declared kind of concept.
@@ -42,7 +43,28 @@ type Subject struct {
 	Aliases            []string          `toml:"aliases"`
 	Rejected           []Rejection       `toml:"rejected"`
 	RequiresCapability bool              `toml:"requires_capability"`
-	Deprecated         *Deprecation      `toml:"deprecated"`
+
+	// Owner is who is accountable for this subject area, or empty (§10.6.2.1).
+	//
+	// **Accountability, never authority.** §10.6.2.1 refuses a `role` on the warrant
+	// for three reasons and settles ownership here instead: "a platform engineer
+	// adjudicating a documentation claim does not make it a platform rule", so
+	// accountability attaches to the subject matter rather than to whoever happened to
+	// be in the review queue.
+	//
+	// **Nothing may gate on it, and the structure is what guarantees that** rather
+	// than a comment. The ontology is in neither `gate.Candidate` nor `gate.Corpus`,
+	// so a gate reading this would have to visibly widen its inputs — a change a
+	// reviewer has to argue for. §14.1's rule that a signal is never a permission is
+	// worth an enforcement mechanism, not a promise.
+	//
+	// One cost, accepted rather than mitigated: ownership does not survive a
+	// reorganisation, so past decisions read as owned by the new team. §10.6.2.1 calls
+	// that the right trade, because ownership is a *current* question — who do I ask
+	// about this now — and `log.md` is where the change itself belongs.
+	Owner string `toml:"owner"`
+
+	Deprecated *Deprecation `toml:"deprecated"`
 }
 
 // Rejection is a surface phrase that was proposed as an alias and declined.
@@ -102,10 +124,7 @@ func Load(src []byte) (*Ontology, error) {
 	var f file
 	md, err := toml.Decode(string(src), &f)
 	if err != nil {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + err.Error(),
-		}
+		return nil, errcode.New(gnosis.CodeInvalid, op+": "+err.Error())
 	}
 	// A key the decoder did not consume is almost always a typo, and silently
 	// ignoring it would leave a flag the author believes is set.
@@ -115,10 +134,10 @@ func Load(src []byte) (*Ontology, error) {
 			keys = append(keys, k.String())
 		}
 		sort.Strings(keys)
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": unrecognised key(s): " + strings.Join(keys, ", "),
-		}
+		return nil, errcode.New(
+			gnosis.CodeInvalid,
+			op+": unrecognised key(s): "+strings.Join(keys, ", "),
+		)
 	}
 
 	o := &Ontology{
@@ -184,7 +203,7 @@ func (o *Ontology) indexTypes(op string) error {
 	seen := map[gnosis.TypeKey]bool{}
 	for _, t := range o.Types {
 		if _, err := gnosis.ParseTypeKey(t.Key.String()); err != nil {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 		if seen[t.Key] {
 			return dup(op, "type", t.Key.String())
@@ -207,20 +226,23 @@ func (o *Ontology) indexTypes(op string) error {
 // unknown dimensions.
 func (o *Ontology) indexSubjects(op string) error {
 	seen := map[gnosis.SubjectKey]bool{}
-	for _, sub := range o.Subjects {
+	// Indexed rather than ranged by value: the declaration grew past the size where
+	// copying it per subject is free, and nothing here mutates it.
+	for i := range o.Subjects {
+		sub := &o.Subjects[i]
 		if _, err := gnosis.ParseSubjectKey(sub.Key.String()); err != nil {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 		if seen[sub.Key] {
 			return dup(op, "subject", sub.Key.String())
 		}
 		seen[sub.Key] = true
 		if !sub.Dimension.valid() {
-			return &errs.Error{
-				Code: errs.EINVALID,
-				Message: fmt.Sprintf("%s: subject %q has unknown dimension %q",
+			return errcode.New(
+				gnosis.CodeInvalid,
+				fmt.Sprintf("%s: subject %q has unknown dimension %q",
 					op, sub.Key, sub.Dimension),
-			}
+			)
 		}
 		if err := checkRejections(op, "subject", sub.Key.String(),
 			sub.Aliases, sub.Rejected); err != nil {
@@ -248,15 +270,12 @@ func (o *Ontology) indexSubjects(op string) error {
 // exactly where it was, minus a surface term somebody was using.
 func claim[K ~string](index map[string]K, folded string, key K, op, kind string) error {
 	if prior, taken := index[folded]; taken && prior != key {
-		return &errs.Error{
-			Code: errs.EINVALID,
-			Message: fmt.Sprintf(
-				"%s: %s alias %q is claimed by both %q and %q; "+
-					"if they mean the same thing, merge them into one %s with both "+
-					"as aliases, and if they mean different things, give each a "+
-					"distinct key (%s.%s, %s.%s) and leave %q claimed by neither",
-				op, kind, folded, prior, key, kind, prior, folded, key, folded, folded),
-		}
+		return errcode.New(gnosis.CodeInvalid, fmt.Sprintf(
+			"%s: %s alias %q is claimed by both %q and %q; "+
+				"if they mean the same thing, merge them into one %s with both "+
+				"as aliases, and if they mean different things, give each a "+
+				"distinct key (%s.%s, %s.%s) and leave %q claimed by neither",
+			op, kind, folded, prior, key, kind, prior, folded, key, folded, folded))
 	}
 	index[folded] = key
 	return nil
@@ -264,8 +283,8 @@ func claim[K ~string](index map[string]K, folded string, key K, op, kind string)
 
 // dup reports a repeated key.
 func dup(op, kind, key string) error {
-	return &errs.Error{
-		Code:    errs.EINVALID,
-		Message: fmt.Sprintf("%s: %s %q is declared more than once", op, kind, key),
-	}
+	return errcode.New(
+		gnosis.CodeInvalid,
+		fmt.Sprintf("%s: %s %q is declared more than once", op, kind, key),
+	)
 }

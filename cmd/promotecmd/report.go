@@ -7,6 +7,7 @@ import (
 	"github.com/StevenACoffman/gnosis/cmd/root"
 	"github.com/StevenACoffman/gnosis/internal/gate"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // report renders the outcome and returns the matching exit status.
@@ -31,7 +32,7 @@ func exitFor(outcome gnosis.Outcome) error {
 	if outcome.Code == root.CodeOK {
 		return nil
 	}
-	return root.ExitError(outcome.Code)
+	return toerr.Wrap(root.ExitError(outcome.Code))
 }
 
 // writePromoted reports a successful promotion, naming the debt when there is

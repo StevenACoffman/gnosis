@@ -7,8 +7,9 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/okf"
 	"github.com/StevenACoffman/gnosis/internal/relay"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/textnorm"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // quoteSet is a claim's evidence after a merge.
@@ -96,17 +97,17 @@ func Accrete(existing *okf.Document, id gnosis.ID, reply *relay.Reply) (*Accrete
 
 	rendered, err := okf.Parse(content)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	if rendered.Body != existing.Body {
 		// The invariant, checked rather than asserted. Reaching this means the
 		// rendering changed a body while claiming only to add evidence, and writing
 		// it would be a silent rewrite.
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": accretion would change the document body, which is " +
+		return nil, errcode.New(
+			gnosis.CodeInvalid,
+			op+": accretion would change the document body, which is "+
 				"synthesis rather than accretion (§6.3); nothing was written",
-		}
+		)
 	}
 	out.Content = content
 	return out, nil

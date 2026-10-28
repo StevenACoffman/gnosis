@@ -103,3 +103,30 @@ func VerificationRows(docs []Document) []index.VerificationRow {
 	}
 	return out
 }
+
+// ClaimSourceRows projects each claim's archived evidence for §6.2's first rule.
+//
+// Requires: docs came from Load.
+// Ensures: one row per (claim, archive path) in corpus order, so two rebuilds over one
+// corpus write the same rows in the same order. Pure — it reads no file and mutates
+// nothing it was handed.
+//
+// **A claim citing one path twice yields two rows**, and the projection does not collapse
+// them. A document naming its evidence twice is the corpus's business — `evidence` and
+// the promote gate are what report it — and a projection that quietly deduplicated would
+// make the index disagree with the file it derives from, which is the one property §4.5
+// asks of every table here.
+func ClaimSourceRows(docs []Document) []index.ClaimSourceRow {
+	out := make([]index.ClaimSourceRow, 0)
+	for i := range docs {
+		claims := docs[i].Claims
+		for j := range claims {
+			for _, path := range claims[j].ArchivePaths {
+				out = append(out, index.ClaimSourceRow{
+					ClaimID: claims[j].ID, ArchivePath: path,
+				})
+			}
+		}
+	}
+	return out
+}

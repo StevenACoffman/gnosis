@@ -90,3 +90,11 @@ expects_subject = false
 #   dimension = "duration"
 #   desc = "wall-clock limit on a single outbound request"
 #   aliases = ["request deadline", "per-request timeout"]
+#   owner = "team:platform"
+#
+# `owner` is optional and says who is accountable for the area (SPEC §10.6.2.1). It is
+# shown in the review queue beside the domain history, so a reader deciding whether to
+# defer sees both who has adjudicated here before and who to ask. It grants nothing:
+# nothing gates on it, and §10.6.2.1 records why a role on the warrant was refused
+# instead — a platform engineer adjudicating a docs claim does not make it a platform
+# rule.

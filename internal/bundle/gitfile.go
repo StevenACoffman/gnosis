@@ -8,7 +8,9 @@ import (
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // FileAtRef reads one bundle-relative file as it stood at a git revision.
@@ -32,10 +34,10 @@ func FileAtRef(bundleDir, ref, rel string) ([]byte, error) {
 	repo, err := git.PlainOpenWithOptions(bundleDir,
 		&git.PlainOpenOptions{DetectDotGit: true})
 	if err != nil {
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + bundleDir + " is not inside a git worktree",
-		}
+		return nil, errcode.New(
+			gnosis.CodeInvalid,
+			op+": "+bundleDir+" is not inside a git worktree",
+		)
 	}
 	hash, err := repo.ResolveRevision(plumbing.Revision(ref))
 	if err != nil {
@@ -45,14 +47,11 @@ func FileAtRef(bundleDir, ref, rel string) ([]byte, error) {
 		// not resolve is a typo in an argument, and treating it as the same code
 		// made `--since no-such-ref` compare silently against the seed and report
 		// nothing — which the test caught.
-		return nil, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": no such revision: " + ref,
-		}
+		return nil, errcode.New(gnosis.CodeInvalid, op+": no such revision: "+ref)
 	}
 	commit, err := repo.CommitObject(*hash)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return fileFromCommit(op, commit, ref, rel)
 }
@@ -62,22 +61,22 @@ func fileFromCommit(op string, commit *object.Commit, ref, rel string) ([]byte, 
 	f, err := commit.File(rel)
 	if err != nil {
 		if errors.Is(err, object.ErrFileNotFound) {
-			return nil, &errs.Error{
-				Code:    errs.ENOTFOUND,
-				Message: op + ": " + rel + " was not in the tree at " + ref,
-			}
+			return nil, errcode.New(
+				gnosis.CodeNotFound,
+				op+": "+rel+" was not in the tree at "+ref,
+			)
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	reader, err := f.Reader()
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = reader.Close() }()
 
 	body, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return body, nil
 }

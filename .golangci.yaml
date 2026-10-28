@@ -289,6 +289,17 @@ linters:
         # preserved) plus a message and trace frame — a genuine wrap, so wrapcheck
         # should treat it like the built-in .Wrap(/.WithMessage( it already allows.
         - .WrapWithMessage(
+        # toerr's coded wrap: carries a status *and* the cause, whose Unwrap chain it
+        # preserves — so `errors.Is`/`As` reach through it exactly as they reach
+        # through .WrapWithMessage(. Registered for the same reason and not to quieten
+        # anything. It replaces the deprecated .WithCode(, which gnosis no longer
+        # calls.
+        - .Link(
+        # toerr's coded leaf: a new error, as errors.New is, which the default list
+        # exempts. The default entry is "errors.New(" and errcode's signature reads
+        # "errors/errcode.New(", so the leaf needs its own entry; the leaves passed
+        # before only because they were spelled .WithCode(code, message, nil).
+        - errcode.New(
 
     # ── depguard ─────────────────────────────────────────────────────────────
     # spec.md: climax uses its own command pattern; no third-party CLI frameworks.
@@ -366,6 +377,7 @@ linters:
             - "**/internal/okflog/**"
             - "**/internal/scan/**"
             - "**/internal/lint/**"
+            - "**/internal/mine/**"
             - "**/internal/web/**"
           deny:
             - pkg: "github.com/StevenACoffman/gnosis/internal/okf"
@@ -390,6 +402,8 @@ linters:
               desc: "adapters import internal/gnosis only, never each other; archive.Gates carries the scanner the shell supplies — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/lint"
               desc: "adapters import internal/gnosis only, never each other — PLAN.md §0.1"
+            - pkg: "github.com/StevenACoffman/gnosis/internal/mine"
+              desc: "adapters import internal/gnosis only, never each other; the shell hands a mine.Session over — PLAN.md §0.1"
             - pkg: "github.com/StevenACoffman/gnosis/internal/bundle"
               desc: "internal/bundle is the shell above these; it imports them, never the reverse — PLAN.md §0.1"
 

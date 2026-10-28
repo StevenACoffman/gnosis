@@ -8,7 +8,7 @@ import (
 	"hash"
 	"sort"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // digestedTable is one table Digest covers, and the query that reads it.
@@ -73,6 +73,14 @@ func digestedTables() []digestedTable {
 				disposition, archive_path, extractor, extractor_version,
 				extracted_from, reject_reason
 				FROM sources_fetched ORDER BY record_sha256`,
+		},
+		{
+			name: "claim_sources",
+			// Ordered by both columns because the table has no key: a claim citing
+			// one archive path twice is a document that named it twice, which is
+			// the corpus's business rather than the projection's to collapse.
+			query: `SELECT claim_id, archive_path FROM claim_sources
+				ORDER BY claim_id, archive_path`,
 		},
 		{
 			name: "verifications",
@@ -174,7 +182,7 @@ func (db *DB) digestTable(
 ) error {
 	rows, err := db.sql.QueryContext(ctx, table.query)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -182,7 +190,7 @@ func (db *DB) digestTable(
 
 	columns, err := rows.Columns()
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	cells := make([]any, len(columns))
 	scan := make([]any, len(columns))
@@ -192,12 +200,12 @@ func (db *DB) digestTable(
 	line := make([]byte, 0, 256)
 	for rows.Next() {
 		if err = rows.Scan(scan...); err != nil {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 		_, _ = sum.Write(appendRow(line[:0], cells))
 	}
 	if err = rows.Err(); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	return nil
 }

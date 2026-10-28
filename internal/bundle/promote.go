@@ -16,6 +16,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/atomicfile"
 	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // promote runs the gate over a quarantined document and, on approval, writes it.
@@ -40,7 +41,7 @@ func (c *Coordinator) promote(
 			return gnosis.Blocked(gnosis.ReasonNeedsHuman,
 				"nothing is quarantined at "+cmd.Path, nil), nil
 		}
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	before, err := readIfPresent(op, filepath.Join(c.Dir, filepath.FromSlash(cmd.Path)))
 	if err != nil {
@@ -52,7 +53,7 @@ func (c *Coordinator) promote(
 	// 4 existed.
 	corpus, limits, err := c.gateInputs()
 	if err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	candidate := c.candidate(cmd.Path, before, after, limits)
 
@@ -206,15 +207,15 @@ func (c *Coordinator) apply(
 ) (gnosis.Outcome, error) {
 	full := filepath.Join(c.Dir, filepath.FromSlash(cmd.Path))
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	// candidate.After, not a re-read of the quarantine file: these are the exact
 	// bytes the gate approved.
 	if err := atomicfile.WriteFile(full, candidate.After, 0o640); err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	if err := w.Discard(cmd.Path); err != nil {
-		return gnosis.Outcome{}, &errs.Error{Op: op, Err: err}
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
 	}
 	detail := "promoted from quarantine"
 	if len(carried) > 0 {
@@ -339,7 +340,7 @@ func readIfPresent(op, full string) ([]byte, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return data, nil
 }

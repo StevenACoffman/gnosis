@@ -29,7 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // The operations a row can record.
@@ -38,13 +40,22 @@ import (
 // not read as a record of something — an audit trail whose empty rows look like
 // events is worse than none, because it invites counting them.
 const (
-	OpUnset   Op = ""
-	OpFetch   Op = "fetch"   // a source entered tier 0
-	OpAdmit   Op = "admit"   // a reply became a quarantined document
-	OpPromote Op = "promote" // a document entered the corpus
-	OpInit    Op = "init"    // a bundle was scaffolded
-	OpRebuild Op = "rebuild" // the derived index was rewritten
-	OpDiscard Op = "discard" // a quarantined draft was dropped
+	OpUnset      Op = ""
+	OpFetch      Op = "fetch"      // a source entered tier 0
+	OpAdmit      Op = "admit"      // a reply became a quarantined document
+	OpPromote    Op = "promote"    // a document entered the corpus
+	OpInit       Op = "init"       // a bundle was scaffolded
+	OpRebuild    Op = "rebuild"    // the derived index was rewritten
+	OpDiscard    Op = "discard"    // a quarantined draft was dropped
+	OpChallenge  Op = "challenge"  // a reader contested an accepted claim
+	OpAdjudicate Op = "adjudicate" // a person decided a claim and wrote its warrant
+	OpSupersede  Op = "supersede"  // one claim replaced another, and the loser was kept
+
+	// OpDefer records that a person saw a contradiction and is not acting yet
+	// (§17.0). Its own op rather than a variant of adjudicate: an adjudication
+	// resolves a conflict and a deferral resolves nothing, and a trail that
+	// conflated them could not answer what a corpus has decided to live with.
+	OpDefer Op = "defer"
 )
 
 // Op names what happened.
@@ -155,7 +166,7 @@ func (r *Row) Canonical() ([]byte, error) {
 	}
 	b, err := json.Marshal(r)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return append(b, '\n'), nil
 }
@@ -186,5 +197,5 @@ func (r *Row) Validate() error {
 	if len(bad) == 0 {
 		return nil
 	}
-	return &errs.Error{Code: errs.EINVALID, Message: op + ": " + strings.Join(bad, "; ")}
+	return errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "))
 }

@@ -109,11 +109,40 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 		Into:      c.Into,
 		Kind:      bundle.PromptAccrete,
 		CacheOnly: c.CacheOnly,
+		Warn:      c.Stderr,
 	})
 	if err != nil {
 		return c.fail(root.ReasonFetchFailed, err)
 	}
-	return c.report(pending)
+	return c.report(pending, c.selection(ctx, args))
+}
+
+// selection is §6.2's candidate set, or nil when the caller already named a concept.
+//
+// **Only when `--into` is absent**, because that flag is the operator having already
+// answered the question this asks — and §6.2 exists to make asking them unnecessary
+// rather than to ask twice.
+//
+// A failure to select is not a failure to ingest. The prompts are written and the
+// relay works; a corpus whose index is mid-rebuild loses the suggestion and nothing
+// else, so this reports the reason and returns nothing rather than failing a write
+// that already happened.
+func (c *Config) selection(ctx context.Context, uris []string) *bundle.Selection {
+	if c.Into != "" {
+		return nil
+	}
+	paths, err := bundle.ArchivePathsFor(c.Bundle, uris)
+	if err != nil || len(paths) == 0 {
+		return nil
+	}
+	selection, err := bundle.Candidates(ctx, c.Bundle, paths, "")
+	if err != nil {
+		_, _ = fmt.Fprintf(c.Stderr,
+			"warning: the candidate selection did not run, so no existing concept is"+
+				" suggested for these sources: %v\n", err)
+		return nil
+	}
+	return selection
 }
 
 // fail and usage adapt root's reporting to this command's name.

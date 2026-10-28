@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // ftsAnalyzer is the FTS5 tokenizer clause, defined once and shared by every
@@ -50,6 +50,7 @@ func migrations() []string {
 	all = append(all, sourceSchema()...)
 	all = append(all, claimSummaryNullable()...)
 	all = append(all, verificationSchema()...)
+	all = append(all, claimSourceSchema()...)
 	return all
 }
 
@@ -278,14 +279,14 @@ func (db *DB) migrate(ctx context.Context) error {
 
 	var version int
 	if err := db.sql.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	for i, stmt := range migrations() {
 		if i < version {
 			continue
 		}
 		if err := applyMigration(ctx, db.sql, stmt, i+1); err != nil {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 	}
 	return nil

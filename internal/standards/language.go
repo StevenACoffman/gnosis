@@ -7,7 +7,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // LanguageFileName is where a corpus may override the language markers.
@@ -53,13 +55,13 @@ func LoadLanguage(src []byte) (*Language, error) {
 	var out Language
 	md, err := toml.Decode(string(src), &out)
 	if err != nil {
-		return nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": unknown key " + undecoded[0].String(),
-		}
+		return nil, errcode.New(
+			gnosis.CodeInvalid,
+			op+": unknown key "+undecoded[0].String(),
+		)
 	}
 	for i := range out.Marker {
 		m := &out.Marker[i]
@@ -92,5 +94,5 @@ func knownLanguageRole(role string) bool {
 
 // languageProblem builds the one error shape this loader returns.
 func languageProblem(op, why string) error {
-	return &errs.Error{Code: errs.EINVALID, Op: op, Message: op + ": " + why}
+	return errcode.New(gnosis.CodeInvalid, op+": "+why)
 }

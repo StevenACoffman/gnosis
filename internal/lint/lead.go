@@ -60,8 +60,8 @@ func someNormativeClaimHasALead(snap *Snapshot) (bool, string) {
 		if !ok || !declared.Normative {
 			continue
 		}
-		for _, claim := range doc.Claims {
-			if strings.TrimSpace(claim.Lead) != "" {
+		for j := range doc.Claims {
+			if strings.TrimSpace(doc.Claims[j].Lead) != "" {
 				return true, ""
 			}
 		}

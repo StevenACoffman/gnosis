@@ -6,7 +6,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // IndicatorsFileName is where a corpus may override the indicator words.
@@ -66,29 +68,29 @@ func LoadIndicators(src []byte) (*Indicators, error) {
 	var out Indicators
 	md, err := toml.Decode(string(src), &out)
 	if err != nil {
-		return nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": unknown key " + undecoded[0].String(),
-		}
+		return nil, errcode.New(
+			gnosis.CodeInvalid,
+			op+": unknown key "+undecoded[0].String(),
+		)
 	}
 	for i := range out.Indicator {
 		row := &out.Indicator[i]
 		row.Word = strings.ToLower(strings.TrimSpace(row.Word))
 		if row.Word == "" {
-			return nil, &errs.Error{
-				Code: errs.EINVALID, Op: op,
-				Message: op + ": an indicator row carries no word",
-			}
+			return nil, errcode.New(
+				gnosis.CodeInvalid,
+				op+": an indicator row carries no word",
+			)
 		}
 		if row.Role != RoleReason && row.Role != RoleConclusion {
-			return nil, &errs.Error{
-				Code: errs.EINVALID, Op: op,
-				Message: op + ": indicator " + row.Word + " has role " +
-					string(row.Role) + "; want reason or conclusion",
-			}
+			return nil, errcode.New(
+				gnosis.CodeInvalid,
+				op+": indicator "+row.Word+" has role "+
+					string(row.Role)+"; want reason or conclusion",
+			)
 		}
 	}
 	return &out, nil

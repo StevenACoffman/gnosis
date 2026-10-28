@@ -4,8 +4,17 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/finding"
 )
+
+// logFileName is the corpus history, as a diagnostic names it.
+//
+// A literal rather than `bundle.LogFile`, because a check may not import the shell —
+// the same layering rule that keeps this package's only internal import
+// `internal/gnosis`. The two spellings are one word and cannot drift into being
+// *wrong*, only into disagreeing about a filename OKF §9 fixes anyway.
+const logFileName = "log.md"
 
 // Environment is the apparatus around a corpus, gathered by the caller.
 //
@@ -104,6 +113,30 @@ type Environment struct {
 	// file claiming a different extractor version describes provenance no record
 	// in the corpus actually has.
 	MispinnedStandards []string `json:"mispinned_standards,omitempty"`
+
+	// Authority is the corpus's derived adjudication authority (§10.6.1), and
+	// Adjudicators is the count behind it.
+	//
+	// **Both, because the authority alone is not actionable.** A reader told the
+	// corpus is at `paired` cannot tell whether that is two people or three, and the
+	// difference decides whether one departure changes what the corpus requires.
+	// §10.6.3 asks for the move to be announced *and to say why*; the count is the
+	// why, and it is the half that can be reported without a baseline.
+	Authority gnosis.Authority `json:"authority"`
+
+	Adjudicators int `json:"adjudicators"`
+
+	// Announced is the authority `log.md` last recorded, and AnnouncedFound reports
+	// whether it recorded one at all.
+	//
+	// **Two fields because "never announced" is not "announced as sole".** A corpus
+	// that has never said anything and one that said `sole` are different states, and
+	// a single value would collapse the first into the second — which is the state
+	// §10.6.3's rule is *about*, since a corpus at `sole` that never announced it is
+	// the ordinary starting point and one at `paired` that never announced it is the
+	// silent move the rule refuses.
+	Announced      gnosis.Authority `json:"announced"`
+	AnnouncedFound bool             `json:"announced_found"`
 
 	// GateSources says where each standards file's values come from: the bundle's
 	// own file, or the embedded seed and the version that shipped it.
@@ -227,9 +260,58 @@ func Diagnose(env *Environment) []finding.Diagnostic {
 	out = append(out, diagnoseStandards(env)...)
 	out = append(out, diagnoseUnread(env)...)
 	out = append(out, diagnoseAudit(env)...)
+	out = append(out, diagnoseAuthority(env)...)
 	out = append(out, DiagnoseBudget(&env.Archive)...)
 	finding.Sort(out)
 	return out
+}
+
+// diagnoseAuthority reports an adjudication authority that moved without being
+// announced (§10.6.3).
+//
+// Requires: env.Authority is derived from the corpus and env.Announced is what `log.md`
+// last recorded.
+// Ensures: nothing for a corpus whose announcement matches what it derives, and nothing
+// for a fresh corpus at `sole` that has announced nothing — which is every corpus before
+// its first adjudication, and reporting it would make the check fire on the ordinary
+// state. Pure.
+//
+// **This is the half of the rule that `adjudicate` cannot keep.** That command announces
+// a move it causes; nothing announces a move caused by a hand-edited `verified` list, a
+// merged branch, or a colleague's warrant arriving through `git pull`. §10.6.3 says a
+// tier change is announced *never silent*, and a rule that only holds when a particular
+// command runs is a rule that holds by luck.
+//
+// Warning rather than error, and the remedy is a sentence in `log.md`: the corpus is not
+// malformed, and blocking on it would make a colleague's arrival a build failure.
+func diagnoseAuthority(env *Environment) []finding.Diagnostic {
+	out := make([]finding.Diagnostic, 0, 1)
+	switch {
+	case env.AnnouncedFound && env.Announced == env.Authority:
+		return out
+	case !env.AnnouncedFound && env.Authority == gnosis.AuthoritySole:
+		// A corpus that has adjudicated nothing is at `sole` and has nothing to
+		// announce. §10.6.3 calls a single-curator corpus a supported configuration
+		// rather than a degenerate one, and a finding here would say otherwise on
+		// every bundle the day it is created.
+		return out
+	}
+
+	was := "nothing in " + logFileName + " records what it was"
+	if env.AnnouncedFound {
+		was = logFileName + " last recorded " + env.Announced.String()
+	}
+	return append(out, finding.Diagnostic{
+		Severity: finding.SeverityWarning,
+		Category: "authority",
+		Path:     logFileName,
+		Message: "this corpus derives the adjudication authority " +
+			env.Authority.String() + " and " + was +
+			" — §10.6.3 requires a tier change to be announced rather than silent," +
+			" because a gate that tightens or loosens without telling anyone is the" +
+			" same failure as a threshold that moves quietly. Record the move and why",
+		Action: finding.ActionHuman,
+	})
 }
 
 // diagnoseVocabulary reports on ontology.toml.

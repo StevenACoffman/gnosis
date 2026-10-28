@@ -13,6 +13,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/command"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Config holds the configuration for the quarantine command.
@@ -208,7 +209,7 @@ func exitFor(outcome gnosis.Outcome) error {
 	if outcome.Code == root.CodeOK {
 		return nil
 	}
-	return root.ExitError(outcome.Code)
+	return toerr.Wrap(root.ExitError(outcome.Code))
 }
 
 // report renders the queue.

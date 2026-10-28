@@ -6,7 +6,9 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Reply is what an agent sent back for one prompt.
@@ -86,24 +88,14 @@ type replyDoc struct {
 func ParseReply(src []byte) (Reply, error) {
 	const op = "relay.ParseReply"
 
-	blocks := yamlBlocks(string(src))
-	switch {
-	case len(blocks) == 0:
-		return Reply{}, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": no ```yaml block in the reply",
-		}
-	case len(blocks) > 1:
-		return Reply{}, &errs.Error{
-			Code: errs.EINVALID,
-			Message: op + ": the reply carries " +
-				plural(len(blocks)) + "; exactly one is required",
-		}
+	block, err := oneBlock(op, string(src))
+	if err != nil {
+		return Reply{}, err
 	}
 
 	var doc replyDoc
-	if err := yaml.Unmarshal([]byte(blocks[0]), &doc); err != nil {
-		return Reply{}, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+	if err := yaml.Unmarshal([]byte(block), &doc); err != nil {
+		return Reply{}, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	return validateReply(op, &doc)
 }
@@ -137,12 +129,35 @@ func validateReply(op string, doc *replyDoc) (Reply, error) {
 	}
 
 	if len(bad) > 0 {
-		return Reply{}, &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": " + strings.Join(bad, "; "),
-		}
+		return Reply{}, errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "))
 	}
 	return out, nil
+}
+
+// oneBlock is the reply-format policy both parsers hold: exactly one fenced yaml
+// block, and a reply that is not that shape is rejected whole.
+//
+// Requires: op names the caller, for the message.
+// Ensures: the block's contents, or EINVALID saying which way the reply was wrong.
+// Pure.
+//
+// **Shared because the rule is shared, not because the scanner is.** Two parsers each
+// deciding what a well-formed reply looks like is one place for them to disagree, and
+// the disagreement would surface as a reply one accepts and the other refuses with
+// nobody able to say which is right. The strictness is `ParseReply`'s and its reason is
+// unchanged: two blocks means the agent answered twice or restated the format, and
+// guessing which one is the answer is the latitude that produces a corpus nobody can
+// account for.
+func oneBlock(op, src string) (string, error) {
+	blocks := yamlBlocks(src)
+	switch {
+	case len(blocks) == 0:
+		return "", errcode.New(gnosis.CodeInvalid, op+": no ```yaml block in the reply")
+	case len(blocks) > 1:
+		return "", errcode.New(gnosis.CodeInvalid, op+": the reply carries "+
+			plural(len(blocks))+"; exactly one is required")
+	}
+	return blocks[0], nil
 }
 
 // yamlBlocks returns the contents of every ```yaml fence in src.

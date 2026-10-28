@@ -1,0 +1,41 @@
+{{define "queue"}}{{template "layout" .}}{{end}}
+{{define "body"}}
+<h1>{{.Title}}</h1>
+{{if not .Items}}<p class="empty">Nothing is waiting for a person.</p>{{end}}
+{{range .Items}}
+<section class="item">
+  <h2>{{.Kind}}: {{.Summary}}</h2>
+  {{if .Why}}<p class="why">{{.Why}}</p>{{end}}
+  <div class="sides">
+  {{range .Sides}}
+    <div class="side">
+      <h3>{{if .Title}}{{.Title}}{{else}}{{.Ref}}{{end}}</h3>
+      <p>{{.Text}}</p>
+      <p class="signals">trust {{.Trust}} · durability {{.Durability}}{{if .Centrality}} · centrality {{.Centrality}}{{end}}</p>
+      {{if .Sources}}
+      <table>
+        <tr><th>source</th><th>author</th><th>used</th><th>modified</th><th>archived</th></tr>
+        {{range .Sources}}
+        <tr>
+          <td>{{.Resource}}</td><td>{{.Author}}</td><td>{{if .UsageCount}}{{.UsageCount}}{{end}}</td>
+          <td>{{.LastModified}}</td><td>{{if .Archived}}yes{{else}}no{{end}}</td>
+        </tr>
+        {{end}}
+      </table>
+      {{else}}<p class="signals">no sources declared</p>{{end}}
+    </div>
+  {{end}}
+  </div>
+  {{if or .Domain .Owner}}
+  <p class="signals">
+    {{if .Owner}}accountable for this area: {{.Owner}}{{end}}
+    {{if and .Owner .Domain}} · {{end}}
+    {{if .Domain}}{{range .Domain}}{{.By}} {{.Count}} prior adjudication(s) under {{.Under}}. {{end}}{{end}}
+  </p>
+  <p class="signals">Neither grants authority: this is who has decided here before and
+  who to ask, so a reader who should defer can see that they should.</p>
+  {{end}}
+  <p class="signals">resolve with <code>{{.Action}}</code> on <code>{{if .Finding}}{{.Finding}}{{else}}{{.ID}}{{end}}</code>, with a rationale{{if .Finding}}, or <code>gnosis defer</code> to record living with it{{end}}</p>
+</section>
+{{end}}
+{{end}}

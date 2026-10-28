@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // DocumentRow is one indexed document.
@@ -44,6 +44,10 @@ type Contents struct {
 	// ClaimSubjects are each claim's subject and the value its prose parses to
 	// (§10.2.1). Empty for a corpus whose claims name no subject.
 	ClaimSubjects []ClaimSubjectRow
+
+	// ClaimSources are each claim's archived evidence, one row per path. Empty for a
+	// corpus whose claims cite nothing archived, which is every corpus before a fetch.
+	ClaimSources []ClaimSourceRow
 }
 
 // Indexed lists every document row as gnosis.Reconcile consumes them.
@@ -58,7 +62,7 @@ func (db *DB) Indexed(ctx context.Context) ([]gnosis.Indexed, error) {
 	rows, err := db.sql.QueryContext(ctx,
 		`SELECT id, path FROM documents ORDER BY path`)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -66,12 +70,12 @@ func (db *DB) Indexed(ctx context.Context) ([]gnosis.Indexed, error) {
 	for rows.Next() {
 		var r gnosis.Indexed
 		if err := rows.Scan(&r.ID, &r.Path); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out = append(out, r)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }
@@ -93,7 +97,7 @@ func (db *DB) Replace(ctx context.Context, c *Contents) error {
 
 	tx, err := db.sql.BeginTx(ctx, nil)
 	if err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -104,14 +108,14 @@ func (db *DB) Replace(ctx context.Context, c *Contents) error {
 	// claims cascade from documents, so deleting documents empties them.
 	for _, stmt := range []string{`DELETE FROM documents`, `DELETE FROM documents_fts`} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return &errs.Error{Op: op, Err: err}
+			return toerr.WrapWithMessage(err, op)
 		}
 	}
 	if err := insertAll(ctx, tx, c); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	if err := tx.Commit(); err != nil {
-		return &errs.Error{Op: op, Err: err}
+		return toerr.WrapWithMessage(err, op)
 	}
 	return nil
 }
@@ -139,6 +143,7 @@ func insertAll(ctx context.Context, tx execer, c *Contents) error {
 		func() error { return each(ctx, tx, c.Documents, insertDocument) },
 		func() error { return each(ctx, tx, c.Claims, insertClaim) },
 		func() error { return each(ctx, tx, c.ClaimSubjects, insertClaimSubject) },
+		func() error { return each(ctx, tx, c.ClaimSources, insertClaimSource) },
 		func() error { return each(ctx, tx, c.Verifications, insertVerification) },
 		func() error { return each(ctx, tx, c.Links, insertLink) },
 	}
@@ -175,7 +180,7 @@ func (db *DB) Count(ctx context.Context) (int, error) {
 	var n int
 	err := db.sql.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents`).Scan(&n)
 	if err != nil {
-		return 0, &errs.Error{Op: op, Err: err}
+		return 0, toerr.WrapWithMessage(err, op)
 	}
 	return n, nil
 }

@@ -3,7 +3,7 @@ package gnosis
 import (
 	"github.com/google/uuid"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // NewID assigns a fresh identity.
@@ -29,14 +29,14 @@ func NewID() (ID, error) {
 
 	u, err := uuid.NewV7()
 	if err != nil {
-		return "", &errs.Error{Op: op, Err: err}
+		return "", toerr.WrapWithMessage(err, op)
 	}
 	id, err := ParseID(u.String())
 	if err != nil {
 		// Unreachable unless uuid changes its rendering, and worth the check
 		// anyway: an identifier this package's own parser rejects would be written
 		// into a document and fail every later read.
-		return "", &errs.Error{Op: op, Err: err}
+		return "", toerr.WrapWithMessage(err, op)
 	}
 	return id, nil
 }

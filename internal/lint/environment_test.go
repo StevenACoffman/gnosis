@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/lint"
 	"github.com/StevenACoffman/skillet/finding"
 )
@@ -261,5 +262,91 @@ func TestOnlyTheVocabularyAndTheIndexBlock(t *testing.T) {
 				t.Errorf("blocking = %v, want %v", blocked, tc.wantBlock)
 			}
 		})
+	}
+}
+
+// TestAnUnannouncedAuthorityIsReported is §10.6.3's other half — the one `adjudicate`
+// cannot keep, because nothing announces a move caused by a hand-edited `verified`
+// list, a merged branch, or a colleague's warrant arriving through `git pull`.
+func TestAnUnannouncedAuthorityIsReported(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		env      lint.Environment
+		reported bool
+	}{
+		"the log agrees with what the corpus derives": {
+			env: lint.Environment{
+				Authority: gnosis.AuthorityPaired,
+				Announced: gnosis.AuthorityPaired, AnnouncedFound: true,
+			},
+		},
+		// Every corpus before its first adjudication. §10.6.3 calls a single-curator
+		// corpus supported rather than degenerate, and a finding here would say
+		// otherwise on the day a bundle is created.
+		"a fresh corpus at sole has announced nothing": {
+			env: lint.Environment{Authority: gnosis.AuthoritySole},
+		},
+		"the authority moved and nothing said so": {
+			env:      lint.Environment{Authority: gnosis.AuthorityPaired},
+			reported: true,
+		},
+		"the log records something else": {
+			env: lint.Environment{
+				Authority: gnosis.AuthorityQuorum,
+				Announced: gnosis.AuthorityPaired, AnnouncedFound: true,
+			},
+			reported: true,
+		},
+		// Scaling down is a move too: a corpus that stopped requiring a co-signer has
+		// loosened, which is exactly what §10.6.3's "tightens or loosens" covers.
+		"the authority fell and nothing said so": {
+			env: lint.Environment{
+				Authority: gnosis.AuthoritySole,
+				Announced: gnosis.AuthorityQuorum, AnnouncedFound: true,
+			},
+			reported: true,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			found := firstOfCategory(lint.Diagnose(&tc.env), "authority")
+			if tc.reported != (found != nil) {
+				t.Fatalf("reported = %v, want %v", found != nil, tc.reported)
+			}
+			if found != nil {
+				assertAuthorityFinding(t, found, tc.env.Authority)
+			}
+		})
+	}
+}
+
+// firstOfCategory is the diagnostic a test is asking about, or nil.
+func firstOfCategory(ds []finding.Diagnostic, category string) *finding.Diagnostic {
+	for i := range ds {
+		if ds[i].Category == category {
+			return &ds[i]
+		}
+	}
+	return nil
+}
+
+// assertAuthorityFinding checks what the finding has to say to be worth emitting.
+//
+// The severity is part of the assertion rather than an afterthought: a colleague's
+// warrant arriving through `git pull` moves the authority, and a corpus that failed its
+// build on that would teach people to stop pulling.
+func assertAuthorityFinding(
+	t *testing.T, d *finding.Diagnostic, derived gnosis.Authority,
+) {
+	t.Helper()
+
+	if d.Severity != finding.SeverityWarning {
+		t.Errorf("severity = %v; a colleague's arrival must not fail a build", d.Severity)
+	}
+	if !strings.Contains(d.Message, derived.String()) {
+		t.Errorf("the finding does not name what the corpus derives: %q", d.Message)
 	}
 }

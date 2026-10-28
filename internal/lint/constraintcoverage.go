@@ -99,8 +99,8 @@ func unparsedBySubject(snap *Snapshot) []finding.Diagnostic {
 		out = append(out, finding.Diagnostic{
 			Severity: finding.SeverityWarning,
 			Category: "constraint-coverage",
-			Message: key + ": " + noun(t.parsed, "claim") + " parsed to a value, " +
-				noun(len(t.unparsed), "claim") + " did not (" +
+			Message: key + ": " + Noun(t.parsed, "claim") + " parsed to a value, " +
+				Noun(len(t.unparsed), "claim") + " did not (" +
 				strings.Join(t.unparsed, ", ") + ")" +
 				" — either those claims carry no quantity, which is nothing to fix," +
 				" or they carry one in a phrasing standards/operators.toml misses," +

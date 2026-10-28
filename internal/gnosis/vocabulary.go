@@ -3,8 +3,8 @@ package gnosis
 import (
 	"strings"
 
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/textnorm"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // TypeKey names a kind of concept. OKF §4.1 requires one on every document and
@@ -36,10 +36,7 @@ type Surface string
 // and a tool that narrowed them would reject conformant foreign documents.
 func ParseTypeKey(s string) (TypeKey, error) {
 	if strings.TrimSpace(s) == "" {
-		return "", &errs.Error{
-			Code:    errs.EINVALID,
-			Message: "gnosis.ParseTypeKey: type must not be empty",
-		}
+		return "", errcode.New(CodeInvalid, "gnosis.ParseTypeKey: type must not be empty")
 	}
 	return TypeKey(s), nil
 }
@@ -54,12 +51,12 @@ func ParseSubjectKey(s string) (SubjectKey, error) {
 	const op = "gnosis.ParseSubjectKey"
 	switch {
 	case strings.TrimSpace(s) == "":
-		return "", &errs.Error{Code: errs.EINVALID, Message: op + ": subject must not be empty"}
+		return "", errcode.New(CodeInvalid, op+": subject must not be empty")
 	case strings.ContainsFunc(s, isSpace):
-		return "", &errs.Error{
-			Code:    errs.EINVALID,
-			Message: op + ": subject key must not contain whitespace; aliases carry phrasing",
-		}
+		return "", errcode.New(
+			CodeInvalid,
+			op+": subject key must not contain whitespace; aliases carry phrasing",
+		)
 	}
 	return SubjectKey(s), nil
 }

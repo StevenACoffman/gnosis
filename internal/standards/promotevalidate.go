@@ -5,7 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // validate rejects gate thresholds outside the range in which they mean anything.
@@ -30,7 +31,7 @@ func (p *Promote) validate(op string) error {
 		return nil
 	}
 	sort.Strings(bad)
-	return &errs.Error{Code: errs.EINVALID, Message: op + ": " + strings.Join(bad, "; ")}
+	return errcode.New(gnosis.CodeInvalid, op+": "+strings.Join(bad, "; "))
 }
 
 // ComparePromote reports which gate thresholds old → cur moved in the loosening

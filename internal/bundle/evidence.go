@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 
 	"github.com/StevenACoffman/gnosis/internal/archive"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Stored is what a store attempt did, which is frequently nothing.
@@ -52,11 +54,11 @@ func (w *Writer) StoreEvidence(out *archive.Outcome) (Stored, error) {
 	}
 	recordPath, err := out.Record.Path()
 	if err != nil {
-		return Stored{}, &errs.Error{Op: op, Err: err}
+		return Stored{}, toerr.WrapWithMessage(err, op)
 	}
 	canonical, err := out.Record.Canonical()
 	if err != nil {
-		return Stored{}, &errs.Error{Op: op, Err: err}
+		return Stored{}, toerr.WrapWithMessage(err, op)
 	}
 
 	stored := Stored{RecordPath: recordPath, ContentPath: out.Record.ArchivePath}
@@ -107,19 +109,19 @@ func writeOnce(op, bundleDir, rel string, data []byte) (bool, error) {
 	case err == nil && bytes.Equal(existing, data):
 		return false, nil
 	case err == nil:
-		return false, &errs.Error{
-			Code: errs.ECONFLICT,
-			Message: op + ": " + rel + " holds different bytes than its own name" +
+		return false, errcode.New(
+			gnosis.CodeConflict,
+			op+": "+rel+" holds different bytes than its own name"+
 				"; a content-addressed path cannot be updated, so this is corruption",
-		}
+		)
 	case !errors.Is(err, fs.ErrNotExist):
-		return false, &errs.Error{Op: op, Err: err}
+		return false, toerr.WrapWithMessage(err, op)
 	}
 	if err = os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		return false, &errs.Error{Op: op, Err: err}
+		return false, toerr.WrapWithMessage(err, op)
 	}
 	if err = atomicfile.WriteFile(full, data, 0o640); err != nil {
-		return false, &errs.Error{Op: op, Err: err}
+		return false, toerr.WrapWithMessage(err, op)
 	}
 	return true, nil
 }

@@ -1,19 +1,22 @@
 package bundle
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/StevenACoffman/gnosis/internal/gate"
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/okf"
 	"github.com/StevenACoffman/gnosis/internal/relay"
 	"github.com/StevenACoffman/skillet/atomicfile"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/textnorm"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // RewriteOptions asks for a rewrite prompt for one concept.
@@ -23,6 +26,9 @@ type RewriteOptions struct {
 
 	// Path is the concept to rewrite, bundle-relative.
 	Path string
+
+	// Warn is where a note that is not a failure goes, or nil to discard one.
+	Warn io.Writer
 }
 
 // RewritePending is a rewrite prompt that was emitted, or found already answered.
@@ -83,10 +89,10 @@ func Synthesize(
 	const op = "bundle.Synthesize"
 
 	if reply.Title == "" || reply.Type == "" {
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": a rewrite must carry a title and a type",
-		}
+		return nil, errcode.New(
+			gnosis.CodeInvalid,
+			op+": a rewrite must carry a title and a type",
+		)
 	}
 	before := quoteSetOf(claimsOf(existing))
 	out := &Synthesis{}
@@ -226,11 +232,18 @@ func (w *Writer) RewritePrompt(opts *RewriteOptions) (RewritePending, error) {
 	rel := promptPath(prompt.Key)
 	full := filepath.Join(w.dir, filepath.FromSlash(rel))
 	if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
-		return RewritePending{}, &errs.Error{Op: op, Err: mkErr}
+		return RewritePending{}, toerr.WrapWithMessage(mkErr, op)
 	}
 	if wErr := atomicfile.WriteFile(full, []byte(prompt.Text), 0o640); wErr != nil {
-		return RewritePending{}, &errs.Error{Op: op, Err: wErr}
+		return RewritePending{}, toerr.WrapWithMessage(wErr, op)
 	}
+	// §6.4: a row per emission. A rewrite has no deterministic alternative either —
+	// §6.3 makes synthesis the *gated* half of accretion precisely because no
+	// mechanism can rewrite a body — so it joins extraction rather than the critic.
+	w.noteMiss(&Miss{
+		Op: "synthesize", Reason: gnosis.MissNoPath,
+		Key: prompt.Key, Candidate: opts.Path, At: time.Now().UTC(),
+	}, opts.Warn)
 	return RewritePending{Key: prompt.Key, Prompt: rel}, nil
 }
 
@@ -248,19 +261,23 @@ func (w *Writer) rewritable(op, rel string) (*okf.Document, string, []string, er
 	}
 	raw, err := os.ReadFile(filepath.Join(w.dir, filepath.FromSlash(rel)))
 	if err != nil {
-		return nil, "", nil, &errs.Error{Op: op, Err: err}
+		return nil, "", nil, toerr.WrapWithMessage(err, op)
 	}
 	doc, err := okf.Parse(raw)
 	if err != nil {
-		return nil, "", nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, "", nil, errcode.Link(
+			gnosis.CodeInvalid,
+			"",
+			toerr.WrapWithMessage(err, op),
+		)
 	}
 	sources := existingSources(doc)
 	if len(sources) == 0 {
-		return nil, "", nil, &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": " + rel + " declares no sources, so a rewrite would " +
+		return nil, "", nil, errcode.New(
+			gnosis.CodeInvalid,
+			op+": "+rel+" declares no sources, so a rewrite would "+
 				"have nothing to keep its quotations against",
-		}
+		)
 	}
 	return doc, hash, sources, nil
 }
@@ -286,11 +303,11 @@ func archivesFor(op, dir string, uris []string) ([]string, error) {
 		}
 	}
 	if len(out) == 0 {
-		return nil, &errs.Error{
-			Code: errs.EINVALID, Op: op,
-			Message: op + ": none of this document's sources has archived text; " +
+		return nil, errcode.New(
+			gnosis.CodeInvalid,
+			op+": none of this document's sources has archived text; "+
 				"run `gnosis fetch` on them before rewriting it",
-		}
+		)
 	}
 	return out, nil
 }

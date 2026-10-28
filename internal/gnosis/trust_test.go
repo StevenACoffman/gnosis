@@ -173,3 +173,47 @@ func TestTheZeroTierIsUnverified(t *testing.T) {
 		t.Errorf("an unrecognised tier renders as %q", got)
 	}
 }
+
+// TestFoldTrustDocumentTakesTheWeakest pins the roll-up, and the case that matters is
+// the mixed one: a page whose claims are half reviewed must not read as reviewed.
+func TestFoldTrustDocumentTakesTheWeakest(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		claims []gnosis.Tier
+		want   gnosis.Tier
+	}{
+		"a document declaring no claims": {
+			claims: nil, want: gnosis.TierUnverified,
+		},
+		"every claim reviewed by a person": {
+			claims: []gnosis.Tier{gnosis.TierHumanReviewed, gnosis.TierHumanReviewed},
+			want:   gnosis.TierHumanReviewed,
+		},
+		"one unverified claim beside a reviewed one": {
+			claims: []gnosis.Tier{gnosis.TierHumanReviewed, gnosis.TierUnverified},
+			want:   gnosis.TierUnverified,
+		},
+		"machine confirmation is weaker than review and stronger than nothing": {
+			claims: []gnosis.Tier{gnosis.TierHumanReviewed, gnosis.TierMachineConfirmed},
+			want:   gnosis.TierMachineConfirmed,
+		},
+		"order does not matter": {
+			claims: []gnosis.Tier{gnosis.TierUnverified, gnosis.TierHumanReviewed},
+			want:   gnosis.TierUnverified,
+		},
+		"one claim, machine confirmed": {
+			claims: []gnosis.Tier{gnosis.TierMachineConfirmed},
+			want:   gnosis.TierMachineConfirmed,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := gnosis.FoldTrustDocument(tc.claims); got != tc.want {
+				t.Errorf("FoldTrustDocument(%v) = %v, want %v", tc.claims, got, tc.want)
+			}
+		})
+	}
+}

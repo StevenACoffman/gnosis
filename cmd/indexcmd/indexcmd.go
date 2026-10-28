@@ -17,6 +17,7 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/audit"
 	"github.com/StevenACoffman/gnosis/internal/bundle"
 	"github.com/StevenACoffman/gnosis/internal/index"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Config holds the configuration for the index command group.
@@ -297,6 +298,7 @@ func (c *Config) write(
 		Claims:        bundle.ClaimRows(docs),
 		Verifications: bundle.VerificationRows(docs),
 		ClaimSubjects: bundle.ClaimSubjectRows(docs, vocab, bundle.OperatorPatterns(c.Bundle)),
+		ClaimSources:  bundle.ClaimSourceRows(docs),
 	}
 	if err := db.Replace(ctx, &contents); err != nil {
 		return c.fail(root.ReasonIndexDrift, err)
@@ -339,7 +341,7 @@ func (c *Config) write(
 			// The append reported success and the row is not on disk, which no
 			// other signal reveals. Best-effort covers a *known* gap; it must not
 			// cover a trail that lied about writing (§15).
-			return root.ExitError(root.CodeError)
+			return toerr.Wrap(root.ExitError(root.CodeError))
 		}
 	}
 	return nil
@@ -374,10 +376,10 @@ func (c *Config) refuse(previous, current int) error {
 			Result{Documents: current, Drifted: previous}); err != nil {
 			return fmt.Errorf("index rebuild: %w", err)
 		}
-		return root.ExitError(root.CodeBlocked)
+		return toerr.Wrap(root.ExitError(root.CodeBlocked))
 	}
 	_, _ = fmt.Fprintf(c.Stderr, "error: %s\n", message)
-	return root.ExitError(root.CodeBlocked)
+	return toerr.Wrap(root.ExitError(root.CodeBlocked))
 }
 
 // report renders the outcome. Under --check, drift is a finding rather than an
@@ -397,7 +399,7 @@ func (c *Config) report(result Result, drift int) error {
 			"the index does not describe the bundle", result); err != nil {
 			return fmt.Errorf("index rebuild: %w", err)
 		}
-		return root.ExitError(root.CodeFindings)
+		return toerr.Wrap(root.ExitError(root.CodeFindings))
 	}
 
 	switch {
@@ -414,7 +416,7 @@ func (c *Config) report(result Result, drift int) error {
 		}
 	case driftedAndChecking:
 		_, _ = fmt.Fprintf(c.Stderr, "index is stale: %d document(s) differ\n", drift)
-		return root.ExitError(root.CodeFindings)
+		return toerr.Wrap(root.ExitError(root.CodeFindings))
 	default:
 		_, _ = fmt.Fprintf(c.Stdout, "index matches the bundle (%d document(s))\n",
 			result.Documents)

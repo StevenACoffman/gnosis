@@ -42,11 +42,12 @@ func evidenceCheck() Check {
 // Ensures: a reason whenever it declines. Pure.
 func someClaimCitesArchivedText(snap *Snapshot) (bool, string) {
 	for i := range snap.Documents {
-		for _, claim := range snap.Documents[i].Claims {
-			if len(claim.Quotes) == 0 {
+		claims := snap.Documents[i].Claims
+		for j := range claims {
+			if len(claims[j].Quotes) == 0 {
 				continue
 			}
-			for _, path := range claim.ArchivePaths {
+			for _, path := range claims[j].ArchivePaths {
 				if _, ok := snap.ArchiveText[path]; ok {
 					return true, ""
 				}
@@ -108,7 +109,7 @@ func unsupportedClaim(snap *Snapshot, doc *Document, claim *Claim) *finding.Diag
 		Severity: finding.SeverityError,
 		Category: "evidence",
 		Path:     doc.Path,
-		Message: "claim " + claim.ID + " cites " + noun(len(missing), "passage") +
+		Message: "claim " + claim.ID + " cites " + Noun(len(missing), "passage") +
 			" the archived text does not hold: " + strings.Join(missing, ", ") +
 			" — the archive is content-addressed and cannot have changed, so the" +
 			" frontmatter did: a quotation was edited after admission, or" +

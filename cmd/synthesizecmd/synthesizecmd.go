@@ -119,6 +119,7 @@ func (c *Config) exec(ctx context.Context, args []string) error {
 	pending, err := w.RewritePrompt(&bundle.RewriteOptions{
 		Model: relay.Model{Name: c.Model, Version: c.ModelVersion},
 		Path:  args[0],
+		Warn:  c.Stderr,
 	})
 	if err != nil {
 		return c.fail(root.ReasonNoBundle, err)

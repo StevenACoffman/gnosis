@@ -28,7 +28,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/StevenACoffman/skillet/errs"
+	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Value is one tunable and the reason it holds that value.
@@ -58,7 +59,7 @@ func (v Value[T]) justification() string { return v.Rationale }
 func decode(op string, src []byte, dst any) error {
 	md, err := toml.Decode(string(src), dst)
 	if err != nil {
-		return &errs.Error{Code: errs.EINVALID, Message: op + ": " + err.Error()}
+		return errcode.New(gnosis.CodeInvalid, op+": "+err.Error())
 	}
 	undecoded := md.Undecoded()
 	if len(undecoded) == 0 {
@@ -69,8 +70,8 @@ func decode(op string, src []byte, dst any) error {
 		keys = append(keys, k.String())
 	}
 	sort.Strings(keys)
-	return &errs.Error{
-		Code:    errs.EINVALID,
-		Message: op + ": unrecognised key(s): " + strings.Join(keys, ", "),
-	}
+	return errcode.New(
+		gnosis.CodeInvalid,
+		op+": unrecognised key(s): "+strings.Join(keys, ", "),
+	)
 }

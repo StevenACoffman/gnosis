@@ -21,8 +21,9 @@ import (
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
 	"github.com/StevenACoffman/gnosis/internal/index"
 	"github.com/StevenACoffman/gnosis/internal/okf"
-	"github.com/StevenACoffman/skillet/errs"
 	"github.com/StevenACoffman/skillet/identity"
+	"github.com/StevenACoffman/skillet/verification"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // conceptDir is the single directory concepts live in, so a walk need not guess
@@ -69,6 +70,31 @@ type Document struct {
 	// Empty for a document declaring none, which is a finding only on a normative
 	// type.
 	Limitations []string
+
+	// Status is OKF §5.4's lifecycle value for this concept, as declared. Empty for a
+	// document declaring none, which OKF reads as current — `scope.go` names the
+	// default rather than spreading the reading across comparisons.
+	Status string
+
+	// Challenges are the contests readers have filed against this document
+	// (§10.7.4). Empty for a document nobody has challenged.
+	Challenges []gnosis.Challenge
+
+	// Conflicts are the contradictions somebody recorded a decision about (§5.4).
+	// Empty for a document with none, which is every document until a person defers
+	// one — an open conflict is reported by the check and never stored.
+	Conflicts []gnosis.ConflictEdge
+
+	// Resources are the sources this document declares in OKF's `sources` list,
+	// verbatim.
+	//
+	// **Not named Sources, because SourceKeys already means something narrower**
+	// and a reader would have to disambiguate two fields whose names are
+	// synonyms: SourceKeys are the archive paths a claim's evidence names, and
+	// these are what the author declared the page rests on. A `referenced` source
+	// has no archived text and therefore no archive path, so this list is the only
+	// place it can appear (§14.4).
+	Resources []string
 }
 
 // DocClaim is a claim's identity and its evidence addresses, as the document
@@ -103,7 +129,10 @@ type DocClaim struct {
 	// for making this a table rather than a column is that a human sign-off and an
 	// automated pass must stay distinguishable. Expanding a page-level list one level
 	// down destroys that distinction wholesale.
-	Verified []Verification
+	// The actor is read raw rather than parsed into gnosis.Actor: §14.1.1 makes
+	// frontmatter actors the wider population, and the tier fold reads that form
+	// deliberately. warrant.go cross-references this.
+	Verified []verification.Event
 
 	// Pin is a `gnosis_constraint` reading stated in frontmatter, and Pinned reports
 	// whether there was one (§10.2.1).
@@ -119,6 +148,25 @@ type DocClaim struct {
 	Pin    constraint.Constraint
 	Pinned bool
 
+	// Warrant is the record of a human adjudication (§10.6.4), or the zero value for
+	// a claim carrying none — which `Adjudicated` reports as false, and which is
+	// how §10.4's provenance class is derived rather than declared.
+	Warrant gnosis.Warrant
+
+	// Status is OKF §5.4's lifecycle value for this claim, as declared. Empty for a
+	// claim declaring none, which OKF reads as current — and `deprecated` is what
+	// supersession writes (§10.4), never a deletion.
+	Status string
+
+	// Supersedes are the claims this one replaced after an adjudicated conflict
+	// (§10.4). Empty for a claim replacing nothing.
+	//
+	// It is here because it is the **checkable** half of "this claim was
+	// adjudicated": a warrant is a record somebody chose to write, while a
+	// supersession is an edge the corpus can see whether or not the decision behind
+	// it was ever recorded. That asymmetry is what `warrant` reports.
+	Supersedes []string
+
 	// Subject is the surface phrase naming what this claim is about (§5.5.1), as
 	// the author wrote it — an alias is resolved by the checks, not here. Empty for
 	// a claim declaring none, which is a review signal on some types and silence on
@@ -133,23 +181,6 @@ type DocClaim struct {
 	Subject string
 
 	ArchivePaths []string
-}
-
-// Verification is one OKF §5.2 verification event.
-//
-// A struct rather than a pair of parallel slices because the two belong together: an
-// actor with no time and a time with no actor are both meaningless, and a shape that can
-// hold either is a shape a reader has to check.
-type Verification struct {
-	// By is the actor, as OKF §7's grammar writes it. Kept as the raw string rather
-	// than parsed into gnosis.Actor: §14.1.1 makes these two populations, and the
-	// tier fold reads the raw form deliberately.
-	By string
-
-	// At is the event's timestamp, as declared. A string rather than a time.Time
-	// because it is projected into the index verbatim and never compared here — and
-	// parsing it would make a malformed date drop a verification silently.
-	At string
 }
 
 // isReserved reports whether name is one of the filenames OKF §3.1 gives a
@@ -191,7 +222,7 @@ func Load(fsys fs.FS) ([]Document, error) {
 	// An absent concept directory is an empty corpus, not a failure: a freshly
 	// initialised bundle has one, and every command must work against it.
 	if walkErr != nil && !isNotExist(walkErr) {
-		return nil, &errs.Error{Op: op, Err: walkErr}
+		return nil, toerr.WrapWithMessage(walkErr, op)
 	}
 	return docs, nil
 }
@@ -208,7 +239,7 @@ func LoadLog(fsys fs.FS) (lines []string, present bool, err error) {
 	case isNotExist(readErr):
 		return nil, false, nil
 	case readErr != nil:
-		return nil, false, &errs.Error{Op: op, Err: readErr}
+		return nil, false, toerr.WrapWithMessage(readErr, op)
 	}
 	return strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n"), true, nil
 }
@@ -262,6 +293,12 @@ func read(fsys fs.FS, path string) Document {
 	doc.Limitations = stringsOf(parsed.Fields, limitationsKey)
 	doc.StaleAfter = staleAfter(parsed)
 	doc.SourceKeys = sourceKeys(doc.Claims)
+	doc.Resources = resourcesOf(parsed)
+	doc.Challenges = challengesOf(parsed)
+	doc.Conflicts = conflictsOf(parsed)
+	if status, ok := parsed.Text(statusKey); ok {
+		doc.Status = status
+	}
 
 	if rawID, ok := parsed.Text(idKey); ok {
 		if id, idErr := gnosis.ParseID(rawID); idErr == nil {

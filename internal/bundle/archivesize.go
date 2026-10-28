@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/StevenACoffman/gnosis/internal/lint"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // evidenceDir is the whole of tier 0, both the records and the archived text.
@@ -48,14 +48,14 @@ func MeasureArchive(
 		}
 		info, iErr := d.Info()
 		if iErr != nil {
-			return &errs.Error{Op: op, Message: op + ": " + name, Err: iErr}
+			return toerr.WrapWithMessage(iErr, op+": "+name)
 		}
 		out.Bytes += info.Size()
 		out.Largest = append(out.Largest, lint.ArchiveFile{Path: name, Bytes: info.Size()})
 		return nil
 	})
 	if err != nil {
-		return lint.ArchiveSize{}, &errs.Error{Op: op, Err: err}
+		return lint.ArchiveSize{}, toerr.WrapWithMessage(err, op)
 	}
 
 	lint.SortArchiveFiles(out.Largest)

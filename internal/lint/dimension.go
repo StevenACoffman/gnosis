@@ -119,7 +119,7 @@ func describeWritten(written map[string]int) string {
 		if i > 0 {
 			out.WriteString(", ")
 		}
-		out.WriteString(noun(written[d], "claim") + " written as " + strconv.Quote(d))
+		out.WriteString(Noun(written[d], "claim") + " written as " + strconv.Quote(d))
 	}
 	return out.String()
 }

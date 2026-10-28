@@ -3,7 +3,7 @@ package index
 import (
 	"context"
 
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
 )
 
 // Node is one document in the link graph, with its degree in both directions.
@@ -70,24 +70,24 @@ func (db *DB) Graph(ctx context.Context) (*Graph, error) {
 		FROM documents d
 		ORDER BY d.path`)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var n Node
 		if err := rows.Scan(&n.ID, &n.Path, &n.Title, &n.Inbound, &n.Outbound); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		g.Nodes = append(g.Nodes, n)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	edges, err := db.edges(ctx)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	g.Edges = edges
 	return g, nil
@@ -104,7 +104,7 @@ func (db *DB) edges(ctx context.Context) ([]Edge, error) {
 		WHERE target_document_id IS NOT NULL
 		ORDER BY source_document_id, target_document_id`)
 	if err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -112,12 +112,12 @@ func (db *DB) edges(ctx context.Context) ([]Edge, error) {
 	for rows.Next() {
 		var e Edge
 		if err := rows.Scan(&e.FromID, &e.ToID); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out = append(out, e)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 	return out, nil
 }

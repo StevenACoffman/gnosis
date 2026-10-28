@@ -5,7 +5,8 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
-	"github.com/StevenACoffman/skillet/errs"
+	toerr "github.com/StevenACoffman/toerr/errors"
+	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
 // Hit is one search result, with everything a reader needs to decide whether to
@@ -33,7 +34,7 @@ func (db *DB) Search(ctx context.Context, query string, limit int) ([]Hit, error
 	const op = "index.DB.Search"
 
 	if strings.TrimSpace(query) == "" {
-		return nil, &errs.Error{Code: errs.EINVALID, Message: op + ": empty query"}
+		return nil, errcode.New(gnosis.CodeInvalid, op+": empty query")
 	}
 
 	// The body comes back raw and the snippet is rendered from it here rather than
@@ -53,7 +54,7 @@ func (db *DB) Search(ctx context.Context, query string, limit int) ([]Hit, error
 	if err != nil {
 		// FTS5 reports a syntax error through the driver, and it is the caller's
 		// syntax. Classifying it as EINVALID is what lets the command exit 2.
-		return nil, &errs.Error{Code: errs.EINVALID, Op: op, Err: err}
+		return nil, errcode.Link(gnosis.CodeInvalid, "", toerr.WrapWithMessage(err, op))
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -64,13 +65,13 @@ func (db *DB) Search(ctx context.Context, query string, limit int) ([]Hit, error
 			body string
 		)
 		if err := rows.Scan(&h.ID, &h.Path, &h.Title, &body); err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		h.Snippet = Snippet(body, query)
 		out = append(out, h)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, &errs.Error{Op: op, Err: err}
+		return nil, toerr.WrapWithMessage(err, op)
 	}
 
 	// Resolved links are fetched per hit rather than joined, because a join would
@@ -82,7 +83,7 @@ func (db *DB) Search(ctx context.Context, query string, limit int) ([]Hit, error
 		}
 		links, err := db.Outbound(ctx, id)
 		if err != nil {
-			return nil, &errs.Error{Op: op, Err: err}
+			return nil, toerr.WrapWithMessage(err, op)
 		}
 		out[i].Outbound = links
 	}
