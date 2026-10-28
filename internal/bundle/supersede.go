@@ -340,7 +340,7 @@ func (c *Coordinator) supersede(
 	}
 	loser, err := readConcept(op, c.Dir, cmd.LoserPath)
 	if err != nil {
-		return supersedeRefused(data, err)
+		return supersedeBlocked(data, err) // readConcept has already named op.
 	}
 	if why := episodicRefusal(c.Dir, loser); why != "" {
 		return gnosis.Blocked(gnosis.ReasonNeedsHuman, why, data), nil
@@ -353,7 +353,7 @@ func (c *Coordinator) supersede(
 	winner := deprecated
 	if cmd.WinnerPath != cmd.LoserPath {
 		if winner, err = readConcept(op, c.Dir, cmd.WinnerPath); err != nil {
-			return supersedeRefused(data, err)
+			return supersedeBlocked(data, err) // readConcept has already named op.
 		}
 	}
 	ref, err := loserRef(op, loser, cmd.LoserClaim)
@@ -435,13 +435,24 @@ func episodicRefusal(bundleDir string, loser []byte) string {
 		" adjudicating its own history"
 }
 
-// supersedeRefused turns a refusal into an outcome a caller can act on.
+// supersedeRefused turns a refusal into an outcome a caller can act on, naming the
+// operation on a cause that is not a refusal.
 func supersedeRefused(data map[string]any, err error) (gnosis.Outcome, error) {
 	const op = "bundle.Coordinator.supersede"
+	out, err := supersedeBlocked(data, err)
+	if err != nil {
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
+	}
+	return out, nil
+}
+
+// supersedeBlocked turns a refusal into an outcome a caller can act on, and returns
+// any other cause unchanged, for a caller whose cause already names its operation.
+func supersedeBlocked(data map[string]any, err error) (gnosis.Outcome, error) {
 	switch errs.ErrorCode(err) {
 	case errs.ENOTFOUND, errs.EINVALID:
 		return gnosis.Blocked(gnosis.ReasonNeedsHuman, err.Error(), data), nil
 	default:
-		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
+		return gnosis.Outcome{}, err
 	}
 }

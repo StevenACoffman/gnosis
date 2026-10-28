@@ -209,7 +209,7 @@ func (f *Fetcher) fetchURL(ctx context.Context, uri string) (archive.Candidate, 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return archive.Candidate{}, toerr.New(op + ": " + op + ": " + uri + ": " + resp.Status)
+		return archive.Candidate{}, toerr.New(op + ": " + uri + ": " + resp.Status)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxFetch+1))
 	if err != nil {
@@ -217,7 +217,7 @@ func (f *Fetcher) fetchURL(ctx context.Context, uri string) (archive.Candidate, 
 	}
 	if len(data) > maxFetch {
 		return archive.Candidate{}, toerr.New(
-			op + ": " + op + ": " + uri + ": response exceeds the fetch limit",
+			op + ": " + uri + ": response exceeds the fetch limit",
 		)
 	}
 	return archive.Candidate{

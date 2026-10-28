@@ -188,7 +188,7 @@ func (c *Coordinator) deferConflict(
 	}
 	existing, err := readConcept(op, c.Dir, cmd.Path)
 	if err != nil {
-		return deferRefused(op, cmd, err)
+		return deferBlocked(cmd, err) // readConcept has already named op.
 	}
 	if _, err = AppendConflict(existing, &edge); err != nil {
 		return deferRefused(op, cmd, err)
@@ -236,15 +236,26 @@ func (w *Writer) FileConflict(rel string, e *gnosis.ConflictEdge) (string, error
 	return filepath.Join(w.dir, filepath.FromSlash(rel)), nil
 }
 
-// deferRefused reports a deferral that could not be recorded.
+// deferRefused reports a deferral that could not be recorded, naming op on a cause
+// that is not a refusal.
+func deferRefused(op string, cmd *command.Defer, cause error) (gnosis.Outcome, error) {
+	out, err := deferBlocked(cmd, cause)
+	if err != nil {
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
+	}
+	return out, nil
+}
+
+// deferBlocked reports a deferral that could not be recorded, and returns any other
+// cause unchanged, for a caller whose cause already names its operation.
 //
 // **Blocked rather than an error for an EINVALID or an ECONFLICT**, which is the shape
 // every refusal in this package takes: the corpus is intact, the caller's request was
 // not something it could act on, and a person changing the invocation fixes it.
-func deferRefused(op string, cmd *command.Defer, cause error) (gnosis.Outcome, error) {
+func deferBlocked(cmd *command.Defer, cause error) (gnosis.Outcome, error) {
 	code := errs.ErrorCode(cause)
 	if code != errs.EINVALID && code != errs.ECONFLICT && code != errs.ENOTFOUND {
-		return gnosis.Outcome{}, toerr.WrapWithMessage(cause, op)
+		return gnosis.Outcome{}, cause
 	}
 	return gnosis.Blocked(gnosis.ReasonNeedsHuman, cause.Error(), map[string]any{
 		"path": cmd.Path, "finding": cmd.Finding, "deferred": false,

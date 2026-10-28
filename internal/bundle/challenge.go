@@ -384,22 +384,33 @@ func previewChallenge(bundleDir, rel string, c *gnosis.Challenge) ([]byte, error
 	return AppendChallenge(existing, c)
 }
 
-// challengeRefused turns a refusal into an outcome a caller can act on.
+// challengeRefused turns a refusal into an outcome a caller can act on, naming op on a
+// cause that is not a refusal.
+func challengeRefused(
+	op string, cmd *command.Challenge, err error,
+) (gnosis.Outcome, error) {
+	out, err := challengeBlocked(cmd, err)
+	if err != nil {
+		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
+	}
+	return out, nil
+}
+
+// challengeBlocked turns a refusal into an outcome a caller can act on, and returns
+// any other cause unchanged, for a caller whose cause already names its operation.
 //
 // A document that does not exist, or one whose frontmatter the append would damage,
 // is `needs_human` rather than a tool failure: the corpus is intact, the challenge was
 // not filed, and what to do next is a person's decision. An unexpected failure stays
 // an error, because a caller must not be told to go and look at a disk fault.
-func challengeRefused(
-	op string, cmd *command.Challenge, err error,
-) (gnosis.Outcome, error) {
+func challengeBlocked(cmd *command.Challenge, err error) (gnosis.Outcome, error) {
 	switch errs.ErrorCode(err) {
 	case errs.ENOTFOUND, errs.EINVALID:
 		return gnosis.Blocked(gnosis.ReasonNeedsHuman, err.Error(), map[string]any{
 			"path": cmd.Path, "effect": cmd.Eff.String(), "class": string(cmd.Class),
 		}), nil
 	default:
-		return gnosis.Outcome{}, toerr.WrapWithMessage(err, op)
+		return gnosis.Outcome{}, err
 	}
 }
 

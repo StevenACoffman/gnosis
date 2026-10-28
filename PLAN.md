@@ -3801,26 +3801,36 @@ over `Message`, and with no `ErrorMessage` caller anywhere those strings were un
 in every direction. They now appear, which is a deliberate behaviour change — nine error
 messages gain the detail somebody wrote for them.
 
-Twenty-seven sites in ten files rendered their operation twice. `{Code, Message, Op}`
+Thirty-six sites in thirteen files rendered their operation twice. `{Code, Message, Op}`
 renders `Op + ": " + Message`, and those messages already began with `op + ": "`, so a
 reader saw `standards.LoadRegisters: standards.LoadRegisters: …`. The migration
 reproduced it faithfully — and then it was visible in the source as `op+": "+op+": `,
 which is the argument for fixing it: leaving it would have read as damage this change
 caused.
 
-**This entry first recorded both counts wrong — eight and seven — and the second fix as
-done while all twenty-seven sites still carried it.** Both counts were re-measured from
-the tree at the parent commit with a parser, not a search, and the doubled operation is
-now pinned by tests rather than by this paragraph: `TestALoaderNamesItsOperationOnce`
-covers the five standards loaders, and the Synthesize no-title test covers the bundle
-shape.
+**This entry recorded the counts wrong twice.** It first said eight and seven, then
+twenty-seven sites in ten files, and called the first seven fixes unmade when they had
+been. Measured with a parser at the parent commit, it is thirty-six in thirteen: this
+change fixed thirty-four, and missed the two in `fetch.go`, written with spaces around
+each `+`, which a search for `op+": "+op` does not match; a later change fixed them. The
+doubled operation is pinned by tests rather than by this paragraph:
+`TestALoaderNamesItsOperationOnce` covers the five standards loaders, the Synthesize
+no-title test covers the bundle shape, and `TestAFailedFetchNamesItsOperationOnce` covers
+the fetch.
 
-**One doubling route remains and is not this change's.** `readConcept` wraps an I/O
+**One doubling route remained, and was not this change's.** `readConcept` wraps an I/O
 error other than not-exist with its *caller's* `op`, and `deferConflict`, `adjudicate`
-and both reads in `supersede` hand that error to a refusal helper that wraps it with the
-same `op` again. It predates the migration, needs an I/O fault to reach, and the fix is a
-convention question: `FileConflict` relies on the borrowed `op` to name itself, so
-re-scoping `readConcept`'s wrap either drops a frame there or doubles its not-found leaf.
+and both reads in `supersede` handed that error to a refusal helper that wrapped it with
+the same `op` again. It predates the migration and needs an I/O fault to reach.
+Re-scoping `readConcept`'s wrap was not the fix: `FileConflict` relies on the borrowed
+`op` to name itself, so that either drops a frame there or doubles its not-found leaf.
+*Fixed later at the call sites.* Each refusal helper splits into a step that only
+classifies (`deferBlocked`, `challengeBlocked`, `supersedeBlocked`) and returns any other
+cause unchanged, and the wrapping form that calls it. The call sites after `readConcept`,
+whose error already names their `op`, use the first; errors from `Append*` and the other
+helpers, which name their own operations, still take the wrap.
+`TestAReadFaultNamesItsOperationOnce` puts a directory where the document should be and
+pins all four paths.
 
 **`.WithCode(` joins `.WrapWithMessage(` in wrapcheck's list, and that is not a
 relaxation.** It carries a status *and* the cause, whose `Unwrap` chain it preserves, so

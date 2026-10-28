@@ -1636,17 +1636,22 @@ anywhere** — it was a description cited as prior art and counted as a family m
   rewriter that worked parses for extents and splices text: a literal's extent is a
   parser's answer, and reprinting the AST would reformat code this was not about.
   **Two defects the struct was hiding are now fixed**, both stated rather than smuggled:
-  nine messages that never rendered (`Error()` prefers `Err`) now do, and twenty-seven
-  sites in ten files that rendered their operation twice no longer do. *This entry first
-  said eight and seven, and recorded the second fix as done before it was made; both
-  counts were re-measured with a parser and the property is now under test.*
-- [ ] **`readConcept`'s I/O wrap doubles its caller's operation on four paths.** It wraps
+  nine messages that never rendered (`Error()` prefers `Err`) now do, and thirty-six
+  sites in thirteen files that rendered their operation twice no longer do. *This entry
+  first said eight and seven, then twenty-seven in ten; measured with a parser it is
+  thirty-six in thirteen. The migration fixed thirty-four and missed two in `fetch.go`,
+  whose spaces around `+` a search did not match; they are fixed since, and the property
+  is under test.*
+- [x] **`readConcept`'s I/O wrap doubled its caller's operation on four paths.** It wraps
   a non-not-exist read error with the *caller's* `op`, and `deferConflict`, `adjudicate`
-  and both reads in `supersede` pass that error to a refusal helper that wraps it with the
-  same `op` again. Pre-existing (the migration kept it byte-for-byte) and reachable only on
-  an I/O fault. Not fixed locally because `FileConflict` relies on the borrowed `op` to
-  name itself: re-scoping the wrap drops that frame or doubles its not-found leaf. Decide
-  the borrowed-`op` convention for helpers first — PLAN §6.60.
+  and both reads in `supersede` passed that error to a refusal helper that wrapped it with
+  the same `op` again. Pre-existing (the migration kept it byte-for-byte) and reachable only
+  on an I/O fault. *Fixed at the call sites, not in `readConcept`*, because `FileConflict`
+  relies on the borrowed `op` to name itself. Each refusal helper now has a classify-only
+  step that returns any other cause unchanged, and the call sites after `readConcept` use
+  it. `TestAReadFaultNamesItsOperationOnce` pins all four paths — PLAN §6.60. Whether
+  gnosis keeps borrowed `op` strings at all is still open: toerr's frames make them
+  optional, and dropping them is a change to every error string.
   **`errs` itself stays.** `errs.ErrorCode` is the vocabulary §8.0's `reason` tokens are
   built from and it reads toerr errors natively; retiring the type is what skillet asked
   for, and retiring the package would move a shared vocabulary into one consumer.

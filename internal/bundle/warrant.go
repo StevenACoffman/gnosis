@@ -412,7 +412,7 @@ func (c *Coordinator) adjudicate(
 
 	existing, err := readConcept(op, c.Dir, cmd.Path)
 	if err != nil {
-		return challengeRefused(op, &command.Challenge{
+		return challengeBlocked(&command.Challenge{ // readConcept has already named op.
 			Path: cmd.Path, Eff: cmd.Eff,
 		}, err)
 	}
