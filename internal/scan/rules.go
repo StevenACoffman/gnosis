@@ -10,6 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/skillet/hidden"
 	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
@@ -179,18 +180,28 @@ func LoadRules(src []byte) (*Ruleset, error) {
 //
 // Requires: nothing. Empty text and invalid UTF-8 are both valid inputs.
 // Ensures: at most one Match per rule, ordered by rule id so two runs over one
-// text produce comparable output. Empty rather than nil when nothing fired, so a
-// caller need not distinguish "no matches" from "did not run" — that distinction
-// belongs to Coverage. Pure.
+// text produce comparable output. Offsets are in text as given. Empty rather than
+// nil when nothing fired, so a caller need not distinguish "no matches" from "did
+// not run" — that distinction belongs to Coverage. Pure.
+//
+// **The rules run on what a reader sees, not on the bytes.** A soft hyphen or an
+// invisible-times inside "ignore" splits the word for a regexp and for nobody else,
+// and "ignore all previous instructions" with U+00AD inside "ignore" was archived
+// before this. So the patterns match a copy with every listed hidden codepoint removed
+// (hidden.Strip), and each offset is mapped back into the original so a reader is sent
+// to the right byte. The hidden
+// stage reports the characters themselves; this stage reports what they were hiding,
+// and a document doing both gets both findings.
 func (r *Ruleset) Patterns(text string) []Match {
 	out := make([]Match, 0)
 	if r == nil {
 		return out
 	}
+	visible := hidden.Strip(text)
 	for i := range r.compiled {
 		c := &r.compiled[i]
-		if at := c.re.FindStringIndex(text); at != nil {
-			out = append(out, Match{Rule: c.id, Category: c.category, Offset: at[0]})
+		if at := c.re.FindStringIndex(visible.Text); at != nil {
+			out = append(out, Match{Rule: c.id, Category: c.category, Offset: visible.Original(at[0])})
 		}
 	}
 	return out
@@ -206,7 +217,7 @@ func (r *Ruleset) Runs() bool { return r != nil && len(r.compiled) > 0 }
 
 // Describe renders a scan's findings as one line each.
 //
-// Requires: hidden and matched came from scanning one text.
+// Requires: chars and matched came from scanning one text.
 // Ensures: hidden-character classes first and pattern matches second, each in the
 // order its own scanner produced — which is sorted, so two scans of one text
 // describe it identically. Empty rather than nil for a clean scan. Pure.
@@ -217,9 +228,9 @@ func (r *Ruleset) Runs() bool { return r != nil && len(r.compiled) > 0 }
 // `injection-pattern` from `fetch` and something else from `promote` would have to
 // work out that they were the same finding. This is the Repetition red flag with a
 // consequence attached, so there is one function.
-func Describe(hidden []Finding, matched []Match) []string {
-	out := make([]string, 0, len(hidden)+len(matched))
-	for _, f := range hidden {
+func Describe(chars []Finding, matched []Match) []string {
+	out := make([]string, 0, len(chars)+len(matched))
+	for _, f := range chars {
 		out = append(out, string(f.Class)+" "+f.Rune+
 			" ×"+strconv.Itoa(f.Count)+" at byte "+strconv.Itoa(f.Offset))
 	}
