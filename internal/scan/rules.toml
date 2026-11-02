@@ -286,3 +286,86 @@ not about whether this is a credential. It is one.
 """
 must_flag = ["Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghij"]
 must_not_flag = ["A JWT has three segments separated by dots: header, payload, signature."]
+
+[[rule]]
+id = "secret-anthropic-api-key"
+category = "secret"
+pattern = '\bsk-ant-[a-z]+[0-9]{2}-[A-Za-z0-9_-]{32,}'
+rationale = """
+Anthropic's key format: `sk-ant-`, a key kind and two-digit version (`api03`,
+`admin01`), then the body. The kind-and-version segment is what separates a key from
+prose that names the prefix.
+"""
+must_flag = ["ANTHROPIC_API_KEY=sk-ant-api03-0000000000000000000000000000000000000000"]
+must_not_flag = ["Anthropic keys begin with sk-ant- and belong in the environment."]
+
+[[rule]]
+id = "secret-openai-scoped-key"
+category = "secret"
+pattern = '\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}'
+rationale = """
+OpenAI's project, service-account and admin key prefixes. They carry a hyphen
+after `sk-`, which is why a pattern written for the older `sk-` keys, with no hyphen
+allowed in the body, misses them — stbenjam/skillsaw's does.
+"""
+must_flag = ["OPENAI_API_KEY=sk-proj-000000000000000000000000000000000000000000000000"]
+must_not_flag = ["Project keys start with sk-proj- and service accounts with sk-svcacct-."]
+
+[[rule]]
+id = "secret-gitlab-pat"
+category = "secret"
+pattern = '\bglpat-[0-9A-Za-z_-]{20,}'
+rationale = """
+GitLab's personal access token prefix, `glpat-`, followed by the token body.
+GitLab adopted the prefix so that scanners could match it.
+"""
+must_flag = ["GITLAB_TOKEN=glpat-00000000000000000000"]
+must_not_flag = ["A GitLab personal access token starts with glpat-."]
+
+[[rule]]
+id = "secret-npm-token"
+category = "secret"
+pattern = '\bnpm_[A-Za-z0-9]{36}\b'
+rationale = """
+npm's access-token format: `npm_` and exactly thirty-six base62 characters. The
+fixed length is npm's, not a threshold chosen here.
+"""
+must_flag = ["//registry.npmjs.org/:_authToken=npm_000000000000000000000000000000000000"]
+must_not_flag = ["Tokens look like npm_ followed by the token body; keep them in .npmrc."]
+
+[[rule]]
+id = "secret-stripe-live-key"
+category = "secret"
+pattern = '\b(?:sk|rk)_live_[0-9A-Za-z]{24,}'
+rationale = """
+Stripe's live secret and restricted keys, `sk_live_` and `rk_live_`. Test keys
+(`sk_test_`) are deliberately not matched: they move no money and appear in Stripe's
+own documentation.
+"""
+# \u005F is "_": spelled escaped so this file never holds a literal live-key shape, which
+# GitHub push protection refuses even when, as here, the key is all zeros.
+must_flag = ["STRIPE_SECRET_KEY=sk\u005Flive_000000000000000000000000"]
+must_not_flag = ["Use sk_test_ keys in development; live keys start with sk_live_."]
+
+[[rule]]
+id = "secret-pypi-token"
+category = "secret"
+pattern = '\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{50,}'
+rationale = """
+PyPI's API token: `pypi-` and a macaroon whose encoding always begins
+`AgEIcHlwaS5vcmc` (the serialized location "pypi.org"). The fixed macaroon prefix,
+not the word `pypi`, is what makes it a credential shape.
+"""
+must_flag = ["password = pypi-AgEIcHlwaS5vcmc000000000000000000000000000000000000000000000000000000000000"]
+must_not_flag = ["Set the username to __token__ and the password to your pypi- token."]
+
+[[rule]]
+id = "secret-sendgrid-api-key"
+category = "secret"
+pattern = '\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b'
+rationale = """
+SendGrid's API key: `SG.`, a twenty-two character key id, a dot, and a forty-three
+character secret. Both segment lengths are SendGrid's format.
+"""
+must_flag = ["SENDGRID_API_KEY=SG.0000000000000000000000.0000000000000000000000000000000000000000000"]
+must_not_flag = ["SendGrid keys start with SG. and have two dot-separated parts."]
