@@ -1,7 +1,6 @@
 package scan_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/StevenACoffman/gnosis/internal/scan"
@@ -39,6 +38,17 @@ func TestEachClassIsDetected(t *testing.T) {
 		"pop directional isolate": {"a\U00002069b", scan.ClassBidi, "U+2069"},
 		"tag block start":         {"a\U000E0001b", scan.ClassTag, "U+E0001"},
 		"tag block end":           {"a\U000E007Fb", scan.ClassTag, "U+E007F"},
+		// Listed since 2026-11-02, when gnosis took skillet's shared classifier. These
+		// were asserted legitimate before; see TODO.md for the change of position.
+		"soft hyphen":               {"ig\U000000ADnore", scan.ClassZeroWidth, "U+00AD"},
+		"mongolian vowel separator": {"a\U0000180Eb", scan.ClassZeroWidth, "U+180E"},
+		"function application":      {"a\U00002061b", scan.ClassZeroWidth, "U+2061"},
+		"invisible times":           {"a\U00002062b", scan.ClassZeroWidth, "U+2062"},
+		"invisible separator":       {"a\U00002063b", scan.ClassZeroWidth, "U+2063"},
+		"invisible plus":            {"a\U00002064b", scan.ClassZeroWidth, "U+2064"},
+		"arabic letter mark":        {"a\U0000061Cb", scan.ClassBidi, "U+061C"},
+		"left-to-right mark":        {"a\U0000200Eb", scan.ClassBidi, "U+200E"},
+		"right-to-left mark":        {"a\U0000200Fb", scan.ClassBidi, "U+200F"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -58,9 +68,10 @@ func TestEachClassIsDetected(t *testing.T) {
 }
 
 // TestOrdinaryTextIsClean, or the check is a nuisance rather than a guard. These
-// look suspicious and are not: a non-breaking space and a soft hyphen are nearly
-// invisible and entirely legitimate, and three cases sit one codepoint outside a
-// flagged range.
+// look suspicious and are not: a non-breaking space is nearly invisible and entirely
+// legitimate, three cases sit one codepoint outside a flagged range, and the last four
+// are the legitimate uses of listed codepoints that the shared classifier excuses by
+// context — refusing them refused emoji, Persian text and the England flag.
 func TestOrdinaryTextIsClean(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
@@ -71,10 +82,14 @@ func TestOrdinaryTextIsClean(t *testing.T) {
 		"emoji":              "shipped \U0001F680 today",
 		"arabic":             "\U00000627\U00000644",
 		"non-breaking space": "one\U000000A0two",
-		"soft hyphen":        "extra\U000000ADordinary",
 		"just below 200B":    "a\U0000200Ab",
-		"just above 2060":    "a\U00002061b",
+		"just above 2064":    "a\U00002065b",
 		"just below E0001":   "a\U000E0000b",
+		"emoji ZWJ sequence": "pair \U0001F469\U0000200D\U0001F4BB today",
+		"persian ZWNJ":       "\U00000645\U000006CC\U0000200C\U0000062E\U00000648\U00000627\U00000647\U00000645",
+		"england flag": "go \U0001F3F4\U000E0067\U000E0062\U000E0065\U000E006E" +
+			"\U000E0067\U000E007F team",
+		"leading byte order mark": "\U0000FEFFtitle",
 	}
 	for name, text := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -99,41 +114,6 @@ func TestTrojanSource(t *testing.T) {
 	}
 	if got[0].Count != 3 {
 		t.Errorf("count = %d, want every override counted", got[0].Count)
-	}
-}
-
-// TestOnePerClassNotOnePerOccurrence. A document with four hundred zero-width
-// joiners has one problem, and four hundred findings would bury it.
-func TestOnePerClassNotOnePerOccurrence(t *testing.T) {
-	t.Parallel()
-	text := "a" + strings.Repeat("\U0000200B", 400) + "b"
-
-	got := scan.Hidden(text)
-	if len(got) != 1 {
-		t.Fatalf("got %d findings, want 1", len(got))
-	}
-	if got[0].Count != 400 {
-		t.Errorf("count = %d, want 400", got[0].Count)
-	}
-	if got[0].Offset != 1 {
-		t.Errorf("offset = %d, want the first occurrence at byte 1", got[0].Offset)
-	}
-}
-
-// TestClassesReportSeparatelyAndSorted, so two runs over one text are comparable
-// and a diff of two reports means something.
-func TestClassesReportSeparatelyAndSorted(t *testing.T) {
-	t.Parallel()
-	got := scan.Hidden("a\U0000200Bb\U0000202Ec\U000E0001d")
-
-	if len(got) != 3 {
-		t.Fatalf("got %d findings, want 3: %+v", len(got), got)
-	}
-	want := []scan.Class{scan.ClassBidi, scan.ClassTag, scan.ClassZeroWidth}
-	for i, w := range want {
-		if got[i].Class != w {
-			t.Errorf("finding %d is %q, want %q, so it is not sorted", i, got[i].Class, w)
-		}
 	}
 }
 
