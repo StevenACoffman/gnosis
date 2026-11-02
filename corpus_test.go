@@ -24,6 +24,7 @@ var longFormPages = []string{"SPEC.md", "PLAN.md", "TODO.md", "README.md", "mani
 // ruleCase is one rule's id and the sentences it must flag, as the artifact states them.
 type ruleCase struct {
 	ID       string   `toml:"id"`
+	Scope    string   `toml:"scope"`
 	MustFlag []string `toml:"must_flag"`
 }
 
@@ -120,6 +121,11 @@ func TestTheRulesAreExercisedByThisCorpus(t *testing.T) {
 		for _, example := range r.MustFlag {
 			// Mid-document, so a pattern that depends on the input being short
 			// fails here rather than passing on a one-sentence case forever.
+			// A hidden-channel rule only reads comments and link titles, so its
+			// example is buried inside one, which is where it exists to be found.
+			if r.Scope == scan.ScopeHiddenChannel {
+				example = "<!-- " + example + " -->"
+			}
 			buried := string(page) + "\n\n" + example + "\n\n" + string(page)
 			if !fires(set, buried, r.ID) {
 				t.Errorf("rule %s flags its own example as a lone sentence and misses "+

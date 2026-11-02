@@ -10,6 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/StevenACoffman/gnosis/internal/gnosis"
+	"github.com/StevenACoffman/skillet/hidden"
 	"github.com/StevenACoffman/toerr/errors/errcode"
 )
 
@@ -42,6 +43,17 @@ const (
 	// rather than stage 2, and it is the one category where the finding is about
 	// the source's author rather than about an attacker.
 	CategorySecret Category = "secret"
+)
+
+// The places a rule can look.
+const (
+	// ScopeText is the whole visible text, and the default for a rule that names none.
+	ScopeText = "text"
+
+	// ScopeHiddenChannel is only the text of HTML comments and link-label titles (see
+	// HiddenChannels). It is for wording that is innocent in prose and has one reading
+	// where no reader will see it.
+	ScopeHiddenChannel = "hidden-channel"
 )
 
 // rules is the embedded ruleset, for the reason the ontology seed is embedded:
@@ -89,6 +101,7 @@ type Ruleset struct {
 type compiledRule struct {
 	id       string
 	category Category
+	scope    string
 	re       *regexp.Regexp
 }
 
@@ -101,6 +114,7 @@ type rule struct {
 	ID          string   `toml:"id"`
 	Category    Category `toml:"category"`
 	Pattern     string   `toml:"pattern"`
+	Scope       string   `toml:"scope"`
 	Rationale   string   `toml:"rationale"`
 	MustFlag    []string `toml:"must_flag"`
 	MustNotFlag []string `toml:"must_not_flag"`
@@ -179,21 +193,52 @@ func LoadRules(src []byte) (*Ruleset, error) {
 //
 // Requires: nothing. Empty text and invalid UTF-8 are both valid inputs.
 // Ensures: at most one Match per rule, ordered by rule id so two runs over one
-// text produce comparable output. Empty rather than nil when nothing fired, so a
-// caller need not distinguish "no matches" from "did not run" — that distinction
-// belongs to Coverage. Pure.
+// text produce comparable output. Offsets are in text as given. Empty rather than
+// nil when nothing fired, so a caller need not distinguish "no matches" from "did
+// not run" — that distinction belongs to Coverage. Pure.
+//
+// **The rules run on what a reader sees, not on the bytes.** A soft hyphen or an
+// invisible-times inside "ignore" splits the word for a regexp and for nobody else,
+// and "ignore all previous instructions" with U+00AD inside "ignore" was archived
+// before this. So the patterns match a copy with every listed hidden codepoint removed
+// (hidden.Strip), and each offset is mapped back into the original so a reader is sent
+// to the right byte. The hidden
+// stage reports the characters themselves; this stage reports what they were hiding,
+// and a document doing both gets both findings.
+//
+// A rule scoped to hidden channels runs only on the text of HTML comments and
+// link-label titles in that visible copy (see HiddenChannels).
 func (r *Ruleset) Patterns(text string) []Match {
 	out := make([]Match, 0)
 	if r == nil {
 		return out
 	}
+	visible := hidden.Strip(text)
+	channels := HiddenChannels(visible.Text)
 	for i := range r.compiled {
 		c := &r.compiled[i]
-		if at := c.re.FindStringIndex(text); at != nil {
-			out = append(out, Match{Rule: c.id, Category: c.category, Offset: at[0]})
+		if at, ok := c.firstMatch(visible.Text, channels); ok {
+			out = append(out, Match{Rule: c.id, Category: c.category, Offset: visible.Original(at)})
 		}
 	}
 	return out
+}
+
+// firstMatch returns the offset in text of c's first match within its scope.
+func (c *compiledRule) firstMatch(text string, channels []Channel) (int, bool) {
+	if c.scope != ScopeHiddenChannel {
+		at := c.re.FindStringIndex(text)
+		if at == nil {
+			return 0, false
+		}
+		return at[0], true
+	}
+	for _, ch := range channels {
+		if at := c.re.FindStringIndex(ch.Text); at != nil {
+			return ch.Offset + at[0], true
+		}
+	}
+	return 0, false
 }
 
 // Runs reports whether this ruleset can perform §9.3's stages 2 and 3.
@@ -206,7 +251,7 @@ func (r *Ruleset) Runs() bool { return r != nil && len(r.compiled) > 0 }
 
 // Describe renders a scan's findings as one line each.
 //
-// Requires: hidden and matched came from scanning one text.
+// Requires: chars and matched came from scanning one text.
 // Ensures: hidden-character classes first and pattern matches second, each in the
 // order its own scanner produced — which is sorted, so two scans of one text
 // describe it identically. Empty rather than nil for a clean scan. Pure.
@@ -217,9 +262,9 @@ func (r *Ruleset) Runs() bool { return r != nil && len(r.compiled) > 0 }
 // `injection-pattern` from `fetch` and something else from `promote` would have to
 // work out that they were the same finding. This is the Repetition red flag with a
 // consequence attached, so there is one function.
-func Describe(hidden []Finding, matched []Match) []string {
-	out := make([]string, 0, len(hidden)+len(matched))
-	for _, f := range hidden {
+func Describe(chars []Finding, matched []Match) []string {
+	out := make([]string, 0, len(chars)+len(matched))
+	for _, f := range chars {
 		out = append(out, string(f.Class)+" "+f.Rune+
 			" ×"+strconv.Itoa(f.Count)+" at byte "+strconv.Itoa(f.Offset))
 	}
@@ -254,6 +299,11 @@ func compileRule(r *rule, seen map[string]bool) (compiledRule, string) {
 			"fires on everything"
 	}
 
+	scope, why := scopeOf(r)
+	if why != "" {
+		return compiledRule{}, why
+	}
+
 	re, err := regexp.Compile(r.Pattern)
 	if err != nil {
 		return compiledRule{}, r.ID + " has an uncompilable pattern: " + err.Error()
@@ -261,7 +311,21 @@ func compileRule(r *rule, seen map[string]bool) (compiledRule, string) {
 	if why := selfTest(r, re); why != "" {
 		return compiledRule{}, why
 	}
-	return compiledRule{id: r.ID, category: r.Category, re: re}, ""
+	return compiledRule{id: r.ID, category: r.Category, scope: scope, re: re}, ""
+}
+
+// scopeOf returns the scope r runs in, defaulting to ScopeText, or a reason naming an
+// unknown one. A mistyped scope must refuse the ruleset rather than quietly run the rule
+// everywhere, which for a hidden-channel rule would turn it on ordinary prose.
+func scopeOf(r *rule) (string, string) {
+	switch r.Scope {
+	case "":
+		return ScopeText, ""
+	case ScopeText, ScopeHiddenChannel:
+		return r.Scope, ""
+	default:
+		return "", r.ID + " declares unknown scope " + quote(r.Scope)
+	}
 }
 
 // selfTest runs a rule's own examples against its own pattern.
