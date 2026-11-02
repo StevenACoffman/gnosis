@@ -202,6 +202,11 @@ func TestLoadRulesRefusesARuleThatCannotDiscriminate(t *testing.T) {
 				`must_not_flag = ["ordinary prose"]`),
 			want: "declares no must_flag case",
 		},
+		"a rule with an unknown scope": {
+			src: rule(`pattern = 'x'`, `scope = "comments"`, `must_flag = ["x"]`,
+				`must_not_flag = ["ordinary prose"]`),
+			want: "declares unknown scope",
+		},
 		"a rule with no negative case": {
 			src:  rule(`pattern = 'x'`, `must_flag = ["x"]`, `must_not_flag = []`),
 			want: "declares no must_not_flag case",
