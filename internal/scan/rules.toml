@@ -216,13 +216,13 @@ must_not_flag = ["The tool_call field names which tool the model chose."]
 
 # ── secret ─────────────────────────────────────────────────────────────────────
 #
-# §9.3 names `betterleaks` as the ruleset for this stage. **No such module
-# exists** — it is not on the public proxy under any casing, and it is not in
-# skillet — so the dependency the spec names cannot be taken. That is the fourth
-# time this specification has cited a library that turned out not to fit or not to
-# be there, after `go-git/v6`, the extractor name, and `skillet/auditlog`, and
-# PLAN §6.12 already named the pattern: a specification written before the code
-# cites what sounds right, and only building against it finds out.
+# §9.3 names `betterleaks` as the ruleset for this stage. It does exist —
+# `github.com/betterleaks/betterleaks` v1.8.1, which adh's go.mod requires — and an
+# earlier note here said it did not, which was wrong (corrected 2026-11-02). gnosis
+# still does not take it, for the reason below: its default ruleset includes
+# entropy-scored generic rules, and an entropy score is a tuned number. A blocking
+# gate may only key on shapes its issuer documents, so taking betterleaks would mean
+# maintaining a filtered copy of its rules — which is what this file already is.
 #
 # What is here instead is the part that needs no dependency and no judgement:
 # vendor-defined credential formats. Every one of these is a shape its issuer

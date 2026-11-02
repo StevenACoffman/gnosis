@@ -294,10 +294,12 @@ ______________________________________________________________________
   needed a signature before and still does. What the stages buy is coverage — an
   injected directive or a committed credential now *fails* rather than passing
   unexamined. `TestAdmissibleCandidateAsksForAHuman` carries the note.
-  **`betterleaks` does not exist.** Not on the public proxy under any casing, not in
-  skillet. That is the fourth library this specification has cited that turned out
-  not to fit or not to be there, after `go-git/v6`, the extractor name, and
-  `skillet/auditlog` — PLAN §6.12 already named the pattern. What is there instead is
+  **Corrected 2026-11-02: `betterleaks` exists** (`github.com/betterleaks/betterleaks`
+  v1.8.1, required by adh's go.mod); this entry said it did not, and SPEC §9.3 and
+  PLAN §2.10 repeat the claim as history. gnosis still declines it: its default
+  ruleset includes entropy-scored generic rules, a tuned number this blocking gate
+  must not key on, so taking it would mean maintaining a filtered copy of its rules,
+  which `rules.toml` already is. What is there instead is
   the part needing no dependency: vendor-documented credential formats, which are the
   same class of justification as §9.3's Unicode ranges. Deliberately **no entropy or
   length heuristic**, because that would put a tuned number inside a blocking gate.
@@ -2922,3 +2924,31 @@ Source: skillet's OKF trust-field decision, which this repository's own code tri
       block verbatim because re-encoding YAML cannot round-trip, so a shared element is for
       reading a `verified` list, not for writing one. What it buys is one definition instead
       of two, not an encoder.
+
+## Admission Scan Hardening from the `stbenjam` Review (2026-11-02)
+
+Recommendations G1–G5 of `agent-orange/write/stbenjam_improvements.md` (findings F15–F19).
+Builds against an unreleased skillet (`hidden`); bump `go.mod` once skillet is tagged.
+
+- [x] **G3 — the classifier is skillet's.** `scan.Hidden` is
+  `hidden.ByClass(hidden.Scan(text))`; `Class` and `Finding` are aliases of skillet's
+  types, so the stored JSON is unchanged. The local classifier and the two aggregation
+  tests skillet now owns are deleted.
+  **Change of position:** `scan_test.go` asserted that U+00AD and U+2061 are legitimate
+  text. They are now listed codepoints (the stbenjam set), because F17 measured them
+  splitting an injection phrase past the patterns. ZWJ emoji, ZWNJ between Persian
+  letters, the England, Scotland and Wales flags, and a leading byte-order mark are now
+  clean (F16: a ZWJ emoji probe was refused).
+- [x] **G2 — patterns run on the visible text.** `Patterns` matches `hidden.Strip(text)`
+  and maps offsets back with `Original`, so a soft hyphen or U+2062 inside "ignore" no
+  longer hides the phrase; offsets stay in the original bytes.
+- [x] **G1 — vendor key formats:** Anthropic `sk-ant-`, OpenAI `sk-proj-`/`sk-svcacct-`/
+  `sk-admin-`, GitLab `glpat-`, npm `npm_` + 36, Stripe `sk_live_`/`rk_live_`, PyPI's
+  macaroon prefix, SendGrid `SG.x.y`. Twilio skipped: its prefix is too weak to be a shape.
+- [x] **G4 — hidden channels.** Rules take `scope = "hidden-channel"`, which runs them
+  only on HTML-comment bodies and link-label titles (`scan.HiddenChannels`). The first
+  is `injection-concealment-in-hidden-channel`; both F18 probes are now refused, and the
+  same words in prose are not. Closes the "nothing strips HTML comments" note for the
+  admission scan.
+- [x] **G5 — `betterleaks` exists** (v1.8.1); corrected above and in `rules.toml`, with
+  the reason gnosis still declines it.
