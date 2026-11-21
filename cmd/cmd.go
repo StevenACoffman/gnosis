@@ -45,6 +45,7 @@ import (
 	"github.com/StevenACoffman/gnosis/cmd/searchcmd"
 	"github.com/StevenACoffman/gnosis/cmd/servecmd"
 	"github.com/StevenACoffman/gnosis/cmd/showcmd"
+	"github.com/StevenACoffman/gnosis/cmd/splitcmd"
 	"github.com/StevenACoffman/gnosis/cmd/standardscmd"
 	"github.com/StevenACoffman/gnosis/cmd/supersedecmd"
 	"github.com/StevenACoffman/gnosis/cmd/synthesizecmd"
@@ -131,6 +132,7 @@ func register(r *root.Config) {
 	showcmd.New(r)
 	graphcmd.New(r)
 	fetchcmd.New(r)
+	splitcmd.New(r)
 	ingestcmd.New(r)
 	admitcmd.New(r)
 	quarantinecmd.New(r)

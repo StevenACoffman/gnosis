@@ -434,6 +434,46 @@ cap falls to `referenced`, keeping its URI and hash and losing its archived text
 is the documented trade (§4.3) and the reason the cap is a *weight* bound rather than a
 safety one — nothing is unsafe about the payload, and the corpus declines to carry it.
 
+#### 4.3.3 a Book Is Split, Not Admitted Over the Cap
+
+The per-file cap was set against a seed corpus whose longest source was under 90 KiB,
+and a book is typically several times that. Every oversize Markdown source falls to
+`referenced`, and §9.5's evidence signal then refuses every claim built on it — so the
+cap, applied as written, admits a blog post's claims and refuses a textbook's. That is
+backwards for a local-reductionist corpus (§1.1), and the fix is not to loosen the cap.
+
+`gnosis split` cuts a Markdown source into parts under the cap, beside the source, and
+the parts are what get fetched. It cuts only at top-level heading lines, shallowest
+level first, and cuts a piece further only while it is over the limit, so the parts
+follow the book's own structure. Three properties are checked on every run and a
+source failing any of them is refused with nothing written:
+
+- **Every part is a verbatim slice.** A quotation that validates against a part
+  validates against the source, at the byte and line range the part records.
+- **The parts tile the source.** Nothing dropped between parts, nothing duplicated.
+- **Rendering is unchanged.** The concatenated HTML of the parts equals the source's.
+  This is the check that is not true by construction: link reference definitions are
+  document-wide, so a part using one defined elsewhere carries a verbatim copy, and
+  this comparison is what proves the copy was enough.
+
+Each part opens with a `gnosis_split` frontmatter block — source name, source SHA-256,
+part number, byte and line ranges, enclosing headings, splitter version — which is the
+provenance a quotation found in the part needs to be traced back.
+
+**It is a separate command rather than a fourth disposition**, because a disposition is
+one archive path per fetch record (§4.3.1) and a split is many. Folding it into `fetch`
+would change the ledger's shape to save one command, and would hide a step a person
+should see: the parts are files they can read, diff and commit before anything is
+archived. It writes beside its sources and not into the bundle, so it takes no writer
+lock and writes no audit row.
+
+**What it does not do.** It does not reformat: a source with long lines or stray blank
+lines yields parts with the same, because rewriting bytes would break the verbatim
+property, and a reformat belongs in the source before it is split. It does not repair
+heading structure: a conversion that flattened chapters and sections to one level
+yields a part per section. And a stretch with no heading left to cut at is planned over
+the limit and reported, not cut mid-paragraph.
+
 ______________________________________________________________________
 
 ### 4.4 SVG Is Active Content
@@ -2742,6 +2782,7 @@ gnosis schema [--check] | link       maintain AGENTS.md and agent-file symlinks
 ```text
 gnosis fetch <uri>...                archive bytes into tier 0; append (uri, sha256)
 gnosis fetch --recheck               re-fetch recorded sources; resolve drift (§14.3.2)
+gnosis split <file.md>...            cut an oversize Markdown source into archivable parts (§4.3.3)
 gnosis ingest <uri|path>...          fetch → scan → emit extraction prompt(s)
 gnosis ingest --resume               drain the crash-resumable queue
 gnosis admit <reply-file>|--stdin    gate a reply; write to quarantine on pass
