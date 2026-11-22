@@ -309,7 +309,9 @@ func (c *Config) admit(
 		Disposition:  out.Record.Disposition,
 		ArchivePath:  out.Record.ArchivePath,
 		RejectReason: out.Record.RejectReason,
-		Findings:     c.explain(cand, out.Record.RejectReason, gates),
+		Findings: bundle.RefusalFindings(
+			c.Rules, candidateText(cand), out.Record.RejectReason, gates,
+		),
 		// Carried from the candidate, not from the record: the record does not
 		// have it and must not (§4.3.1).
 		Revision: cand.Revision,
@@ -330,51 +332,6 @@ func (c *Config) admit(
 	source.RecordPath = stored.RecordPath
 	source.Wrote = stored.Wrote
 	return source, nil
-}
-
-// explain is what a source the gates refused actually contains, or nothing.
-//
-// Requires: cand is what was fetched; why is the reason the record carries; gates
-// carries the declared caps.
-// Ensures: findings only for a refusal a reader can act on, and nothing otherwise.
-// Pure apart from reading the ruleset off the config.
-//
-// The reason on the record is one reason because a disposition is one reason. This is
-// the detail that answers what a reader does next, and it is reported for exactly the
-// refusals where there *is* a next step:
-//
-//   - a scan finding says which class or which rule, and where;
-//   - a size bound says how many bytes against what cap, which is the difference
-//     between truncating an example and arguing the threshold down.
-//
-// A source refused for its extension gets nothing, and that is right: the extension is
-// already the whole finding, and re-scanning would say nothing about it.
-//
-// A refused *extraction* is explained from the extraction's own text rather than the
-// source's, because that is the text the reason is about — the record says so too,
-// carrying the extraction's reason rather than the source's for the same reason.
-func (c *Config) explain(
-	cand *archive.Candidate, why archive.RejectReason, gates archive.Gates,
-) []string {
-	text := candidateText(cand)
-
-	switch why {
-	case archive.ReasonHiddenCharacters, archive.ReasonInjectionPattern,
-		archive.ReasonSecret:
-		return bundle.ScanFindings(c.Rules, string(text))
-	case archive.ReasonOversize, archive.ReasonEmbeddedPayload:
-		// Re-measured rather than carried out of Decide, for the same reason the
-		// scan findings are re-derived: it keeps `archive.Decide` about dispositions,
-		// and the two cannot disagree because both go through one measurement.
-		if b := archive.Oversize(
-			text, gates.PerFileCap, gates.EmbeddedPayloadCap,
-		); b.Exceeded() {
-			return []string{b.Detail()}
-		}
-		return nil
-	default:
-		return nil
-	}
 }
 
 // fail and usage adapt root's reporting to this command's name.

@@ -187,6 +187,50 @@ func ScanFindings(rules *scan.Ruleset, text string) []string {
 	return scan.Describe(scan.Hidden(text), rules.Patterns(text))
 }
 
+// RefusalFindings is what a source the gates refused actually contains, or nothing.
+//
+// Requires: text is the text the refusal is about — a source's extraction when it had
+// one, its own bytes otherwise; why is the reason its record carries; gates carries
+// the declared caps; rules may be nil, in which case only hidden characters are named.
+// Ensures: findings only for a refusal a reader can act on, and nothing otherwise.
+// Pure.
+//
+// The reason on the record is one reason because a disposition is one reason. This is
+// the detail that answers what a reader does next, and it is reported for exactly the
+// refusals where there *is* a next step:
+//
+//   - a scan finding says which class or which rule, and where;
+//   - a size bound says how many bytes against what cap, which is the difference
+//     between truncating an example and arguing the threshold down.
+//
+// A source refused for its extension gets nothing, and that is right: the extension is
+// already the whole finding, and re-scanning would say nothing about it.
+//
+// It lives here rather than in `fetch` because `split` asks the same question before
+// any fetch happens — which of its planned parts the archive will refuse, and why — and
+// two renderings of one refusal would let the commands disagree about it.
+func RefusalFindings(
+	rules *scan.Ruleset, text []byte, why archive.RejectReason, gates archive.Gates,
+) []string {
+	switch why {
+	case archive.ReasonHiddenCharacters, archive.ReasonInjectionPattern,
+		archive.ReasonSecret:
+		return ScanFindings(rules, string(text))
+	case archive.ReasonOversize, archive.ReasonEmbeddedPayload:
+		// Re-measured rather than carried out of Decide, for the same reason the
+		// scan findings are re-derived: it keeps `archive.Decide` about dispositions,
+		// and the two cannot disagree because both go through one measurement.
+		if b := archive.Oversize(
+			text, gates.PerFileCap, gates.EmbeddedPayloadCap,
+		); b.Exceeded() {
+			return []string{b.Detail()}
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
 // LoadIndicators reads a bundle's indicator words, falling back to the seed.
 //
 // Requires: bundleDir is a path, which need not exist.
