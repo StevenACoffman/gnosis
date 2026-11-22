@@ -78,6 +78,13 @@ type Options struct {
 	// included — normally the bundle's per-file archive cap.
 	Limit int
 
+	// MinBytes, when positive, joins a piece smaller than this to its neighbour
+	// whenever the two fit under Limit together, so a book whose conversion
+	// flattened its sections does not become dozens of near-empty parts. Zero keeps
+	// every section its own part. Recorded in each part when set, so a re-run can
+	// be reproduced from the file.
+	MinBytes int
+
 	// Level, when non-zero, cuts at headings of this level first even where the
 	// result would fit under Limit, so a book can be split into chapters rather than
 	// into the fewest parts that fit. Parts still over Limit are cut further.
@@ -172,6 +179,7 @@ type splitRecord struct {
 	Lines    string   `yaml:"lines"`
 	Headings []string `yaml:"headings,omitempty"`
 	Copied   []string `yaml:"copied_definitions,omitempty"`
+	MinBytes int      `yaml:"min_part_bytes,omitempty"`
 
 	// Relinked counts in-document links pointed at the part now holding their
 	// heading; Unresolved lists fragments that named no heading in the source.
@@ -296,6 +304,7 @@ func (c *cutter) cut(s span, level int) []span {
 		// two-chapter book back into one file and defeat the option.
 		pieces = c.joinLead(pieces, s.start)
 	}
+	pieces = c.joinSmall(pieces)
 
 	var out []span
 	for _, p := range pieces {
@@ -350,6 +359,35 @@ func (c *cutter) joinLead(pieces []span, start int) []span {
 		return pieces
 	}
 	return append([]span{joined}, pieces[2:]...)
+}
+
+// joinSmall joins each piece smaller than MinBytes to the piece before it, and a
+// small piece to the one after it, whenever the two fit under the limit together.
+//
+// Requires: pieces tile a span in order.
+// Ensures: the result tiles the same span; no join produces a piece over the limit;
+// with MinBytes zero, pieces is returned unchanged. Pure.
+//
+// The joined piece keeps the first piece's trail, so it is named for the first
+// section it holds. Terraform: Up & Running is the case it was written for: its
+// conversion put every section at one level, and it split into 81 parts, 13 of them
+// too small to hold a single claim.
+func (c *cutter) joinSmall(pieces []span) []span {
+	if c.opt.MinBytes <= 0 || len(pieces) < 2 {
+		return pieces
+	}
+	small := func(s span) bool { return s.end-s.start < c.opt.MinBytes }
+	out := []span{pieces[0]}
+	for _, p := range pieces[1:] {
+		last := out[len(out)-1]
+		joined := span{start: last.start, end: p.end, trail: last.trail}
+		if (small(last) || small(p)) && !c.tooBig(joined) {
+			out[len(out)-1] = joined
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 // headingsIn returns the heading at s.start, if any, and every heading strictly
@@ -449,6 +487,7 @@ func addFrontmatter(p *Part, total int, sum string, opt Options) error {
 		Lines:      strconv.Itoa(p.StartLine) + "-" + strconv.Itoa(p.EndLine),
 		Headings:   p.Headings,
 		Copied:     p.Copied,
+		MinBytes:   opt.MinBytes,
 		Relinked:   p.Relinked,
 		Unresolved: p.Unresolved,
 		Version:    Version,

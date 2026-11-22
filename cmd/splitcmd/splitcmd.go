@@ -53,6 +53,11 @@ to a part's text, so it is recorded: each rewrite is checked to be nothing but a
 fragment swapped for an anchor in this split, and the frontmatter counts them. A
 fragment naming no heading in the source is left as written and listed.
 
+--min-bytes N joins a section smaller than N bytes to its neighbour when the two
+fit under the limit, for a source whose conversion flattened its headings into
+dozens of near-empty sections. It is off by default, and recorded in each part
+when set.
+
 Each part is written beside its source as <stem>-<NN>-<slug>.md and begins with a
 gnosis_split frontmatter block naming the source, its SHA-256, the part's byte and
 line ranges, and the headings enclosing it — so a quotation found in a part can be
@@ -103,6 +108,10 @@ type Config struct {
 
 	// Level cuts at headings of this level even where fewer parts would fit.
 	Level int
+
+	// MinBytes joins a section smaller than this to its neighbour when the two fit
+	// under the limit. Zero, the default, keeps every section its own part.
+	MinBytes int
 
 	// Replace overwrites a part an earlier split of the same source wrote, and
 	// removes one this split no longer plans. Files split did not write are never
@@ -181,6 +190,8 @@ func New(parent *root.Config) *Config {
 		"overwrite or remove parts an earlier split of the same source wrote")
 	cfg.Flags.BoolVar(&cfg.Strict, 0, "strict",
 		"refuse a source whose split would cut at a heading that reads as code or a label")
+	cfg.Flags.IntVar(&cfg.MinBytes, 0, "min-bytes", 0,
+		"join a section smaller than this to its neighbour when both fit (0 keeps every section)")
 	cfg.Flags.IntVar(&cfg.Level, 0, "level", 0,
 		"cut at headings of this level (1-6) even where fewer parts would fit")
 	cfg.Command = &ff.Command{
@@ -219,6 +230,10 @@ func (c *Config) exec(_ context.Context, args []string) error {
 			"a larger part would be referenced, not archived", c.MaxBytes, limit))
 	case c.MaxBytes > 0:
 		limit = c.MaxBytes
+	}
+	if c.MinBytes < 0 || c.MinBytes >= limit {
+		return c.usage(fmt.Errorf("--min-bytes must be at least 0 and below the part limit "+
+			"of %d, got %d", limit, c.MinBytes))
 	}
 
 	result := &Result{Limit: limit, DryRun: c.DryRun}
@@ -295,7 +310,9 @@ func (c *Config) splitOne(path string, limit int) (Source, error) {
 // other sources are unaffected, and stopping at the first would hide how many
 // share the problem.
 func (c *Config) plan(data []byte, source string, limit int) (*split.Plan, string) {
-	p, err := split.Split(data, split.Options{Source: source, Limit: limit, Level: c.Level})
+	p, err := split.Split(data, split.Options{
+		Source: source, Limit: limit, Level: c.Level, MinBytes: c.MinBytes,
+	})
 	if err != nil {
 		return nil, err.Error()
 	}
