@@ -2,6 +2,7 @@ package split
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -121,30 +122,19 @@ func lineStartOf(src []byte, pos int) int {
 	return pos
 }
 
-// verify checks the three properties the package promises: the parts tile the
-// source, each body is a verbatim slice of it, and the parts render to what the
-// source renders to.
+// verify checks the properties the package promises: the parts tile the source,
+// each body as cut is a verbatim slice of it, the parts as cut render to what the
+// source renders to, and the only difference between a part as cut and the file
+// written is its recorded link rewrites.
 //
-// Requires: parts came from render over src.
-// Ensures: nil exactly when all three hold. The rendering comparison is the one that
-// matters and the one that is not true by construction: it is what proves cutting
-// at heading lines was safe for this source and that copying definitions was enough.
+// Requires: parts came from renderAll over src.
+// Ensures: nil exactly when all of them hold. The rendering comparison is the one
+// that is not true by construction: it is what proves cutting at heading lines was
+// safe for this source and that copying definitions was enough. It runs over the
+// bodies as cut, because a relinked destination renders differently by design.
 func verify(src []byte, parts []Part) error {
-	pos := 0
-	for i := range parts {
-		p := &parts[i]
-		if p.Start != pos || p.End < p.Start {
-			return fmt.Errorf("part %d covers [%d, %d), expected to start at %d",
-				i+1, p.Start, p.End, pos)
-		}
-		want := bytes.TrimRight(src[p.Start:p.End], " \t\r\n")
-		if !bytes.Contains(p.Content, want) {
-			return fmt.Errorf("part %d does not carry bytes [%d, %d) verbatim", i+1, p.Start, p.End)
-		}
-		pos = p.End
-	}
-	if pos != len(src) {
-		return fmt.Errorf("the parts end at byte %d of %d", pos, len(src))
+	if err := checkTiling(src, parts); err != nil {
+		return err
 	}
 
 	md := newMarkdown()
@@ -153,13 +143,74 @@ func verify(src []byte, parts []Part) error {
 		return fmt.Errorf("render the source: %w", err)
 	}
 	for i := range parts {
-		if err := md.Convert(partBody(&parts[i]), &joined); err != nil {
+		if err := md.Convert(asCut(&parts[i]), &joined); err != nil {
 			return fmt.Errorf("render part %d: %w", i+1, err)
 		}
 	}
 	if !bytes.Equal(whole.Bytes(), joined.Bytes()) {
 		at := firstDifference(whole.Bytes(), joined.Bytes())
 		return fmt.Errorf("%w: first difference at rendered byte %d", ErrRenderChanged, at)
+	}
+	return nil
+}
+
+// checkTiling proves the parts tile src, each as cut carries its slice verbatim, and
+// each differs from its file only by its recorded rewrites.
+func checkTiling(src []byte, parts []Part) error {
+	names := map[string]bool{}
+	for i := range parts {
+		names[parts[i].Name] = true
+	}
+	pos := 0
+	for i := range parts {
+		p := &parts[i]
+		if p.Start != pos || p.End < p.Start {
+			return fmt.Errorf("part %d covers [%d, %d), expected to start at %d",
+				i+1, p.Start, p.End, pos)
+		}
+		cut := asCut(p)
+		want := bytes.TrimRight(src[p.Start:p.End], " \t\r\n")
+		if !bytes.HasPrefix(cut, want) {
+			return fmt.Errorf("part %d does not carry bytes [%d, %d) verbatim", i+1, p.Start, p.End)
+		}
+		if err := checkRewrites(p, cut, names); err != nil {
+			return fmt.Errorf("part %d: %w", i+1, err)
+		}
+		pos = p.End
+	}
+	if pos != len(src) {
+		return fmt.Errorf("the parts end at byte %d of %d", pos, len(src))
+	}
+	return nil
+}
+
+// asCut returns a part's body before relinking.
+func asCut(p *Part) []byte {
+	if p.unlinked != nil {
+		return p.unlinked
+	}
+	return partBody(p)
+}
+
+// checkRewrites proves the file differs from the body as cut only by its recorded
+// rewrites, and that each one swaps an in-document fragment for an anchor in this
+// part or in another part of the same split.
+func checkRewrites(p *Part, cut []byte, names map[string]bool) error {
+	for _, r := range p.rewrites {
+		if r.At+len(r.Old) > len(cut) || string(cut[r.At:r.At+len(r.Old)]) != r.Old {
+			return fmt.Errorf("a rewrite at byte %d does not match the body", r.At)
+		}
+		file, anchor, ok := strings.Cut(r.New, "#")
+		if !strings.HasPrefix(r.Old, "#") || !ok || anchor == "" || (file != "" && !names[file]) {
+			return fmt.Errorf(
+				"rewrite %q -> %q is not a link to a part of this split",
+				r.Old,
+				r.New,
+			)
+		}
+	}
+	if !bytes.Equal(applyRewrites(cut, p.rewrites), partBody(p)) {
+		return errors.New("the file differs from its body by more than its recorded rewrites")
 	}
 	return nil
 }

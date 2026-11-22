@@ -456,8 +456,23 @@ source failing any of them is refused with nothing written:
   document-wide, so a part using one defined elsewhere carries a verbatim copy, and
   this comparison is what proves the copy was enough.
 
+**In-document links are repaired, and that is the one edit made to a part's text.** A
+link to `#anchor` whose heading landed in another part would otherwise point at nothing;
+it becomes `<that part>.md#anchor`, and one whose anchor GitHub numbers differently
+within its part (`#summary-2` in the book, `#summary` in the part) is renumbered. The
+verbatim property is checked on the body *as cut*, the rendering comparison runs there
+too, and each rewrite is checked separately to be a fragment swapped for an anchor in
+this split — so a quotation still validates, because no prose changed, and nothing but
+a link destination can differ from the source. A fragment that named no heading in the
+source either is left as written and listed: it was broken before the split, and
+guessing its target would invent a link the author never made. Without this, splitting
+an O'Reilly book broke every cross-reference between its chapters — 925 in *Patterns of
+Enterprise Application Architecture* alone — and the rendering check could not see it,
+because a broken link renders exactly like a working one.
+
 Each part opens with a `gnosis_split` frontmatter block — source name, source SHA-256,
-part number, byte and line ranges, enclosing headings, splitter version — which is the
+part number, byte and line ranges, enclosing headings, links repaired and fragments left
+unresolved, splitter version — which is the
 provenance a quotation found in the part needs to be traced back.
 
 **It is a separate command rather than a fourth disposition**, because a disposition is

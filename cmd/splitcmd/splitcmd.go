@@ -49,14 +49,16 @@ type Config struct {
 
 // Source is what became of one source file.
 type Source struct {
-	Path     string   `json:"path"`
-	SHA256   string   `json:"sha256,omitempty"`
-	Bytes    int      `json:"bytes"`
-	Parts    []Part   `json:"parts,omitempty"`
-	Fits     bool     `json:"fits,omitempty"`
-	Refused  string   `json:"refused,omitempty"`
-	Oversize []string `json:"oversize,omitempty"`
-	Stale    []string `json:"stale,omitempty"`
+	Path       string   `json:"path"`
+	SHA256     string   `json:"sha256,omitempty"`
+	Bytes      int      `json:"bytes"`
+	Parts      []Part   `json:"parts,omitempty"`
+	Fits       bool     `json:"fits,omitempty"`
+	Refused    string   `json:"refused,omitempty"`
+	Oversize   []string `json:"oversize,omitempty"`
+	Relinked   int      `json:"relinked,omitempty"`
+	Unresolved int      `json:"unresolved,omitempty"`
+	Stale      []string `json:"stale,omitempty"`
 }
 
 // Part is one planned file and what happened to it.
@@ -103,13 +105,21 @@ chapter even where fewer, larger parts would fit.
 Three properties are checked on every run, and a source that fails any of them is
 refused and nothing is written for it:
 
-  - every part's body is a verbatim slice of the source;
+  - every part's body is a verbatim slice of the source, apart from its
+    recorded link repairs;
   - the parts tile the source, with nothing dropped or duplicated;
   - the parts render to exactly the HTML the source renders to.
 
 Link reference definitions are document-wide, so a part using one defined
 elsewhere gets a verbatim copy appended; the rendering check is what proves that
 was enough.
+
+In-document links are repaired. A link to #anchor whose heading landed in another
+part is pointed at <that part>.md#anchor, and one whose heading's anchor is
+numbered differently within its part is renumbered. That is the one change made
+to a part's text, so it is recorded: each rewrite is checked to be nothing but a
+fragment swapped for an anchor in this split, and the frontmatter counts them. A
+fragment naming no heading in the source is left as written and listed.
 
 Each part is written beside its source as <stem>-<NN>-<slug>.md and begins with a
 gnosis_split frontmatter block naming the source, its SHA-256, the part's byte and
@@ -191,6 +201,8 @@ func (c *Config) splitOne(path string, limit int) (Source, error) {
 	for i := range plan.Parts {
 		p := &plan.Parts[i]
 		planned[p.Name] = true
+		src.Relinked += p.Relinked
+		src.Unresolved += len(p.Unresolved)
 		state, err := c.place(filepath.Join(dir, p.Name), p.Content)
 		if err != nil {
 			return Source{}, err
@@ -334,6 +346,11 @@ func (c *Config) print(result *Result) {
 		for _, p := range s.Parts {
 			_, _ = fmt.Fprintf(c.Stdout, "  %-9s %7d  lines %-13s %s\n",
 				p.State, p.Bytes, p.Lines, filepath.Base(p.Path))
+		}
+		if s.Relinked > 0 || s.Unresolved > 0 {
+			_, _ = fmt.Fprintf(c.Stdout,
+				"  links     %d pointed at the part holding their heading; "+
+					"%d naming no heading left as written\n", s.Relinked, s.Unresolved)
 		}
 		for _, o := range s.Oversize {
 			_, _ = fmt.Fprintf(c.Stdout, "  oversize  %s: no heading left to cut at\n", o)

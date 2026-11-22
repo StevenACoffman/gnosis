@@ -43,7 +43,7 @@ import (
 // Version names the splitting rules a part was cut under. It is recorded in every
 // part, so a change to the rules that would cut a source differently is visible as a
 // different value rather than as files that silently disagree with a re-run.
-const Version = 1
+const Version = 2
 
 // frontmatterReserve is the room left under the limit for a part's provenance
 // frontmatter. A heading trail long enough to exceed it produces an Oversize part,
@@ -103,9 +103,21 @@ type Part struct {
 	// source and were appended to this part so its links still resolve.
 	Copied []string
 
+	// Relinked counts the in-document links this part points at another part, or at
+	// its own renumbered anchor. Unresolved lists fragments that named no heading in
+	// the source either; they are left as written.
+	Relinked   int
+	Unresolved []string
+
 	// Content is the complete file: provenance frontmatter, the body, and any
 	// copied definitions.
 	Content []byte
+
+	// unlinked is the body before relinking and rewrites what relinking changed;
+	// verify checks the first against the source and the second against the file.
+	unlinked []byte
+	rewrites []rewrite
+	number   int
 }
 
 // Plan is the outcome of splitting one source.
@@ -154,7 +166,12 @@ type splitRecord struct {
 	Lines    string   `yaml:"lines"`
 	Headings []string `yaml:"headings,omitempty"`
 	Copied   []string `yaml:"copied_definitions,omitempty"`
-	Version  int      `yaml:"splitter_version"`
+
+	// Relinked counts in-document links pointed at the part now holding their
+	// heading; Unresolved lists fragments that named no heading in the source.
+	Relinked   int      `yaml:"relinked_links,omitempty"`
+	Unresolved []string `yaml:"unresolved_fragments,omitempty"`
+	Version    int      `yaml:"splitter_version"`
 }
 
 // Split plans the parts of src.
@@ -182,7 +199,7 @@ func Split(src []byte, opt Options) (*Plan, error) {
 	c := cutter{src: src, sections: doc.Sections, opt: opt}
 	spans := c.cut(span{start: 0, end: len(src)}, opt.Level)
 
-	if err := renderAll(src, spans, opt, plan); err != nil {
+	if err := renderAll(src, doc.Sections, spans, opt, plan); err != nil {
 		return nil, fmt.Errorf("split %s: %w", opt.Source, err)
 	}
 	if err := verify(src, plan.Parts); err != nil {
@@ -192,23 +209,48 @@ func Split(src []byte, opt Options) (*Plan, error) {
 }
 
 // renderAll renders every span into plan.Parts, noting any still over the limit.
-func renderAll(src []byte, spans []span, opt Options, plan *Plan) error {
+//
+// Three passes, because the middle one needs every part's name: cut each body and
+// copy the definitions it needs, point in-document links at the part now holding
+// their heading, then put the provenance frontmatter on top — last, so it can record
+// what the relinking did.
+func renderAll(
+	src []byte,
+	sections []markdown.Section,
+	spans []span,
+	opt Options,
+	plan *Plan,
+) error {
 	defs, err := definitions(src)
 	if err != nil {
 		return err
 	}
 	stem := strings.TrimSuffix(opt.Source, ".md")
 	width := max(2, len(strconv.Itoa(len(spans))))
+	parts := make([]Part, len(spans))
+	names := make([]string, len(spans))
 	for i, s := range spans {
-		part, err := render(src, s, i+1, len(spans), width, stem, plan.SHA256, defs, opt)
-		if err != nil {
+		parts[i] = cutBody(src, s, i+1, width, stem, defs)
+		names[i] = parts[i].Name
+	}
+
+	where := anchors(sections, parts)
+	for i := range parts {
+		p := &parts[i]
+		p.unlinked = p.Content
+		p.Content, p.rewrites, p.Unresolved = relink(p.unlinked, i, names, where)
+		p.Relinked = len(p.rewrites)
+	}
+
+	for i := range parts {
+		if err := addFrontmatter(&parts[i], len(parts), plan.SHA256, opt); err != nil {
 			return err
 		}
-		if len(part.Content) > opt.Limit {
-			plan.Oversize = append(plan.Oversize, part.Name)
+		if len(parts[i].Content) > opt.Limit {
+			plan.Oversize = append(plan.Oversize, parts[i].Name)
 		}
-		plan.Parts = append(plan.Parts, part)
 	}
+	plan.Parts = parts
 	return nil
 }
 
@@ -353,37 +395,14 @@ func appendTrail(trail []string, title string) []string {
 	return append(out, strings.TrimSpace(title))
 }
 
-// render builds one part's file.
-//
-// The body is the source slice with trailing whitespace trimmed to a single newline;
-// the recorded range is the untrimmed slice, so the ranges still tile the source.
-func render(
-	src []byte, s span, n, total, width int, stem, sum string, defs []definition, opt Options,
-) (Part, error) {
+// cutBody builds one part's body: the source slice with trailing whitespace trimmed,
+// followed by any link definitions it needs from elsewhere. The recorded range is
+// the untrimmed slice, so the ranges still tile the source.
+func cutBody(src []byte, s span, n, width int, stem string, defs []definition) Part {
 	body := bytes.TrimRight(src[s.start:s.end], " \t\r\n")
 	copied := needed(body, defs, s)
 
-	startLine, endLine := lineRange(src, s.start, s.end)
-	rec := provenance{Split: splitRecord{
-		Source:   opt.Source,
-		SHA256:   sum,
-		Part:     n,
-		Parts:    total,
-		Bytes:    strconv.Itoa(s.start) + "-" + strconv.Itoa(s.end),
-		Lines:    strconv.Itoa(startLine) + "-" + strconv.Itoa(endLine),
-		Headings: s.trail,
-		Copied:   labels(copied),
-		Version:  Version,
-	}}
-	fm, err := yaml.Marshal(rec)
-	if err != nil {
-		return Part{}, fmt.Errorf("render part %d: %w", n, err)
-	}
-
 	var buf bytes.Buffer
-	buf.WriteString("---\n")
-	buf.Write(fm)
-	buf.WriteString("---\n\n")
 	buf.Write(body)
 	buf.WriteByte('\n')
 	if len(copied) > 0 {
@@ -398,11 +417,46 @@ func render(
 	if len(s.trail) > 0 {
 		slugFrom = s.trail[len(s.trail)-1]
 	}
-	name := fmt.Sprintf("%s-%0*d-%s.md", stem, width, n, slug(slugFrom))
+	startLine, endLine := lineRange(src, s.start, s.end)
 	return Part{
-		Name: name, Start: s.start, End: s.end, StartLine: startLine, EndLine: endLine,
-		Headings: s.trail, Copied: labels(copied), Content: buf.Bytes(),
-	}, nil
+		Name:      fmt.Sprintf("%s-%0*d-%s.md", stem, width, n, slug(slugFrom)),
+		Start:     s.start,
+		End:       s.end,
+		StartLine: startLine,
+		EndLine:   endLine,
+		Headings:  s.trail,
+		Copied:    labels(copied),
+		Content:   buf.Bytes(),
+		number:    n,
+	}
+}
+
+// addFrontmatter puts the provenance block on top of a part's body.
+func addFrontmatter(p *Part, total int, sum string, opt Options) error {
+	rec := provenance{Split: splitRecord{
+		Source:     opt.Source,
+		SHA256:     sum,
+		Part:       p.number,
+		Parts:      total,
+		Bytes:      strconv.Itoa(p.Start) + "-" + strconv.Itoa(p.End),
+		Lines:      strconv.Itoa(p.StartLine) + "-" + strconv.Itoa(p.EndLine),
+		Headings:   p.Headings,
+		Copied:     p.Copied,
+		Relinked:   p.Relinked,
+		Unresolved: p.Unresolved,
+		Version:    Version,
+	}}
+	fm, err := yaml.Marshal(rec)
+	if err != nil {
+		return fmt.Errorf("render %s: %w", p.Name, err)
+	}
+	var buf bytes.Buffer
+	buf.WriteString("---\n")
+	buf.Write(fm)
+	buf.WriteString("---\n\n")
+	buf.Write(p.Content)
+	p.Content = buf.Bytes()
+	return nil
 }
 
 // lineRange returns the 1-based inclusive line range of src[start:end], ignoring

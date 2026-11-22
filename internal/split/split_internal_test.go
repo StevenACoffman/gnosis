@@ -3,6 +3,7 @@ package split
 import (
 	"bytes"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -39,8 +40,8 @@ func mustSplit(t *testing.T, src string, opt Options) *Plan {
 
 func names(plan *Plan) []string {
 	out := make([]string, 0, len(plan.Parts))
-	for _, p := range plan.Parts {
-		out = append(out, p.Name)
+	for i := range plan.Parts {
+		out = append(out, plan.Parts[i].Name)
 	}
 	return out
 }
@@ -190,7 +191,7 @@ func TestEveryPartRecordsWhereItCameFrom(t *testing.T) {
 		"source_sha256: " + plan.SHA256 + "\n",
 		"part: 2\n",
 		"parts: 2\n",
-		"splitter_version: 1\n",
+		"splitter_version: " + strconv.Itoa(Version) + "\n",
 	} {
 		if !bytes.Contains(p.Content, []byte(want)) {
 			t.Errorf("frontmatter lacks %q", want)
