@@ -482,11 +482,46 @@ should see: the parts are files they can read, diff and commit before anything i
 archived. It writes beside its sources and not into the bundle, so it takes no writer
 lock and writes no audit row.
 
+**It reports what would go wrong before anything is written**, because every defect
+the first real run met — in a corpus of 42 converted books — was found only after the
+parts had been written, committed and fetched:
+
+- **Parts fetch will refuse.** Each file split leaves for fetch is put through fetch's
+  own `archive.Decide` with the bundle's gates and scan rules, and one fetch would
+  refuse is reported as *unfetchable* with the finding fetch prints. Twenty-two sources
+  were refused that way — zero-width characters O'Reilly uses as line-break hints, PDF
+  soft hyphens, a credential in a setup example, a `curl | sh` install line.
+- **Cuts at headings that are not headings.** Each heading the split cuts at is checked
+  for reading as something else: a setext heading spanning several lines (code or
+  terminal output above a line of dashes), a shell command, an assignment or call, a
+  chart label (lower-case, with chart data on the line above), or a chapter nested
+  under front matter such as "Preface". Each is a *suspect*; `--strict` refuses the
+  source. Lower case alone was tried and rejected: it flagged seven real headings in
+  one corpus, because some books set front matter in lower case and "gRPC" is a name.
+
+Both are reported, never repaired. Whether a character is a defect or a heading is
+real is a judgement about the source, the fix belongs there, and repairing it here
+would break the verbatim property.
+
+**Regenerating is explicit.** A part is never overwritten by default, and a part an
+earlier split left is reported, not deleted, because a claim may already quote it.
+`--replace` overwrites and removes — but only a file whose own `gnosis_split` block
+names this source, read through the same package that writes it, so a hand-written
+file is never touched. Conflicts and leftovers name the splitter version that wrote
+them.
+
+**Small sections can be joined, and are not by default.** `--min-bytes N` joins a
+section smaller than N to its neighbour when the two fit under the limit, for a book
+whose conversion flattened its headings (one split into 81 parts, 13 too small to hold
+a claim). No default is set because none has been measured, and a threshold belongs in
+`standards/` only once one has (§6.5); when set, it is recorded in every part.
+
 **What it does not do.** It does not reformat: a source with long lines or stray blank
 lines yields parts with the same, because rewriting bytes would break the verbatim
 property, and a reformat belongs in the source before it is split. It does not repair
 heading structure: a conversion that flattened chapters and sections to one level
-yields a part per section. And a stretch with no heading left to cut at is planned over
+yields a part per section unless `--min-bytes` joins them.
+And a stretch with no heading left to cut at is planned over
 the limit and reported, not cut mid-paragraph.
 
 ______________________________________________________________________
