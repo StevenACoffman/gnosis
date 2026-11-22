@@ -129,6 +129,12 @@ type Plan struct {
 	// yields no parts: it can be archived as it is.
 	Parts []Part
 
+	// Suspects are cut headings that read as something other than a heading — a
+	// chart label, a line of code, terminal output — or chapters nested under front
+	// matter. The parts are planned regardless; the shell decides what a suspect
+	// costs.
+	Suspects []Suspect
+
 	// Oversize names parts still over Limit because the stretch they cover has no
 	// heading left to cut at. They are planned anyway — a part over the cap is still
 	// a smaller problem than the whole book over it — and the shell reports them.
@@ -205,6 +211,7 @@ func Split(src []byte, opt Options) (*Plan, error) {
 	if err := verify(src, plan.Parts); err != nil {
 		return nil, fmt.Errorf("split %s: %w", opt.Source, err)
 	}
+	plan.Suspects = suspects(src, plan.Parts)
 	return plan, nil
 }
 

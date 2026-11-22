@@ -204,3 +204,23 @@ func TestACleanBookHasNothingUnfetchable(t *testing.T) {
 		t.Fatalf("err = %v, want a clean run\n%s", err, out)
 	}
 }
+
+func TestStrictRefusesASourceCutAtASuspectHeading(t *testing.T) {
+	chapter := strings.Repeat(strings.Repeat("word ", 15)+"\n", 40) + "\n"
+	src := "# Book\n\n" + chapter + "$ go run ./client\n--------ADD-------\n-------------------\n\n" + chapter
+	path := filepath.Join(t.TempDir(), "book.md")
+	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "split", "--strict", maxBytes, path)
+	if exitCode(err) != root.ExitError(root.CodeFindings) {
+		t.Fatalf("err = %v, want the findings exit\n%s", err, out)
+	}
+	if !strings.Contains(out, "refused") || !strings.Contains(out, "suspect") {
+		t.Fatalf("output does not refuse and name the suspect:\n%s", out)
+	}
+	if got := parts(t, filepath.Dir(path)); len(got) != 0 {
+		t.Fatalf("--strict wrote %v", got)
+	}
+}

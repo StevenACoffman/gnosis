@@ -63,6 +63,13 @@ whole — is put through fetch's own admission decision, and one fetch would ref
 is reported as unfetchable with fetch's finding: a zero-width character and where,
 a secret, an injection pattern. Nothing is stripped; the fix belongs in the source.
 
+Every heading the split cuts at is checked for reading as something other than a
+heading — a multi-line setext heading (code or output above a line of dashes), a
+shell command, an assignment or call, a fragment starting lower-case like the chart
+label "# of Sales", or a chapter nested under front matter such as "Preface" — and
+each is reported as a suspect with its line. --strict refuses a source with any,
+writing nothing for it.
+
 Re-running over an unchanged source is a no-op: identical files are left alone. A
 file that exists with different bytes is a conflict and is never overwritten, and a
 part left over from an earlier split of the same source is reported as stale and
@@ -94,6 +101,10 @@ type Config struct {
 	// Level cuts at headings of this level even where fewer parts would fit.
 	Level int
 
+	// Strict refuses a source with a suspect cut heading, writing nothing for it,
+	// instead of writing its parts and reporting the suspects.
+	Strict bool
+
 	Flags   *ff.FlagSet
 	Command *ff.Command
 
@@ -117,6 +128,10 @@ type Source struct {
 
 	// Unfetchable are the files this run leaves that fetch will not archive as text.
 	Unfetchable []Unfetchable `json:"unfetchable,omitempty"`
+
+	// Suspects are the headings this source was cut at that read as something
+	// other than a heading.
+	Suspects []split.Suspect `json:"suspects,omitempty"`
 }
 
 // Part is one planned file and what happened to it.
@@ -142,6 +157,8 @@ func New(parent *root.Config) *Config {
 	cfg.Flags.BoolVar(&cfg.DryRun, 'n', "dry-run", "plan and compare without writing")
 	cfg.Flags.IntVar(&cfg.MaxBytes, 0, "max-bytes", 0,
 		"largest part in bytes; defaults to, and may not exceed, the archive's per-file cap")
+	cfg.Flags.BoolVar(&cfg.Strict, 0, "strict",
+		"refuse a source whose split would cut at a heading that reads as code or a label")
 	cfg.Flags.IntVar(&cfg.Level, 0, "level", 0,
 		"cut at headings of this level (1-6) even where fewer parts would fit")
 	cfg.Command = &ff.Command{
@@ -208,6 +225,12 @@ func (c *Config) splitOne(path string, limit int) (Source, error) {
 	}
 	src.SHA256 = plan.SHA256
 	src.Oversize = plan.Oversize
+	src.Suspects = plan.Suspects
+	if c.Strict && len(plan.Suspects) > 0 {
+		src.Refused = fmt.Sprintf("--strict: %d cut heading(s) read as something other "+
+			"than a heading; nothing was written", len(plan.Suspects))
+		return src, nil
+	}
 	if len(plan.Parts) == 0 {
 		src.Fits = true
 		src.Unfetchable = predict([]plannedFile{{path: path, content: data}}, c.gates, c.Rules)
@@ -318,7 +341,7 @@ func (r *Result) findings() int {
 		if s.Refused != "" {
 			n++
 		}
-		n += len(s.Stale) + len(s.Oversize) + len(s.Unfetchable)
+		n += len(s.Stale) + len(s.Oversize) + len(s.Unfetchable) + len(s.Suspects)
 		for _, p := range s.Parts {
 			if p.State == stateConflict {
 				n++
@@ -358,6 +381,7 @@ func (c *Config) print(result *Result) {
 		switch {
 		case s.Refused != "":
 			_, _ = fmt.Fprintf(c.Stdout, "refused  %s\n    %s\n", s.Path, s.Refused)
+			c.printSuspects(s.Suspects)
 			continue
 		case s.Fits:
 			_, _ = fmt.Fprintf(c.Stdout, "fits     %s (%d bytes, limit %d): nothing to split\n",
@@ -379,6 +403,7 @@ func (c *Config) print(result *Result) {
 			_, _ = fmt.Fprintf(c.Stdout, "  oversize  %s: no heading left to cut at\n", o)
 		}
 		c.printUnfetchable(s.Unfetchable)
+		c.printSuspects(s.Suspects)
 		for _, st := range s.Stale {
 			_, _ = fmt.Fprintf(c.Stdout, "  stale     %s: from an earlier split, not deleted\n", st)
 		}
@@ -397,6 +422,15 @@ func (c *Config) printUnfetchable(files []Unfetchable) {
 		for _, f := range r.Findings {
 			_, _ = fmt.Fprintf(c.Stdout, "      %s\n", f)
 		}
+	}
+}
+
+// printSuspects names each heading the source was cut at that reads as something
+// else, with its line, so the source can be corrected before it is split again.
+func (c *Config) printSuspects(suspects []split.Suspect) {
+	for _, sp := range suspects {
+		_, _ = fmt.Fprintf(c.Stdout, "  suspect   line %d %q reads as %s\n",
+			sp.Line, sp.Heading, sp.Reason)
 	}
 }
 
