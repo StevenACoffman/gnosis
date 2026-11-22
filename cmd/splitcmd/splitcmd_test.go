@@ -105,7 +105,7 @@ func TestAnEditedPartIsAConflictAndIsNotOverwritten(t *testing.T) {
 	}
 }
 
-func TestAPartFromAnEarlierSplitIsReportedStale(t *testing.T) {
+func TestAPartFromAnEarlierSplitIsReportedAsALeftover(t *testing.T) {
 	path := book(t)
 	if out, err := run(t, "split", maxBytes, path); err != nil {
 		t.Fatalf("split: %v\n%s", err, out)
@@ -128,14 +128,14 @@ func TestAPartFromAnEarlierSplitIsReportedStale(t *testing.T) {
 	if exitCode(err) != root.ExitError(root.CodeFindings) {
 		t.Fatalf("err = %v, want the findings exit\n%s", err, out)
 	}
-	if !strings.Contains(out, "stale     "+old) {
-		t.Errorf("the leftover part is not reported stale:\n%s", out)
+	if !strings.Contains(out, "leftover  "+filepath.Base(old)) {
+		t.Errorf("the leftover part is not reported:\n%s", out)
 	}
 	if strings.Contains(out, notes) {
 		t.Errorf("a hand-written file sharing the prefix was reported:\n%s", out)
 	}
 	if _, statErr := os.Stat(old); statErr != nil {
-		t.Error("the stale part was removed")
+		t.Error("the leftover part was removed")
 	}
 }
 
@@ -222,5 +222,46 @@ func TestStrictRefusesASourceCutAtASuspectHeading(t *testing.T) {
 	}
 	if got := parts(t, filepath.Dir(path)); len(got) != 0 {
 		t.Fatalf("--strict wrote %v", got)
+	}
+}
+
+func TestReplaceRegeneratesAnEarlierSplitAndLeavesHandWrittenFilesAlone(t *testing.T) {
+	path := book(t)
+	dir := filepath.Dir(path)
+	if out, err := run(t, "split", maxBytes, path); err != nil {
+		t.Fatalf("first split: %v\n%s", err, out)
+	}
+
+	// The source changes, so every part's provenance changes; an old part this split
+	// no longer plans is left beside it; and a hand-written file shares the prefix.
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(src, []byte("\nOne more line.\n")...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := filepath.Join(dir, "book-09-old.md")
+	notes := filepath.Join(dir, "book-notes.md")
+	leftover := "---\ngnosis_split:\n  source: book.md\n  splitter_version: 1\n---\n\n## Old\n"
+	if err := os.WriteFile(old, []byte(leftover), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(notes, []byte("# Notes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run(t, "split", "--replace", maxBytes, path)
+	if err != nil {
+		t.Fatalf("split --replace: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "replaced") || !strings.Contains(out, "removed   book-09-old.md") {
+		t.Errorf("the earlier split was not replaced and its leftover removed:\n%s", out)
+	}
+	if _, err := os.Stat(old); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the leftover part is still there: %v", err)
+	}
+	if got, _ := os.ReadFile(notes); string(got) != "# Notes\n" {
+		t.Error("--replace touched a hand-written file")
 	}
 }

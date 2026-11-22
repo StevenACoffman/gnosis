@@ -71,9 +71,11 @@ each is reported as a suspect with its line. --strict refuses a source with any,
 writing nothing for it.
 
 Re-running over an unchanged source is a no-op: identical files are left alone. A
-file that exists with different bytes is a conflict and is never overwritten, and a
-part left over from an earlier split of the same source is reported as stale and
-never deleted. Both are findings; deciding what to do with them is yours.
+file that exists with different bytes is a conflict and is not overwritten, and a
+part left over from an earlier split of the same source is reported as a leftover
+and kept; both are findings, and each names the splitter version that wrote it.
+--replace regenerates instead: it overwrites a conflicting file and removes a leftover, but only when the file's own frontmatter says split cut it from this source. A
+hand-written file is never touched.
 
 split writes beside its sources, not into the bundle, so it takes no writer lock
 and leaves no audit row. --bundle is read only for the cap.`
@@ -83,6 +85,7 @@ and leaves no audit row. --bundle is read only for the cap.`
 const (
 	stateCreated   = "created"
 	stateUnchanged = "unchanged"
+	stateReplaced  = "replaced"
 	stateConflict  = "conflict"
 )
 
@@ -101,6 +104,11 @@ type Config struct {
 	// Level cuts at headings of this level even where fewer parts would fit.
 	Level int
 
+	// Replace overwrites a part an earlier split of the same source wrote, and
+	// removes one this split no longer plans. Files split did not write are never
+	// touched.
+	Replace bool
+
 	// Strict refuses a source with a suspect cut heading, writing nothing for it,
 	// instead of writing its parts and reporting the suspects.
 	Strict bool
@@ -115,16 +123,16 @@ type Config struct {
 
 // Source is what became of one source file.
 type Source struct {
-	Path       string   `json:"path"`
-	SHA256     string   `json:"sha256,omitempty"`
-	Bytes      int      `json:"bytes"`
-	Parts      []Part   `json:"parts,omitempty"`
-	Fits       bool     `json:"fits,omitempty"`
-	Refused    string   `json:"refused,omitempty"`
-	Oversize   []string `json:"oversize,omitempty"`
-	Relinked   int      `json:"relinked,omitempty"`
-	Unresolved int      `json:"unresolved,omitempty"`
-	Stale      []string `json:"stale,omitempty"`
+	Path       string     `json:"path"`
+	SHA256     string     `json:"sha256,omitempty"`
+	Bytes      int        `json:"bytes"`
+	Parts      []Part     `json:"parts,omitempty"`
+	Fits       bool       `json:"fits,omitempty"`
+	Refused    string     `json:"refused,omitempty"`
+	Oversize   []string   `json:"oversize,omitempty"`
+	Relinked   int        `json:"relinked,omitempty"`
+	Unresolved int        `json:"unresolved,omitempty"`
+	Leftovers  []Leftover `json:"leftovers,omitempty"`
 
 	// Unfetchable are the files this run leaves that fetch will not archive as text.
 	Unfetchable []Unfetchable `json:"unfetchable,omitempty"`
@@ -140,6 +148,18 @@ type Part struct {
 	Bytes int    `json:"bytes"`
 	Lines string `json:"lines"`
 	State string `json:"state"`
+
+	// WrittenBy is the splitter version that wrote a conflicting file, or 0 when
+	// the file is not a part split wrote.
+	WrittenBy int `json:"written_by,omitempty"`
+}
+
+// Leftover is a part an earlier split of the same source wrote that this split
+// does not plan, and whether --replace removed it.
+type Leftover struct {
+	Path      string `json:"path"`
+	WrittenBy int    `json:"written_by"`
+	Removed   bool   `json:"removed,omitempty"`
 }
 
 // Result is the whole run.
@@ -157,6 +177,8 @@ func New(parent *root.Config) *Config {
 	cfg.Flags.BoolVar(&cfg.DryRun, 'n', "dry-run", "plan and compare without writing")
 	cfg.Flags.IntVar(&cfg.MaxBytes, 0, "max-bytes", 0,
 		"largest part in bytes; defaults to, and may not exceed, the archive's per-file cap")
+	cfg.Flags.BoolVar(&cfg.Replace, 0, "replace",
+		"overwrite or remove parts an earlier split of the same source wrote")
 	cfg.Flags.BoolVar(&cfg.Strict, 0, "strict",
 		"refuse a source whose split would cut at a heading that reads as code or a label")
 	cfg.Flags.IntVar(&cfg.Level, 0, "level", 0,
@@ -246,25 +268,24 @@ func (c *Config) splitOne(path string, limit int) (Source, error) {
 		files = append(files, plannedFile{path: filepath.Join(dir, p.Name), content: p.Content})
 		src.Relinked += p.Relinked
 		src.Unresolved += len(p.Unresolved)
-		state, err := c.place(filepath.Join(dir, p.Name), p.Content)
+		part, err := c.place(filepath.Join(dir, p.Name), filepath.Base(path), p.Content)
 		if err != nil {
 			return Source{}, err
 		}
-		src.Parts = append(src.Parts, Part{
-			Path:  filepath.Join(dir, p.Name),
-			Bytes: len(p.Content),
-			Lines: fmt.Sprintf("%d-%d", p.StartLine, p.EndLine),
-			State: state,
-		})
+		part.Lines = fmt.Sprintf("%d-%d", p.StartLine, p.EndLine)
+		src.Parts = append(src.Parts, part)
 	}
 
 	src.Unfetchable = predict(files, c.gates, c.Rules)
 
-	stale, err := staleParts(dir, filepath.Base(path), planned)
+	left, err := leftovers(dir, filepath.Base(path), planned)
 	if err != nil {
 		return Source{}, err
 	}
-	src.Stale = stale
+	if left, err = c.removeLeftovers(left); err != nil {
+		return Source{}, err
+	}
+	src.Leftovers = left
 	return src, nil
 }
 
@@ -281,41 +302,70 @@ func (c *Config) plan(data []byte, source string, limit int) (*split.Plan, strin
 	return p, ""
 }
 
-// place writes content at path when nothing is there, and reports what it found
-// otherwise.
-func (c *Config) place(path string, content []byte) (string, error) {
-	existing, err := os.ReadFile(path)
+// decide picks what happens to one planned part, given what is on disk at its path.
+//
+// Requires: exists reports whether a file is at the part's path, and existing is
+// its content when it does.
+// Ensures: created when nothing is there; unchanged when the bytes already match;
+// replaced when replace is set and the file is a part of source; conflict
+// otherwise. Pure.
+//
+// A file is replaced only when its own frontmatter says split cut it from this
+// source. A hand-written file, or a part of some other source that happens to share
+// the name, is never overwritten, --replace or not.
+func decide(planned, existing []byte, exists bool, source string, replace bool) string {
 	switch {
-	case err == nil && bytes.Equal(existing, content):
-		return stateUnchanged, nil
-	case err == nil:
-		return stateConflict, nil
-	case !errors.Is(err, os.ErrNotExist):
-		return "", toerr.WrapWithMessage(err, "split: read "+path)
+	case !exists:
+		return stateCreated
+	case bytes.Equal(existing, planned):
+		return stateUnchanged
 	}
-	if c.DryRun {
-		return stateCreated, nil
+	if prov, ok := split.ReadProvenance(existing); ok && prov.Source == source && replace {
+		return stateReplaced
 	}
-	if err := atomicfile.WriteFile(path, content, 0o644); err != nil {
-		return "", toerr.WrapWithMessage(err, "split: write "+path)
-	}
-	return stateCreated, nil
+	return stateConflict
 }
 
-// staleParts lists files in dir that an earlier split of source produced and this
-// plan does not: the same stem, and frontmatter naming the same source.
+// place carries out decide's choice for one part and reports it, with the splitter
+// version that wrote a file it would not overwrite.
+func (c *Config) place(path, source string, content []byte) (Part, error) {
+	existing, err := os.ReadFile(path)
+	exists := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return Part{}, toerr.WrapWithMessage(err, "split: read "+path)
+	}
+
+	part := Part{Path: path, Bytes: len(content)}
+	part.State = decide(content, existing, exists, source, c.Replace)
+	switch part.State {
+	case stateCreated, stateReplaced:
+		if c.DryRun {
+			return part, nil
+		}
+		if err := atomicfile.WriteFile(path, content, 0o644); err != nil {
+			return Part{}, toerr.WrapWithMessage(err, "split: write "+path)
+		}
+	case stateConflict:
+		if prov, ok := split.ReadProvenance(existing); ok {
+			part.WrittenBy = prov.Version
+		}
+	}
+	return part, nil
+}
+
+// leftovers lists files in dir that an earlier split of source produced and this
+// plan does not.
 //
-// The frontmatter test is what keeps a hand-written file that happens to share the
-// prefix from being reported. Nothing is deleted; a stale part may be the one a
-// claim already quotes.
-func staleParts(dir, source string, planned map[string]bool) ([]string, error) {
+// A file counts only when its frontmatter says split cut it from this source, so a
+// hand-written file sharing the prefix is never reported, and never removed.
+func leftovers(dir, source string, planned map[string]bool) ([]Leftover, error) {
 	stem := strings.TrimSuffix(source, ".md")
 	matches, err := filepath.Glob(filepath.Join(dir, stem+"-*.md"))
 	if err != nil {
 		return nil, toerr.WrapWithMessage(err, "split: list "+dir)
 	}
-	marker := []byte("gnosis_split:\n  source: " + source + "\n")
-	var stale []string
+	sort.Strings(matches)
+	var out []Leftover
 	for _, m := range matches {
 		if planned[filepath.Base(m)] {
 			continue
@@ -324,15 +374,36 @@ func staleParts(dir, source string, planned map[string]bool) ([]string, error) {
 		if err != nil {
 			return nil, toerr.WrapWithMessage(err, "split: read "+m)
 		}
-		if bytes.HasPrefix(data, []byte("---\n")) && bytes.Contains(data, marker) {
-			stale = append(stale, m)
+		if prov, ok := split.ReadProvenance(data); ok && prov.Source == source {
+			out = append(out, Leftover{Path: m, WrittenBy: prov.Version})
 		}
 	}
-	sort.Strings(stale)
-	return stale, nil
+	return out, nil
 }
 
-// findings counts what a person must look at: refusals, conflicts, stale parts,
+// removeLeftovers deletes the leftovers under --replace, returning them marked removed.
+//
+// Without --replace nothing is deleted, because a leftover part may be the one a
+// claim already quotes; with it, the caller has said the new split supersedes the
+// old. A dry run marks them without deleting, so its report matches the real run.
+func (c *Config) removeLeftovers(left []Leftover) ([]Leftover, error) {
+	if !c.Replace {
+		return left, nil
+	}
+	out := make([]Leftover, 0, len(left))
+	for _, l := range left {
+		if !c.DryRun {
+			if err := os.Remove(l.Path); err != nil {
+				return nil, toerr.WrapWithMessage(err, "split: remove "+l.Path)
+			}
+		}
+		l.Removed = true
+		out = append(out, l)
+	}
+	return out, nil
+}
+
+// findings counts what a person must look at: refusals, conflicts, leftovers,
 // and parts still over the limit.
 func (r *Result) findings() int {
 	n := 0
@@ -341,7 +412,12 @@ func (r *Result) findings() int {
 		if s.Refused != "" {
 			n++
 		}
-		n += len(s.Stale) + len(s.Oversize) + len(s.Unfetchable) + len(s.Suspects)
+		n += len(s.Oversize) + len(s.Unfetchable) + len(s.Suspects)
+		for _, l := range s.Leftovers {
+			if !l.Removed {
+				n++
+			}
+		}
 		for _, p := range s.Parts {
 			if p.State == stateConflict {
 				n++
@@ -391,8 +467,8 @@ func (c *Config) print(result *Result) {
 		}
 		_, _ = fmt.Fprintf(c.Stdout, "split    %s into %d parts\n", s.Path, len(s.Parts))
 		for _, p := range s.Parts {
-			_, _ = fmt.Fprintf(c.Stdout, "  %-9s %7d  lines %-13s %s\n",
-				p.State, p.Bytes, p.Lines, filepath.Base(p.Path))
+			_, _ = fmt.Fprintf(c.Stdout, "  %-9s %7d  lines %-13s %s%s\n",
+				p.State, p.Bytes, p.Lines, filepath.Base(p.Path), writtenBy(p.WrittenBy))
 		}
 		if s.Relinked > 0 || s.Unresolved > 0 {
 			_, _ = fmt.Fprintf(c.Stdout,
@@ -404,9 +480,7 @@ func (c *Config) print(result *Result) {
 		}
 		c.printUnfetchable(s.Unfetchable)
 		c.printSuspects(s.Suspects)
-		for _, st := range s.Stale {
-			_, _ = fmt.Fprintf(c.Stdout, "  stale     %s: from an earlier split, not deleted\n", st)
-		}
+		c.printLeftovers(s.Leftovers)
 	}
 	if result.DryRun {
 		_, _ = fmt.Fprintln(c.Stdout, "dry run: nothing was written")
@@ -423,6 +497,26 @@ func (c *Config) printUnfetchable(files []Unfetchable) {
 			_, _ = fmt.Fprintf(c.Stdout, "      %s\n", f)
 		}
 	}
+}
+
+// printLeftovers names each part an earlier split left that this one does not plan.
+func (c *Config) printLeftovers(left []Leftover) {
+	for _, l := range left {
+		what := "leftover  %s: from an earlier split, kept%s\n"
+		if l.Removed {
+			what = "removed   %s: from an earlier split%s\n"
+		}
+		_, _ = fmt.Fprintf(c.Stdout, "  "+what, filepath.Base(l.Path), writtenBy(l.WrittenBy))
+	}
+}
+
+// writtenBy says which splitter wrote a file this run will not touch, and how to
+// regenerate it — or nothing for a file split did not write.
+func writtenBy(version int) string {
+	if version == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (written by splitter v%d; --replace regenerates it)", version)
 }
 
 // printSuspects names each heading the source was cut at that reads as something
