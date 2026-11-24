@@ -28,6 +28,16 @@ type Source struct {
 	// Suspects are the headings this source was cut at that read as something
 	// other than a heading.
 	Suspects []split.Suspect `json:"suspects,omitempty"`
+
+	// Original is what became of the source file under --originals, or nil when it
+	// was not to move.
+	Original *Original `json:"original,omitempty"`
+}
+
+// Original is where a split source's original was to move, and what happened.
+type Original struct {
+	To    string `json:"to"`
+	State string `json:"state"`
 }
 
 // Part is one planned file and what happened to it.
@@ -57,8 +67,20 @@ type Result struct {
 	Sources []Source `json:"sources"`
 }
 
+// conflicts counts the parts left in conflict.
+func (s *Source) conflicts() int {
+	n := 0
+	for _, p := range s.Parts {
+		if p.State == stateConflict {
+			n++
+		}
+	}
+	return n
+}
+
 // findings counts what a person must look at: refusals, conflicts, leftovers,
-// and parts still over the limit.
+// parts still over the limit, and an original that could not move over another
+// file. An original kept for a conflicting part is not counted again.
 func (r *Result) findings() int {
 	n := 0
 	for i := range r.Sources {
@@ -72,10 +94,9 @@ func (r *Result) findings() int {
 				n++
 			}
 		}
-		for _, p := range s.Parts {
-			if p.State == stateConflict {
-				n++
-			}
+		n += s.conflicts()
+		if s.Original != nil && s.Original.State == originalConflict {
+			n++
 		}
 	}
 	return n
@@ -135,6 +156,7 @@ func (c *Config) print(result *Result) {
 		c.printUnfetchable(s.Unfetchable)
 		c.printSuspects(s.Suspects)
 		c.printLeftovers(s.Leftovers)
+		c.printOriginal(s.Original)
 	}
 	if result.DryRun {
 		_, _ = fmt.Fprintln(c.Stdout, "dry run: nothing was written")
@@ -151,6 +173,20 @@ func (c *Config) printUnfetchable(files []Unfetchable) {
 			_, _ = fmt.Fprintf(c.Stdout, "      %s\n", f)
 		}
 	}
+}
+
+// printOriginal says where the source's original went, or why it stayed.
+func (c *Config) printOriginal(o *Original) {
+	if o == nil {
+		return
+	}
+	what := map[string]string{
+		originalMoved:    "moved to %s",
+		originalAlready:  "already at %s; the copy here was removed",
+		originalConflict: "kept: %s holds other bytes",
+		originalKept:     "kept until its conflicting parts are resolved; it moves to %s",
+	}[o.State]
+	_, _ = fmt.Fprintf(c.Stdout, "  original  "+what+"\n", o.To)
 }
 
 // printLeftovers names each part an earlier split left that this one does not plan.

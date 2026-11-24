@@ -524,6 +524,20 @@ names this source, read through the same package that writes it, so a hand-writt
 file is never touched. Conflicts and leftovers name the splitter version that wrote
 them.
 
+**An original can be moved out of the sources once it is split.** A reader of the
+sources tree — canonizer distilling rules from it — otherwise reads every split book
+twice, once whole and once as its parts. `--originals DIR` moves each source split into
+parts to DIR at the path it has relative to `--sources` (the working directory by
+default), so `source_materials/kleppmann/ddia.md` becomes
+`split_source_originals/kleppmann/ddia.md`, creating directories as needed. A source
+that fits is never moved, because it has no parts to stand in for it. The original
+stays while any part conflicts, since it is then the only faithful copy of that
+stretch, and it is never written over a different file at its destination, `--replace`
+or not, because nothing records that file as one split may replace. A source already
+under `--originals` is split back into the matching directory under `--sources` and
+left where it is, so re-splitting a moved book needs no step by hand. Parts still name
+their source by file name and SHA-256 only; where it is kept is the caller's choice.
+
 **Small sections can be joined, and are not by default.** `--min-bytes N` joins a
 section smaller than N to its neighbour when the two fit under the limit, for a book
 whose conversion flattened its headings (one split into 81 parts, 13 too small to hold

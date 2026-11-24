@@ -78,6 +78,14 @@ and kept; both are findings, and each names the splitter version that wrote it.
 --replace regenerates instead: it overwrites a conflicting file and removes a leftover, but only when the file's own frontmatter says split cut it from this source. A
 hand-written file is never touched.
 
+--originals DIR moves each source split into parts to DIR, at the path it has
+relative to --sources (the working directory by default), creating directories as
+needed, so whatever reads the sources meets each book once, as its parts. A source
+that fits is never moved. The original stays put while any part is in conflict,
+and is never written over a different file already at its destination. A source
+already under --originals is split back into the matching directory under
+--sources, so a moved original can be split again where it is.
+
 split writes beside its sources, not into the bundle, so it takes no writer lock
 and leaves no audit row. --bundle is read only for the cap.`
 
@@ -118,6 +126,16 @@ type Config struct {
 	// instead of writing its parts and reporting the suspects.
 	Strict bool
 
+	// Originals is where a split source's original moves once its parts are
+	// written, at the same path relative to it that the source has relative to
+	// Sources, so a reader of the sources meets each book once. Empty leaves
+	// originals beside their parts.
+	Originals string
+
+	// Sources is the directory source paths are taken relative to when Originals is
+	// set. It defaults to the working directory.
+	Sources string
+
 	Flags   *ff.FlagSet
 	Command *ff.Command
 
@@ -142,9 +160,14 @@ func New(parent *root.Config) *Config {
 		"join a section smaller than this to its neighbour when both fit (0 keeps every section)")
 	cfg.Flags.IntVar(&cfg.Level, 0, "level", 0,
 		"cut at headings of this level (1-6) even where fewer parts would fit")
+	cfg.Flags.StringVar(&cfg.Originals, 0, "originals", "",
+		"move each split source's original here, at its path relative to --sources")
+	cfg.Flags.StringVar(&cfg.Sources, 0, "sources", ".",
+		"directory source paths are relative to, for --originals")
 	cfg.Command = &ff.Command{
-		Name:      "split",
-		Usage:     "gnosis split [--dry-run] [--max-bytes N] [--level N] <FILE.md>...",
+		Name: "split",
+		Usage: "gnosis split [--dry-run] [--max-bytes N] [--level N] " +
+			"[--originals DIR [--sources DIR]] <FILE.md>...",
 		ShortHelp: "cut a Markdown source too large to archive into parts that are not",
 		LongHelp:  longHelp,
 		Flags:     cfg.Flags,
@@ -184,9 +207,14 @@ func (c *Config) exec(_ context.Context, args []string) error {
 			"of %d, got %d", limit, c.MinBytes))
 	}
 
+	roots, err := c.roots()
+	if err != nil {
+		return c.usage(err)
+	}
+
 	result := &Result{Limit: limit, DryRun: c.DryRun}
 	for _, path := range args {
-		src, err := c.splitOne(path, limit)
+		src, err := c.splitOne(path, limit, roots)
 		if err != nil {
 			return c.fail(root.ReasonFetchFailed, err)
 		}
@@ -195,13 +223,44 @@ func (c *Config) exec(_ context.Context, args []string) error {
 	return c.report(result)
 }
 
-// splitOne plans one source and applies the plan.
-func (c *Config) splitOne(path string, limit int) (Source, error) {
+// roots resolves --sources and --originals to absolute paths, so locate can compare
+// them with any source path however it was written.
+func (c *Config) roots() (placementRoots, error) {
+	if c.Originals == "" {
+		return placementRoots{}, nil
+	}
+	sources, err := filepath.Abs(c.Sources)
+	if err != nil {
+		return placementRoots{}, toerr.WrapWithMessage(err, "resolve --sources")
+	}
+	originals, err := filepath.Abs(c.Originals)
+	if err != nil {
+		return placementRoots{}, toerr.WrapWithMessage(err, "resolve --originals")
+	}
+	if _, inside := within(originals, sources); inside || sources == originals {
+		return placementRoots{}, fmt.Errorf("--sources %s must not be inside --originals %s",
+			c.Sources, c.Originals)
+	}
+	return placementRoots{sources: sources, originals: originals}, nil
+}
+
+// splitOne plans one source, applies the plan, and moves the original once split.
+func (c *Config) splitOne(path string, limit int, roots placementRoots) (Source, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Source{}, toerr.WrapWithMessage(err, "split: read "+path)
 	}
 	src := Source{Path: path, Bytes: len(data)}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return Source{}, toerr.WrapWithMessage(err, "split: resolve "+path)
+	}
+	where, refused := locate(abs, roots.sources, roots.originals)
+	if refused != "" {
+		src.Refused = refused
+		return src, nil
+	}
 
 	plan, refused := c.plan(data, filepath.Base(path), limit)
 	if refused != "" {
@@ -222,7 +281,22 @@ func (c *Config) splitOne(path string, limit int) (Source, error) {
 		return src, nil
 	}
 
-	dir := filepath.Dir(path)
+	if err := c.writeParts(&src, plan, where.partsDir, filepath.Base(path)); err != nil {
+		return Source{}, err
+	}
+	if where.moveTo != "" {
+		o, err := c.moveOriginal(path, where.moveTo, data, src.conflicts())
+		if err != nil {
+			return Source{}, err
+		}
+		src.Original = &o
+	}
+	return src, nil
+}
+
+// writeParts places plan's parts in dir, predicts what fetch will make of them, and
+// reports or removes the parts an earlier split of source left there.
+func (c *Config) writeParts(src *Source, plan *split.Plan, dir, source string) error {
 	planned := map[string]bool{}
 	files := make([]plannedFile, 0, len(plan.Parts))
 	for i := range plan.Parts {
@@ -231,9 +305,9 @@ func (c *Config) splitOne(path string, limit int) (Source, error) {
 		files = append(files, plannedFile{path: filepath.Join(dir, p.Name), content: p.Content})
 		src.Relinked += p.Relinked
 		src.Unresolved += len(p.Unresolved)
-		part, err := c.place(filepath.Join(dir, p.Name), filepath.Base(path), p.Content)
+		part, err := c.place(filepath.Join(dir, p.Name), source, p.Content)
 		if err != nil {
-			return Source{}, err
+			return err
 		}
 		part.Lines = fmt.Sprintf("%d-%d", p.StartLine, p.EndLine)
 		src.Parts = append(src.Parts, part)
@@ -241,15 +315,15 @@ func (c *Config) splitOne(path string, limit int) (Source, error) {
 
 	src.Unfetchable = predict(files, c.gates, c.Rules)
 
-	left, err := leftovers(dir, filepath.Base(path), planned)
+	left, err := leftovers(dir, source, planned)
 	if err != nil {
-		return Source{}, err
+		return err
 	}
 	if left, err = c.removeLeftovers(left); err != nil {
-		return Source{}, err
+		return err
 	}
 	src.Leftovers = left
-	return src, nil
+	return nil
 }
 
 // plan runs the planner, turning its refusal into a message.
