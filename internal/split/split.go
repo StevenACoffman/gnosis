@@ -30,6 +30,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -150,6 +151,11 @@ type Plan struct {
 type span struct {
 	start, end int
 	trail      []string
+
+	// joined marks small sections joinSmall put together on purpose: the first
+	// heading owns the span although its siblings follow it, so the part is named
+	// for the first section it holds.
+	joined bool
 }
 
 // cutter holds what every recursive cut reads.
@@ -269,14 +275,17 @@ func renderAll(
 // cut divides s at the shallowest heading level found inside it, then cuts again any
 // piece still too large.
 //
-// A heading starting exactly at s.start is s's own and is not a cut point; it joins
-// the trail instead. Cutting at the shallowest level first is what makes the parts
-// follow the book's structure — parts, then chapters, then sections — rather than an
-// arbitrary byte count.
+// A heading starting exactly at s.start that encloses s is s's own and is not a cut
+// point; it joins the trail instead. Cutting at the shallowest level first is what
+// makes the parts follow the book's structure — parts, then chapters, then sections —
+// rather than an arbitrary byte count.
 //
 // The lead — whatever sits between s.start and the first cut, typically a part title
 // and its short introduction — is joined to the first piece when the two fit
-// together, so a part's opening paragraph is not archived as a file of its own.
+// together, so a part's opening paragraph is not archived as a file of its own. A
+// source opening on front matter that is a sibling of the headings after it, such as
+// "# Preface" before "# Chapter 1", has no lead: its first piece is a section like
+// any other.
 //
 // Requires: 0 <= s.start <= s.end <= len(c.src).
 // Ensures: the returned spans tile [s.start, s.end) in order.
@@ -286,7 +295,7 @@ func (c *cutter) cut(s span, level int) []span {
 	if own != nil {
 		trail = appendTrail(trail, own.Title)
 	}
-	if !c.tooBig(s) && level == 0 {
+	if !c.tooBig(s) && level == 0 && fitsWhole(own, inner) {
 		return []span{{start: s.start, end: s.end, trail: trail}}
 	}
 
@@ -296,10 +305,10 @@ func (c *cutter) cut(s span, level int) []span {
 	}
 
 	pieces := atLevel(s, inner, cutLevel, trail)
-	if level == 0 {
-		// Under a forced level the lead stays separate: joining it could fold a
-		// two-chapter book back into one file and defeat the option.
-		pieces = c.joinLead(pieces, s.start)
+	// Under a forced level the lead stays separate: joining it could fold a
+	// two-chapter book back into one file and defeat the option.
+	if level == 0 && hasLead(s, own, inner, cutLevel) {
+		pieces = c.joinLead(pieces)
 	}
 	pieces = c.joinSmall(pieces)
 
@@ -311,14 +320,37 @@ func (c *cutter) cut(s span, level int) []span {
 	return out
 }
 
+// fitsWhole reports whether a span holding own and inner may be one part when it
+// fits: it is one heading's section, or, having no heading of its own, holds no
+// heading shallower than its first.
+//
+// Sections with no common parent — a book's front matter before its first chapter —
+// may share a part whose trail names none of them. A shallower heading among them,
+// "### Foreword" then "## Part I", may not: it opens a section that trail would hide,
+// so such a span is cut whatever its size.
+func fitsWhole(own *markdown.Section, inner []markdown.Section) bool {
+	return own != nil || len(inner) == 0 ||
+		!slices.ContainsFunc(inner[1:], func(h markdown.Section) bool {
+			return h.Level < inner[0].Level
+		})
+}
+
+// hasLead reports whether s's first piece, cutting at cutLevel, is a lead: the
+// introduction to s's own heading, or text before any heading.
+//
+// Requires: inner is non-empty.
+func hasLead(s span, own *markdown.Section, inner []markdown.Section, cutLevel int) bool {
+	return own != nil || inner[0].Start > s.start && inner[0].Level == cutLevel
+}
+
 // atLevel cuts s before every inner heading of the given level.
 //
 // A piece headed by a cut heading sits under s's own heading, so it inherits trail,
-// which includes it. The lead starts at s's own heading and adds that heading itself
+// which includes it. The first piece starts at s.start and adds its own heading itself
 // when it is cut, so it inherits s.trail, which does not.
 //
-// Requires: some heading in inner has the given level, so at least one cut falls
-// strictly inside s.
+// Requires: some heading in inner has the given level and starts after s.start, so at
+// least one cut falls strictly inside s.
 // Ensures: the pieces tile s in order, the first starting at s.start.
 func atLevel(s span, inner []markdown.Section, level int, trail []string) []span {
 	var pieces []span
@@ -334,21 +366,14 @@ func atLevel(s span, inner []markdown.Section, level int, trail []string) []span
 		prev = h.Start
 	}
 	pieces = append(pieces, span{start: prev, end: s.end, trail: trail})
-	if pieces[0].start == s.start {
-		pieces[0].trail = s.trail
-	}
+	pieces[0].trail = s.trail
 	return pieces
 }
 
 // joinLead merges a lead piece into the piece after it when the two fit together.
 //
-// Only a lead that is not itself headed by a cut-level heading qualifies — that is
-// the first piece when it starts at the span's own start and the span had content
-// before its first cut.
-func (c *cutter) joinLead(pieces []span, start int) []span {
-	if len(pieces) < 2 || pieces[0].start != start {
-		return pieces
-	}
+// Requires: pieces[0] is a lead, as hasLead reports, so len(pieces) >= 2.
+func (c *cutter) joinLead(pieces []span) []span {
 	// The lead's trail, because the joined span starts where the lead does and its
 	// own heading is re-derived from that start when it is cut.
 	joined := span{start: pieces[0].start, end: pieces[1].end, trail: pieces[0].trail}
@@ -377,7 +402,7 @@ func (c *cutter) joinSmall(pieces []span) []span {
 	out := []span{pieces[0]}
 	for _, p := range pieces[1:] {
 		last := out[len(out)-1]
-		joined := span{start: last.start, end: p.end, trail: last.trail}
+		joined := span{start: last.start, end: p.end, trail: last.trail, joined: true}
 		if (small(last) || small(p)) && !c.tooBig(joined) {
 			out[len(out)-1] = joined
 			continue
@@ -387,21 +412,46 @@ func (c *cutter) joinSmall(pieces []span) []span {
 	return out
 }
 
-// headingsIn returns the heading at s.start, if any, and every heading strictly
-// inside s.
+// headingsIn returns s's own heading, if it has one, and every other heading in s.
+// A heading at s.start that is not s's own is returned in inner, as a cut point like
+// the rest.
 func (c *cutter) headingsIn(s span) (*markdown.Section, []markdown.Section) {
-	var own *markdown.Section
+	var first *markdown.Section
 	var inner []markdown.Section
 	for i := range c.sections {
 		h := &c.sections[i]
 		switch {
-		case h.Start == s.start && own == nil:
-			own = h
+		case h.Start == s.start && first == nil:
+			first = h
 		case h.Start > s.start && h.Start < s.end:
 			inner = append(inner, *h)
 		}
 	}
-	return own, inner
+	if first == nil || owns(s, first, inner) {
+		return first, inner
+	}
+	return nil, append([]markdown.Section{*first}, inner...)
+}
+
+// owns reports whether first, the heading at s.start, is s's own.
+//
+// It is when every later heading in s is deeper: then s is that heading's section.
+// When a later heading is at its level or above, the two are siblings — "# Preface"
+// then "# Chapter 1" — and first does not enclose the book.
+//
+// Two spans are owned by their first heading regardless. One joinSmall joined holds
+// siblings on purpose. And a span opening the source on anything but front matter
+// opens on the book's title: conversions often set a title at the level of the
+// chapters, and it still encloses them.
+func owns(s span, first *markdown.Section, inner []markdown.Section) bool {
+	return s.joined || s.start == 0 && !frontMatter(first.Title) ||
+		allDeeper(inner, first.Level)
+}
+
+// allDeeper reports whether every heading in hs is deeper than level, so that hs
+// all fall within the section of a heading at that level.
+func allDeeper(hs []markdown.Section, level int) bool {
+	return !slices.ContainsFunc(hs, func(h markdown.Section) bool { return h.Level <= level })
 }
 
 // tooBig reports whether s would exceed the limit as a body alone. Frontmatter and

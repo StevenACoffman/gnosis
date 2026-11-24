@@ -475,6 +475,20 @@ part number, byte and line ranges, enclosing headings, links repaired and fragme
 unresolved, splitter version — which is the
 provenance a quotation found in the part needs to be traced back.
 
+**A part's enclosing headings follow the book's outline, not its first line.** A
+heading opening a stretch encloses it only when every heading after it is deeper; one
+followed by a heading at its own level or above is a sibling. The splitter first took
+every source's opening heading as enclosing the whole book, which is wrong for front
+matter: once *Terraform: Up & Running*'s chapters were promoted to H1, every one was
+filed under "Preface" and Chapter 1 was folded into the preface's part, and two more of
+the 42 books did the same under "Introduction" and "About This Book". It is right for a
+title, though — fourteen of those books set their title at the level of their chapters,
+and the title encloses them all the same — so a source's opening heading still encloses
+the book unless it names front matter, from the list the chapter-under-front-matter
+check uses. Front matter with no common parent may share one part with an empty trail;
+a heading shallower than the first in that stretch may not, because it opens a section
+the trail would hide, which is how one book's Part I was archived as front matter.
+
 **It is a separate command rather than a fourth disposition**, because a disposition is
 one archive path per fetch record (§4.3.1) and a split is many. Folding it into `fetch`
 would change the ledger's shape to save one command, and would hide a step a person
