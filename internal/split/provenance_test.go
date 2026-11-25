@@ -17,6 +17,11 @@ func TestReadProvenance(t *testing.T) {
 			ok:      true,
 			want:    split.Provenance{Source: "book.md", Version: 2},
 		},
+		"an index": {
+			content: "---\ngnosis_split_index:\n  source: book.md\n  splitter_version: 2\n---\n\n# Parts\n",
+			ok:      true,
+			want:    split.Provenance{Source: "book.md", Version: 2, Index: true},
+		},
 		"hand-written":      {content: "# Notes\n"},
 		"other frontmatter": {content: "---\ntitle: x\n---\n\n# X\n"},
 		"malformed yaml":    {content: "---\ngnosis_split: [\n---\n"},

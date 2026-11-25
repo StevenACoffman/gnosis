@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -34,13 +35,16 @@ func book(t *testing.T) string {
 	return path
 }
 
+// parts lists the parts split wrote for book.md in dir, leaving out its index.
 func parts(t *testing.T, dir string) []string {
 	t.Helper()
 	m, err := filepath.Glob(filepath.Join(dir, "book-*.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return m
+	return slices.DeleteFunc(m, func(p string) bool {
+		return strings.HasSuffix(p, "-00-index.md")
+	})
 }
 
 func exitCode(err error) root.ExitError {

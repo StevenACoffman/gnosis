@@ -16,13 +16,17 @@ import (
 type Provenance struct {
 	Source  string
 	Version int
+
+	// Index is true for the book's index rather than one of its parts.
+	Index bool
 }
 
-// ReadProvenance reads the gnosis_split block at the top of content.
+// ReadProvenance reads the gnosis_split block, or the gnosis_split_index block of a
+// book's index, at the top of content.
 //
 // Requires: nothing; content may be any file.
-// Ensures: ok is true exactly when content begins with frontmatter holding a
-// gnosis_split block that names a source. A hand-written file, a file with other
+// Ensures: ok is true exactly when content begins with frontmatter holding either
+// block naming a source, and Index says which. A hand-written file, a file with other
 // frontmatter, and malformed YAML are all "not a part", never an error: the
 // question asked is whether split owns this file, and for all three it does not.
 func ReadProvenance(content []byte) (Provenance, bool) {
@@ -31,8 +35,12 @@ func ReadProvenance(content []byte) (Provenance, bool) {
 		return Provenance{}, false
 	}
 	var rec provenance
-	if err := yaml.Unmarshal([]byte(block), &rec); err != nil || rec.Split.Source == "" {
-		return Provenance{}, false
+	if err := yaml.Unmarshal([]byte(block), &rec); err == nil && rec.Split.Source != "" {
+		return Provenance{Source: rec.Split.Source, Version: rec.Split.Version}, true
 	}
-	return Provenance{Source: rec.Split.Source, Version: rec.Split.Version}, true
+	var idx indexFrontmatter
+	if err := yaml.Unmarshal([]byte(block), &idx); err == nil && idx.Index.Source != "" {
+		return Provenance{Source: idx.Index.Source, Version: idx.Index.Version, Index: true}, true
+	}
+	return Provenance{}, false
 }

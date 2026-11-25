@@ -78,6 +78,11 @@ and kept; both are findings, and each names the splitter version that wrote it.
 --replace regenerates instead: it overwrites a conflicting file and removes a leftover, but only when the file's own frontmatter says split cut it from this source. A
 hand-written file is never touched.
 
+Beside the parts split writes <stem>-00-index.md, the book's entry point: a relative
+link to each part in reading order, named for its heading. It is regenerated on every
+run and never fetched, and its gnosis_split_index frontmatter is what canonizer's
+distill skips, so the book is not distilled a second time through its links.
+
 --originals DIR moves each source split into parts to DIR, at the path it has
 relative to --sources (the working directory by default), creating directories as
 needed, so whatever reads the sources meets each book once, as its parts. A source
@@ -294,8 +299,12 @@ func (c *Config) splitOne(path string, limit int, roots placementRoots) (Source,
 	return src, nil
 }
 
-// writeParts places plan's parts in dir, predicts what fetch will make of them, and
-// reports or removes the parts an earlier split of source left there.
+// writeParts places plan's parts and its index in dir, predicts what fetch will make
+// of the parts, and reports or removes what an earlier split of source left there.
+//
+// The index is planned like a part, so an earlier index of this source is
+// regenerated under --replace rather than mistaken for a leftover. It is not
+// predicted: it holds none of the book, so nothing should fetch it.
 func (c *Config) writeParts(src *Source, plan *split.Plan, dir, source string) error {
 	planned := map[string]bool{}
 	files := make([]plannedFile, 0, len(plan.Parts))
@@ -312,6 +321,12 @@ func (c *Config) writeParts(src *Source, plan *split.Plan, dir, source string) e
 		part.Lines = fmt.Sprintf("%d-%d", p.StartLine, p.EndLine)
 		src.Parts = append(src.Parts, part)
 	}
+	planned[plan.Index.Name] = true
+	index, err := c.place(filepath.Join(dir, plan.Index.Name), source, plan.Index.Content)
+	if err != nil {
+		return err
+	}
+	src.Index = &index
 
 	src.Unfetchable = predict(files, c.gates, c.Rules)
 

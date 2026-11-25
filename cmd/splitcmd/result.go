@@ -29,6 +29,10 @@ type Source struct {
 	// other than a heading.
 	Suspects []split.Suspect `json:"suspects,omitempty"`
 
+	// Index is the book's index and what happened to it, or nil when there are no
+	// parts to list.
+	Index *Part `json:"index,omitempty"`
+
 	// Original is what became of the source file under --originals, or nil when it
 	// was not to move.
 	Original *Original `json:"original,omitempty"`
@@ -78,7 +82,8 @@ func (s *Source) conflicts() int {
 	return n
 }
 
-// findings counts what a person must look at: refusals, conflicts, leftovers,
+// findings counts what a person must look at: refusals, conflicts in parts or the
+// index, leftovers,
 // parts still over the limit, and an original that could not move over another
 // file. An original kept for a conflicting part is not counted again.
 func (r *Result) findings() int {
@@ -95,6 +100,9 @@ func (r *Result) findings() int {
 			}
 		}
 		n += s.conflicts()
+		if s.Index != nil && s.Index.State == stateConflict {
+			n++
+		}
 		if s.Original != nil && s.Original.State == originalConflict {
 			n++
 		}
@@ -154,6 +162,7 @@ func (c *Config) print(result *Result) {
 			_, _ = fmt.Fprintf(c.Stdout, "  oversize  %s: no heading left to cut at\n", o)
 		}
 		c.printUnfetchable(s.Unfetchable)
+		c.printIndex(s.Index)
 		c.printSuspects(s.Suspects)
 		c.printLeftovers(s.Leftovers)
 		c.printOriginal(s.Original)
@@ -173,6 +182,15 @@ func (c *Config) printUnfetchable(files []Unfetchable) {
 			_, _ = fmt.Fprintf(c.Stdout, "      %s\n", f)
 		}
 	}
+}
+
+// printIndex says what became of the book's index.
+func (c *Config) printIndex(p *Part) {
+	if p == nil {
+		return
+	}
+	_, _ = fmt.Fprintf(c.Stdout, "  %-9s %7d  index %-13s %s%s\n",
+		p.State, p.Bytes, "", filepath.Base(p.Path), writtenBy(p.WrittenBy))
 }
 
 // printOriginal says where the source's original went, or why it stayed.

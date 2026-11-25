@@ -144,6 +144,10 @@ type Plan struct {
 	// heading left to cut at. They are planned anyway — a part over the cap is still
 	// a smaller problem than the whole book over it — and the shell reports them.
 	Oversize []string
+
+	// Index links every part in reading order. It is planned whenever Parts is
+	// non-empty and is the zero value otherwise.
+	Index Index
 }
 
 // span is a candidate part before it is rendered: a byte range and the headings
@@ -269,7 +273,8 @@ func renderAll(
 		}
 	}
 	plan.Parts = parts
-	return nil
+	plan.Index, err = buildIndex(stem, width, plan.SHA256, parts, opt)
+	return err
 }
 
 // cut divides s at the shallowest heading level found inside it, then cuts again any

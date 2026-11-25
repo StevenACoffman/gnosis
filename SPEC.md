@@ -524,6 +524,22 @@ names this source, read through the same package that writes it, so a hand-writt
 file is never touched. Conflicts and leftovers name the splitter version that wrote
 them.
 
+**Every split book gets an index, its entry point.** Beside the parts, split writes
+`<stem>-00-index.md` — as many zeros as the part numbers have digits, so it sorts first —
+listing each part in reading order as a relative link named for the part's own heading.
+It is not a part: no stretch of the source is in it, so it stays out of the verbatim,
+tiling and rendering checks, nothing should fetch it, and a conflict in it is reported
+without holding the original back. It is regenerated on every run, because a hand-kept
+index breaks the first time a re-split renumbers the parts, as one did for five books
+in 86 parts created and 151 removed. Its frontmatter opens with a `gnosis_split_index`
+block naming the source, so `--replace` regenerates it and a stale one is a leftover,
+read through the same `ReadProvenance` as a part. **That opening key is a contract with
+canonizer**: `canonizer distill` writes a prompt for every Markdown file it walks, and
+skips a file beginning `---` then `gnosis_split_index:`, which would otherwise be
+distilled as a book of links — finding nothing, inventing rules from chapter titles, or
+following the links and reading the book a second time. This section is that contract's
+one written statement; canonizer's code names the key and points here.
+
 **An original can be moved out of the sources once it is split.** A reader of the
 sources tree — canonizer distilling rules from it — otherwise reads every split book
 twice, once whole and once as its parts. `--originals DIR` moves each source split into
