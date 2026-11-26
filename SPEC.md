@@ -434,6 +434,140 @@ cap falls to `referenced`, keeping its URI and hash and losing its archived text
 is the documented trade (§4.3) and the reason the cap is a *weight* bound rather than a
 safety one — nothing is unsafe about the payload, and the corpus declines to carry it.
 
+#### 4.3.3 a Book Is Split, Not Admitted Over the Cap
+
+The per-file cap was set against a seed corpus whose longest source was under 90 KiB,
+and a book is typically several times that. Every oversize Markdown source falls to
+`referenced`, and §9.5's evidence signal then refuses every claim built on it — so the
+cap, applied as written, admits a blog post's claims and refuses a textbook's. That is
+backwards for a local-reductionist corpus (§1.1), and the fix is not to loosen the cap.
+
+`gnosis split` cuts a Markdown source into parts under the cap, beside the source, and
+the parts are what get fetched. It cuts only at top-level heading lines, shallowest
+level first, and cuts a piece further only while it is over the limit, so the parts
+follow the book's own structure. Three properties are checked on every run and a
+source failing any of them is refused with nothing written:
+
+- **Every part is a verbatim slice.** A quotation that validates against a part
+  validates against the source, at the byte and line range the part records.
+- **The parts tile the source.** Nothing dropped between parts, nothing duplicated.
+- **Rendering is unchanged.** The concatenated HTML of the parts equals the source's.
+  This is the check that is not true by construction: link reference definitions are
+  document-wide, so a part using one defined elsewhere carries a verbatim copy, and
+  this comparison is what proves the copy was enough.
+
+**In-document links are repaired, and that is the one edit made to a part's text.** A
+link to `#anchor` whose heading landed in another part would otherwise point at nothing;
+it becomes `<that part>.md#anchor`, and one whose anchor GitHub numbers differently
+within its part (`#summary-2` in the book, `#summary` in the part) is renumbered. The
+verbatim property is checked on the body *as cut*, the rendering comparison runs there
+too, and each rewrite is checked separately to be a fragment swapped for an anchor in
+this split — so a quotation still validates, because no prose changed, and nothing but
+a link destination can differ from the source. A fragment that named no heading in the
+source either is left as written and listed: it was broken before the split, and
+guessing its target would invent a link the author never made. Without this, splitting
+an O'Reilly book broke every cross-reference between its chapters — 925 in *Patterns of
+Enterprise Application Architecture* alone — and the rendering check could not see it,
+because a broken link renders exactly like a working one.
+
+Each part opens with a `gnosis_split` frontmatter block — source name, source SHA-256,
+part number, byte and line ranges, enclosing headings, links repaired and fragments left
+unresolved, splitter version — which is the
+provenance a quotation found in the part needs to be traced back.
+
+**A part's enclosing headings follow the book's outline, not its first line.** A
+heading opening a stretch encloses it only when every heading after it is deeper; one
+followed by a heading at its own level or above is a sibling. The splitter first took
+every source's opening heading as enclosing the whole book, which is wrong for front
+matter: once *Terraform: Up & Running*'s chapters were promoted to H1, every one was
+filed under "Preface" and Chapter 1 was folded into the preface's part, and two more of
+the 42 books did the same under "Introduction" and "About This Book". It is right for a
+title, though — fourteen of those books set their title at the level of their chapters,
+and the title encloses them all the same — so a source's opening heading still encloses
+the book unless it names front matter, from the list the chapter-under-front-matter
+check uses. Front matter with no common parent may share one part with an empty trail;
+a heading shallower than the first in that stretch may not, because it opens a section
+the trail would hide, which is how one book's Part I was archived as front matter.
+
+**It is a separate command rather than a fourth disposition**, because a disposition is
+one archive path per fetch record (§4.3.1) and a split is many. Folding it into `fetch`
+would change the ledger's shape to save one command, and would hide a step a person
+should see: the parts are files they can read, diff and commit before anything is
+archived. It writes beside its sources and not into the bundle, so it takes no writer
+lock and writes no audit row.
+
+**It reports what would go wrong before anything is written**, because every defect
+the first real run met — in a corpus of 42 converted books — was found only after the
+parts had been written, committed and fetched:
+
+- **Parts fetch will refuse.** Each file split leaves for fetch is put through fetch's
+  own `archive.Decide` with the bundle's gates and scan rules, and one fetch would
+  refuse is reported as *unfetchable* with the finding fetch prints. Twenty-two sources
+  were refused that way — zero-width characters O'Reilly uses as line-break hints, PDF
+  soft hyphens, a credential in a setup example, a `curl | sh` install line.
+- **Cuts at headings that are not headings.** Each heading the split cuts at is checked
+  for reading as something else: a setext heading spanning several lines (code or
+  terminal output above a line of dashes), a shell command, an assignment or call, a
+  chart label (lower-case, with chart data on the line above), or a chapter nested
+  under front matter such as "Preface". Each is a *suspect*; `--strict` refuses the
+  source. Lower case alone was tried and rejected: it flagged seven real headings in
+  one corpus, because some books set front matter in lower case and "gRPC" is a name.
+
+Both are reported, never repaired. Whether a character is a defect or a heading is
+real is a judgement about the source, the fix belongs there, and repairing it here
+would break the verbatim property.
+
+**Regenerating is explicit.** A part is never overwritten by default, and a part an
+earlier split left is reported, not deleted, because a claim may already quote it.
+`--replace` overwrites and removes — but only a file whose own `gnosis_split` block
+names this source, read through the same package that writes it, so a hand-written
+file is never touched. Conflicts and leftovers name the splitter version that wrote
+them.
+
+**Every split book gets an index, its entry point.** Beside the parts, split writes
+`<stem>-00-index.md` — as many zeros as the part numbers have digits, so it sorts first —
+listing each part in reading order as a relative link named for the part's own heading.
+It is not a part: no stretch of the source is in it, so it stays out of the verbatim,
+tiling and rendering checks, nothing should fetch it, and a conflict in it is reported
+without holding the original back. It is regenerated on every run, because a hand-kept
+index breaks the first time a re-split renumbers the parts, as one did for five books
+in 86 parts created and 151 removed. Its frontmatter opens with a `gnosis_split_index`
+block naming the source, so `--replace` regenerates it and a stale one is a leftover,
+read through the same `ReadProvenance` as a part. **That opening key is a contract with
+canonizer**: `canonizer distill` writes a prompt for every Markdown file it walks, and
+skips a file beginning `---` then `gnosis_split_index:`, which would otherwise be
+distilled as a book of links — finding nothing, inventing rules from chapter titles, or
+following the links and reading the book a second time. This section is that contract's
+one written statement; canonizer's code names the key and points here.
+
+**An original can be moved out of the sources once it is split.** A reader of the
+sources tree — canonizer distilling rules from it — otherwise reads every split book
+twice, once whole and once as its parts. `--originals DIR` moves each source split into
+parts to DIR at the path it has relative to `--sources` (the working directory by
+default), so `source_materials/kleppmann/ddia.md` becomes
+`split_source_originals/kleppmann/ddia.md`, creating directories as needed. A source
+that fits is never moved, because it has no parts to stand in for it. The original
+stays while any part conflicts, since it is then the only faithful copy of that
+stretch, and it is never written over a different file at its destination, `--replace`
+or not, because nothing records that file as one split may replace. A source already
+under `--originals` is split back into the matching directory under `--sources` and
+left where it is, so re-splitting a moved book needs no step by hand. Parts still name
+their source by file name and SHA-256 only; where it is kept is the caller's choice.
+
+**Small sections can be joined, and are not by default.** `--min-bytes N` joins a
+section smaller than N to its neighbour when the two fit under the limit, for a book
+whose conversion flattened its headings (one split into 81 parts, 13 too small to hold
+a claim). No default is set because none has been measured, and a threshold belongs in
+`standards/` only once one has (§6.5); when set, it is recorded in every part.
+
+**What it does not do.** It does not reformat: a source with long lines or stray blank
+lines yields parts with the same, because rewriting bytes would break the verbatim
+property, and a reformat belongs in the source before it is split. It does not repair
+heading structure: a conversion that flattened chapters and sections to one level
+yields a part per section unless `--min-bytes` joins them.
+And a stretch with no heading left to cut at is planned over
+the limit and reported, not cut mid-paragraph.
+
 ______________________________________________________________________
 
 ### 4.4 SVG Is Active Content
@@ -2742,6 +2876,7 @@ gnosis schema [--check] | link       maintain AGENTS.md and agent-file symlinks
 ```text
 gnosis fetch <uri>...                archive bytes into tier 0; append (uri, sha256)
 gnosis fetch --recheck               re-fetch recorded sources; resolve drift (§14.3.2)
+gnosis split <file.md>...            cut an oversize Markdown source into archivable parts (§4.3.3)
 gnosis ingest <uri|path>...          fetch → scan → emit extraction prompt(s)
 gnosis ingest --resume               drain the crash-resumable queue
 gnosis admit <reply-file>|--stdin    gate a reply; write to quarantine on pass
