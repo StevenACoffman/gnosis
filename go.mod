@@ -44,5 +44,5 @@ require (
 require (
 	github.com/StevenACoffman/skillet v0.37.0
 	github.com/StevenACoffman/toerr v0.3.0
-	github.com/yuin/goldmark v1.8.4
+	github.com/yuin/goldmark v1.8.7
 )
