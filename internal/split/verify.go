@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -124,8 +125,9 @@ func lineStartOf(src []byte, pos int) int {
 
 // verify checks the properties the package promises: the parts tile the source,
 // each body as cut is a verbatim slice of it, the parts as cut render to what the
-// source renders to, and the only difference between a part as cut and the file
-// written is its recorded link rewrites.
+// source renders to, the only differences between a part as cut and the file
+// written are its recorded link rewrites and its navigation footer, and that footer
+// links the part's neighbours.
 //
 // Requires: parts came from renderAll over src.
 // Ensures: nil exactly when all of them hold. The rendering comparison is the one
@@ -134,6 +136,9 @@ func lineStartOf(src []byte, pos int) int {
 // bodies as cut, because a relinked destination renders differently by design.
 func verify(src []byte, parts []Part) error {
 	if err := checkTiling(src, parts); err != nil {
+		return err
+	}
+	if err := checkNavigation(parts); err != nil {
 		return err
 	}
 
@@ -193,8 +198,8 @@ func asCut(p *Part) []byte {
 }
 
 // checkRewrites proves the file differs from the body as cut only by its recorded
-// rewrites, and that each one swaps an in-document fragment for an anchor in this
-// part or in another part of the same split.
+// rewrites and its footer, and that each rewrite swaps an in-document fragment for an
+// anchor in this part or in another part of the same split.
 func checkRewrites(p *Part, cut []byte, names map[string]bool) error {
 	for _, r := range p.rewrites {
 		if r.At+len(r.Old) > len(cut) || string(cut[r.At:r.At+len(r.Old)]) != r.Old {
@@ -209,8 +214,10 @@ func checkRewrites(p *Part, cut []byte, names map[string]bool) error {
 			)
 		}
 	}
-	if !bytes.Equal(applyRewrites(cut, p.rewrites), partBody(p)) {
-		return errors.New("the file differs from its body by more than its recorded rewrites")
+	if !bytes.Equal(slices.Concat(applyRewrites(cut, p.rewrites), p.footer), partBody(p)) {
+		return errors.New(
+			"the file differs from its body by more than its recorded rewrites and footer",
+		)
 	}
 	return nil
 }

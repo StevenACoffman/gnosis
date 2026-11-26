@@ -53,11 +53,7 @@ func buildIndex(stem string, width int, sum string, parts []Part, opt Options) (
 	buf.Write(fm)
 	buf.WriteString("---\n\n# Parts of " + opt.Source + "\n\n")
 	for i := range parts {
-		title := "Front matter"
-		if h := parts[i].Headings; len(h) > 0 {
-			title = h[len(h)-1]
-		}
-		buf.WriteString(strconv.Itoa(i+1) + ". [" + linkText(title) + "](" + parts[i].Name + ")\n")
+		buf.WriteString(strconv.Itoa(i+1) + ". " + navLink(&parts[i]) + "\n")
 	}
 	return Index{Name: name, Content: buf.Bytes()}, nil
 }

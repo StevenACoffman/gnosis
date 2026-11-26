@@ -41,7 +41,7 @@ import (
 // Version names the splitting rules a part was cut under. It is recorded in every
 // part, so a change to the rules that would cut a source differently is visible as a
 // different value rather than as files that silently disagree with a re-run.
-const Version = 2
+const Version = 3
 
 // frontmatterReserve is the room left under the limit for a part's provenance
 // frontmatter. A heading trail long enough to exceed it produces an Oversize part,
@@ -114,14 +114,16 @@ type Part struct {
 	Relinked   int
 	Unresolved []string
 
-	// Content is the complete file: provenance frontmatter, the body, and any
-	// copied definitions.
+	// Content is the complete file: provenance frontmatter, the body, any copied
+	// definitions, and the navigation footer.
 	Content []byte
 
 	// unlinked is the body before relinking and rewrites what relinking changed;
 	// verify checks the first against the source and the second against the file.
+	// footer is the navigation appended after both, checked to link the neighbours.
 	unlinked []byte
 	rewrites []rewrite
+	footer   []byte
 	number   int
 }
 
@@ -232,10 +234,11 @@ func Split(src []byte, opt Options) (*Plan, error) {
 
 // renderAll renders every span into plan.Parts, noting any still over the limit.
 //
-// Three passes, because the middle one needs every part's name: cut each body and
+// Four passes, because the middle two need every part's name: cut each body and
 // copy the definitions it needs, point in-document links at the part now holding
-// their heading, then put the provenance frontmatter on top — last, so it can record
-// what the relinking did.
+// their heading, link each part to its neighbours, then put the provenance
+// frontmatter on top — last, so it can record what the relinking did. The footer is
+// added after relinking so no rewrite can touch it.
 func renderAll(
 	src []byte,
 	sections []markdown.Section,
@@ -262,6 +265,11 @@ func renderAll(
 		p.unlinked = p.Content
 		p.Content, p.rewrites, p.Unresolved = relink(p.unlinked, i, names, where)
 		p.Relinked = len(p.rewrites)
+	}
+
+	for i := range parts {
+		parts[i].footer = navigation(neighbours(parts, i))
+		parts[i].Content = slices.Concat(parts[i].Content, parts[i].footer)
 	}
 
 	for i := range parts {

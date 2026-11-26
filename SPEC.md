@@ -470,6 +470,17 @@ an O'Reilly book broke every cross-reference between its chapters — 925 in *Pa
 Enterprise Application Architecture* alone — and the rendering check could not see it,
 because a broken link renders exactly like a working one.
 
+**Each part ends by linking its neighbours.** After the body and any copied
+definitions, a part carries one plain paragraph — `Previous: [<heading>](<part>.md) ·
+Next: [<heading>](<part>.md)`, either side absent at the ends of the book — so a reader
+can walk the parts in order without returning to the index. Like a copied definition it
+holds no stretch of the source and stays out of the verbatim and rendering checks; the
+file is checked to differ from the body as cut by exactly its rewrites and this footer,
+and the footer is re-read to link exactly the parts before and after it. It is a
+paragraph and never a heading, because canonizer matches a section-only anchor against
+headings, and a footer heading would give every part a section named for its
+neighbour. Adding it changed every part's bytes, so it arrived as splitter version 3.
+
 Each part opens with a `gnosis_split` frontmatter block — source name, source SHA-256,
 part number, byte and line ranges, enclosing headings, links repaired and fragments left
 unresolved, splitter version — which is the

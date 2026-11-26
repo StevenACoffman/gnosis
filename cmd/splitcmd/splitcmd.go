@@ -34,7 +34,7 @@ Three properties are checked on every run, and a source that fails any of them i
 refused and nothing is written for it:
 
   - every part's body is a verbatim slice of the source, apart from its
-    recorded link repairs;
+    recorded link repairs and its navigation footer;
   - the parts tile the source, with nothing dropped or duplicated;
   - the parts render to exactly the HTML the source renders to.
 
@@ -48,6 +48,11 @@ numbered differently within its part is renumbered. That is the one change made
 to a part's text, so it is recorded: each rewrite is checked to be nothing but a
 fragment swapped for an anchor in this split, and the frontmatter counts them. A
 fragment naming no heading in the source is left as written and listed.
+
+Each part ends with one plain paragraph linking the parts before and after it,
+"Previous: [heading](part.md) · Next: [heading](part.md)", either side omitted at
+the ends of the book. It holds no source text, so it is outside the verbatim and
+rendering checks, and it is checked to link exactly those neighbours.
 
 --min-bytes N joins a section smaller than N bytes to its neighbour when the two
 fit under the limit, for a source whose conversion flattened its headings into
